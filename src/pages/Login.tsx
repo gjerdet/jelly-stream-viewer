@@ -6,19 +6,49 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Film } from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
+
+// Sett din Jellyfin server URL her
+const JELLYFIN_SERVER_URL = "https://din-jellyfin-server.com";
+
+const loginSchema = z.object({
+  username: z.string().trim().min(1, "Brukernavn er påkrevd").max(100),
+  password: z.string().min(1, "Passord er påkrevd"),
+});
 
 const Login = () => {
   const navigate = useNavigate();
-  const [serverUrl, setServerUrl] = useState("https://");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrors({});
+    
+    // Valider input
+    try {
+      loginSchema.parse({ username, password });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: { username?: string; password?: string } = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        return;
+      }
+    }
+
     setLoading(true);
 
-    // Simulate login - this will be replaced with actual Jellyfin API call
+    // Her vil du kalle Jellyfin API med JELLYFIN_SERVER_URL
+    // Eksempel: await fetch(`${JELLYFIN_SERVER_URL}/Users/AuthenticateByName`, ...)
+    
+    // Simulert login - bytt ut med faktisk Jellyfin API-kall
     setTimeout(() => {
       setLoading(false);
       toast.success("Logget inn!");
@@ -45,18 +75,6 @@ const Login = () => {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="server">Server URL</Label>
-              <Input
-                id="server"
-                type="url"
-                placeholder="https://din-jellyfin-server.com"
-                value={serverUrl}
-                onChange={(e) => setServerUrl(e.target.value)}
-                className="bg-secondary/50 border-border/50"
-                required
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="username">Brukernavn</Label>
               <Input
                 id="username"
@@ -65,8 +83,10 @@ const Login = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="bg-secondary/50 border-border/50"
-                required
               />
+              {errors.username && (
+                <p className="text-sm text-destructive">{errors.username}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Passord</Label>
@@ -77,8 +97,10 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="bg-secondary/50 border-border/50"
-                required
               />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
             </div>
             <Button 
               type="submit" 
@@ -88,6 +110,10 @@ const Login = () => {
               {loading ? "Logger inn..." : "Logg inn"}
             </Button>
           </form>
+          
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Kobler til: {JELLYFIN_SERVER_URL}
+          </p>
         </CardContent>
       </Card>
     </div>
