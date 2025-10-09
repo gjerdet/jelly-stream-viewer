@@ -1,27 +1,36 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Film } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useServerSettings } from "@/hooks/useServerSettings";
 
-// Sett din Jellyfin server URL her
-const JELLYFIN_SERVER_URL = "https://din-jellyfin-server.com";
-
-const loginSchema = z.object({
-  username: z.string().trim().min(1, "Brukernavn er påkrevd").max(100),
-  password: z.string().min(1, "Passord er påkrevd"),
+const authSchema = z.object({
+  email: z.string().trim().email("Ugyldig e-postadresse").max(255),
+  password: z.string().min(6, "Passord må være minst 6 tegn"),
 });
 
 const Login = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const { user } = useAuth();
+  const { serverUrl } = useServerSettings();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+
+  useEffect(() => {
+    if (user) {
+      navigate("/browse");
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,10 +38,10 @@ const Login = () => {
     
     // Valider input
     try {
-      loginSchema.parse({ username, password });
+      authSchema.parse({ email, password });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const fieldErrors: { username?: string; password?: string } = {};
+        const fieldErrors: { email?: string; password?: string } = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
             fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
@@ -45,15 +54,57 @@ const Login = () => {
 
     setLoading(true);
 
-    // Her vil du kalle Jellyfin API med JELLYFIN_SERVER_URL
-    // Eksempel: await fetch(`${JELLYFIN_SERVER_URL}/Users/AuthenticateByName`, ...)
-    
-    // Simulert login - bytt ut med faktisk Jellyfin API-kall
-    setTimeout(() => {
-      setLoading(false);
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
       toast.success("Logget inn!");
       navigate("/browse");
-    }, 1000);
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrors({});
+    
+    try {
+      authSchema.parse({ email, password });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: { email?: string; password?: string } = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+          }
+        });
+        setErrors(fieldErrors);
+        return;
+      }
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/browse`
+      }
+    });
+
+    setLoading(false);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Konto opprettet! Du kan nå logge inn.");
+    }
   };
 
   return (
@@ -73,46 +124,95 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Brukernavn</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="Skriv inn brukernavn"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="bg-secondary/50 border-border/50"
-              />
-              {errors.username && (
-                <p className="text-sm text-destructive">{errors.username}</p>
-              )}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Passord</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Skriv inn passord"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="bg-secondary/50 border-border/50"
-              />
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
-              )}
-            </div>
-            <Button 
-              type="submit" 
-              className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
-              disabled={loading}
-            >
-              {loading ? "Logger inn..." : "Logg inn"}
-            </Button>
-          </form>
+          <Tabs defaultValue="login" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="login">Logg inn</TabsTrigger>
+              <TabsTrigger value="signup">Registrer</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-login">E-post</Label>
+                  <Input
+                    id="email-login"
+                    type="email"
+                    placeholder="din@epost.no"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-secondary/50 border-border/50"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password-login">Passord</Label>
+                  <Input
+                    id="password-login"
+                    type="password"
+                    placeholder="Skriv inn passord"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-secondary/50 border-border/50"
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
+                  disabled={loading}
+                >
+                  {loading ? "Logger inn..." : "Logg inn"}
+                </Button>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email-signup">E-post</Label>
+                  <Input
+                    id="email-signup"
+                    type="email"
+                    placeholder="din@epost.no"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-secondary/50 border-border/50"
+                  />
+                  {errors.email && (
+                    <p className="text-sm text-destructive">{errors.email}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password-signup">Passord</Label>
+                  <Input
+                    id="password-signup"
+                    type="password"
+                    placeholder="Minst 6 tegn"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-secondary/50 border-border/50"
+                  />
+                  {errors.password && (
+                    <p className="text-sm text-destructive">{errors.password}</p>
+                  )}
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
+                  disabled={loading}
+                >
+                  {loading ? "Registrerer..." : "Opprett konto"}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
           
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Kobler til: {JELLYFIN_SERVER_URL}
+            Jellyfin server: {serverUrl || "Laster..."}
           </p>
         </CardContent>
       </Card>

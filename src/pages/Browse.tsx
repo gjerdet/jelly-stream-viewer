@@ -1,10 +1,19 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import MediaRow from "@/components/MediaRow";
+import { useAuth } from "@/hooks/useAuth";
 
 const Browse = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/");
+    }
+  }, [user, loading, navigate]);
 
   // Mock data - will be replaced with Jellyfin API data
   const featuredContent = {
@@ -94,6 +103,14 @@ const Browse = () => {
   const handleItemClick = (id: string) => {
     navigate(`/detail/${id}`);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Laster...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">

@@ -1,5 +1,7 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { Film } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
   const location = useLocation();
@@ -9,13 +11,22 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-gray-600">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 underline hover:text-blue-700">
-          Return to Home
-        </a>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="text-center space-y-6">
+        <div className="flex justify-center">
+          <div className="p-4 rounded-2xl bg-destructive/10">
+            <Film className="h-16 w-16 text-destructive" />
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h1 className="text-6xl font-bold">404</h1>
+          <p className="text-xl text-muted-foreground">Oops! Siden ble ikke funnet</p>
+        </div>
+        <Link to="/">
+          <Button className="cinema-glow">
+            Tilbake til forsiden
+          </Button>
+        </Link>
       </div>
     </div>
   );

@@ -1,1 +1,4 @@
 project_id = "ypjihlfhxqyrpfjfmjdm"
+
+[functions.jellyfin-proxy]
+verify_jwt = true
