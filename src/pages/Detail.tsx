@@ -418,7 +418,7 @@ const Detail = () => {
           <div className="absolute inset-0 opacity-[0.02] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMzAwdjMwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')]" />
         </div>
 
-        <div className="relative container mx-auto px-4 h-full flex flex-col justify-center py-20">
+        <div className="relative container mx-auto px-4 h-full flex flex-col justify-start pt-20 pb-20">
           <Button
             variant="ghost"
             size="sm"
@@ -430,7 +430,7 @@ const Detail = () => {
           </Button>
 
           {/* Cover Image */}
-          <div className="flex items-end gap-6">
+          <div className="flex items-start gap-6">
             {item.ImageTags?.Primary && serverUrl && (
               <div className="w-48 h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
                 <img
@@ -441,7 +441,7 @@ const Detail = () => {
               </div>
             )}
             
-            <div className="flex-1">
+            <div className="flex-1 min-h-[288px]">
               <h1 className="text-5xl font-bold mb-4 text-white drop-shadow-lg">
                 {item.Name}
               </h1>
