@@ -24,6 +24,7 @@ interface JellyfinItem {
   CommunityRating?: number;
   Overview?: string;
   ImageTags?: { Primary?: string };
+  BackdropImageTags?: string[];
   Genres?: string[];
 }
 
@@ -127,13 +128,17 @@ const Browse = () => {
 
   const hasApiError = itemsError || resumeError;
 
-  // Use first item as featured
+  // Use first item as featured with backdrop image
   const featuredContent = allItems?.Items?.[0]
     ? {
         title: allItems.Items[0].Name,
         description: allItems.Items[0].Overview || "Ingen beskrivelse tilgjengelig",
-        image: serverUrl && allItems.Items[0].ImageTags?.Primary
-          ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Primary?maxHeight=600`
+        image: serverUrl
+          ? allItems.Items[0].BackdropImageTags?.[0]
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Backdrop?maxHeight=1080`
+            : allItems.Items[0].ImageTags?.Primary
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Primary?maxHeight=1080`
+            : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop"
           : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop",
         rating: allItems.Items[0].CommunityRating?.toFixed(1),
         year: allItems.Items[0].ProductionYear?.toString(),
