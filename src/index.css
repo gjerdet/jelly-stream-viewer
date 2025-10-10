@@ -83,4 +83,30 @@ All colors MUST be HSL.
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Enhanced backdrop effects */
+  .backdrop-blur-subtle {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .backdrop-cinematic {
+    position: relative;
+  }
+
+  .backdrop-cinematic::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at top, transparent 0%, rgba(0, 0, 0, 0.6) 100%);
+    pointer-events: none;
+  }
+
+  .backdrop-cinematic::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.8) 100%);
+    pointer-events: none;
+  }
 }

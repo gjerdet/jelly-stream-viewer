@@ -12,14 +12,21 @@ interface HeroProps {
 const Hero = ({ title, description, image, rating, year }: HeroProps) => {
   return (
     <div className="relative h-[70vh] w-full overflow-hidden">
+      {/* Backdrop with Enhanced Effects */}
       <div className="absolute inset-0">
         <img
           src={image}
           alt={title}
-          className="w-full h-full object-cover"
+          className="w-full h-full object-cover scale-110 animate-fade-in"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        {/* Multiple gradient overlays */}
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-background/50" />
+        {/* Vignette effect */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+        {/* Color overlay for warmth */}
+        <div className="absolute inset-0 bg-primary/5 mix-blend-overlay" />
       </div>
 
       <div className="relative container mx-auto px-4 h-full flex items-center">
