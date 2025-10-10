@@ -12,11 +12,11 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { type, page = 1 } = await req.json();
     
-    if (!query || query.trim().length === 0) {
+    if (!type || !['movie', 'tv'].includes(type)) {
       return new Response(
-        JSON.stringify({ error: 'Søkeord er påkrevd' }),
+        JSON.stringify({ error: 'Type må være "movie" eller "tv"' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -24,7 +24,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Search query:', query);
+    console.log('Discover request:', { type, page });
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -44,7 +44,7 @@ serve(async (req) => {
       .eq('setting_key', 'jellyseerr_api_key')
       .maybeSingle();
 
-    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '').replace('https://', 'http://'); // Remove trailing slash and use HTTP
+    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '').replace('https://', 'http://');
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
     if (!jellyseerrUrl || !jellyseerrApiKey) {
@@ -58,11 +58,11 @@ serve(async (req) => {
       );
     }
 
-    // Search via Jellyseerr API
-    const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=1&language=no`;
-    console.log('Searching Jellyseerr:', searchUrl);
+    // Fetch discover data from Jellyseerr
+    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
+    console.log('Fetching from Jellyseerr:', discoverUrl);
 
-    const response = await fetch(searchUrl, {
+    const response = await fetch(discoverUrl, {
       method: 'GET',
       headers: {
         'X-Api-Key': jellyseerrApiKey,
@@ -72,10 +72,10 @@ serve(async (req) => {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Jellyseerr search error:', response.status, errorText);
+      console.error('Jellyseerr discover error:', response.status, errorText);
       return new Response(
         JSON.stringify({ 
-          error: 'Søket feilet',
+          error: 'Kunne ikke hente oppdagelsesdata',
           details: errorText 
         }),
         { 
@@ -86,7 +86,7 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Search results count:', data.results?.length || 0);
+    console.log('Discover results count:', data.results?.length || 0);
 
     return new Response(
       JSON.stringify(data),
@@ -97,7 +97,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in jellyseerr-search:', error);
+    console.error('Error in jellyseerr-discover:', error);
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Ukjent feil' 
