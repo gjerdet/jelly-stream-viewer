@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 
@@ -35,6 +36,7 @@ const Header = () => {
   const { user } = useAuth();
   const { data: userRole } = useUserRole(user?.id);
   const { serverUrl } = useServerSettings();
+  const { siteName, logoUrl, headerTitle } = useSiteSettings();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -120,7 +122,7 @@ const Header = () => {
     { name: "Serier", path: "/series" },
     { name: "Min liste", path: "/my-list" },
     { name: "Ønsker", path: "/wishes" },
-    { name: "Søk", path: "/requests" },
+    { name: "Info", path: "/news" },
     { name: "Historikk", path: "/history" },
   ];
 
@@ -130,10 +132,18 @@ const Header = () => {
         <div className="flex items-center justify-between gap-8">
           <div className="flex items-center gap-8">
             <Link to="/browse" className="flex items-center gap-2 group">
-              <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 smooth-transition">
-                <Film className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xl font-bold hidden sm:block">Jellyfin</span>
+              {logoUrl ? (
+                <img 
+                  src={logoUrl} 
+                  alt={siteName}
+                  className="h-10 w-auto object-contain"
+                />
+              ) : (
+                <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 smooth-transition">
+                  <Film className="h-6 w-6 text-primary" />
+                </div>
+              )}
+              <span className="text-xl font-bold hidden sm:block">{headerTitle}</span>
             </Link>
 
             <nav className="hidden md:flex items-center gap-6">

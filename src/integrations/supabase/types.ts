@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      news_posts: {
+        Row: {
+          content: string
+          created_at: string | null
+          created_by: string
+          id: string
+          published: boolean | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          created_by: string
+          id?: string
+          published?: boolean | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          created_by?: string
+          id?: string
+          published?: boolean | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -36,6 +66,30 @@ export type Database = {
         Relationships: []
       }
       server_settings: {
+        Row: {
+          id: string
+          setting_key: string
+          setting_value: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          setting_key: string
+          setting_value: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          setting_key?: string
+          setting_value?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      site_settings: {
         Row: {
           id: string
           setting_key: string
