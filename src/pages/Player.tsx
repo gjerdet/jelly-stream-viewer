@@ -48,7 +48,28 @@ const Player = () => {
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
+  const [apiKey, setApiKey] = useState<string>("");
   const hideControlsTimer = useRef<NodeJS.Timeout>();
+
+  // Fetch API key
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      const { data } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyfin_api_key")
+        .single();
+      
+      if (data?.setting_value) {
+        setApiKey(data.setting_value);
+        console.log('API key loaded');
+      }
+    };
+    
+    if (user) {
+      fetchApiKey();
+    }
+  }, [user]);
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -69,29 +90,14 @@ const Player = () => {
 
   const subtitles = item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
 
-  // Fetch playback info and set stream URL
+  // Set stream URL when we have all needed data
   useEffect(() => {
-    const getStreamUrl = async () => {
-      if (!userId || !id) return;
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No session found');
-        return;
-      }
-      
-      // Create stream URL with access token in query params
-      const streamEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
-      
-      setStreamUrl(streamEndpoint);
-      console.log('Stream URL set with token');
-    };
-
-    if (item && userId) {
-      console.log('Preparing stream for item:', id);
-      getStreamUrl();
+    if (serverUrl && userId && id && apiKey) {
+      const url = `${serverUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&PlaySessionId=${Date.now()}&api_key=${apiKey}`;
+      setStreamUrl(url);
+      console.log('Stream URL configured');
     }
-  }, [item, userId, id]);
+  }, [serverUrl, userId, id, apiKey]);
 
   const handleMouseMove = () => {
     setShowControls(true);
@@ -111,7 +117,7 @@ const Player = () => {
     };
   }, []);
 
-  if (!serverUrl || !userId || !id || !streamUrl) {
+  if (!serverUrl || !userId || !id || !streamUrl || !apiKey) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         Laster...
@@ -136,7 +142,7 @@ const Player = () => {
           <track
             key={subtitle.Index}
             kind="subtitles"
-            src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitle.Index}&token=${streamUrl.split('token=')[1]}`}
+            src={`${serverUrl.replace(/\/$/, '')}/Videos/${id}/${id}/Subtitles/${subtitle.Index}/Stream.vtt?api_key=${apiKey}`}
             label={subtitle.DisplayTitle || subtitle.Language || `Subtitle ${subtitle.Index}`}
             default={subtitle.IsDefault}
           />
