@@ -1,11 +1,27 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface MediaStream {
+  Index: number;
+  Type: string;
+  DisplayTitle?: string;
+  Language?: string;
+  Codec?: string;
+  IsDefault?: boolean;
+}
 
 interface JellyfinItemDetail {
   Id: string;
@@ -21,6 +37,7 @@ interface JellyfinItemDetail {
   Genres?: string[];
   Studios?: { Name: string }[];
   People?: { Name: string; Role: string; Type: string }[];
+  MediaStreams?: MediaStream[];
 }
 
 const Detail = () => {
@@ -28,6 +45,7 @@ const Detail = () => {
   const { id } = useParams();
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
+  const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -46,11 +64,11 @@ const Detail = () => {
 
   const userId = usersData?.[0]?.Id;
 
-  // Fetch item details
+  // Fetch item details with media streams
   const { data: item, isLoading: itemLoading } = useJellyfinApi<JellyfinItemDetail>(
     ["item-detail", id || ""],
     {
-      endpoint: id && userId ? `/Users/${userId}/Items/${id}` : "",
+      endpoint: id && userId ? `/Users/${userId}/Items/${id}?Fields=MediaStreams` : "",
     },
     !!user && !!userId && !!id
   );
@@ -81,6 +99,9 @@ const Detail = () => {
     : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop";
 
   const runtime = item.RunTimeTicks ? Math.round(item.RunTimeTicks / 600000000) : null;
+
+  // Filter subtitle streams
+  const subtitles = item.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -127,7 +148,7 @@ const Detail = () => {
             {runtime && <span>{runtime} min</span>}
           </div>
 
-          <div className="flex gap-3 mb-6">
+          <div className="flex flex-wrap gap-3 mb-6">
             <Button size="lg" className="gap-2">
               <Play className="h-5 w-5" />
               Spill av
@@ -139,6 +160,22 @@ const Detail = () => {
             <Button size="lg" variant="outline">
               <ThumbsUp className="h-5 w-5" />
             </Button>
+            {subtitles.length > 0 && (
+              <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
+                <SelectTrigger className="w-[200px] bg-background/80 backdrop-blur-sm border-white/20 text-white">
+                  <Subtitles className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Undertekster" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Ingen undertekster</SelectItem>
+                  {subtitles.map((subtitle) => (
+                    <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
+                      {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {item.Overview && (
