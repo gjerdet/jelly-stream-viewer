@@ -9,19 +9,70 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { Settings } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const Admin = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
   const [newServerUrl, setNewServerUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+
+  // Fetch API key
+  const { data: currentApiKey } = useQuery({
+    queryKey: ["server-settings", "jellyfin_api_key"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyfin_api_key")
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value || "";
+    },
+    enabled: !!user && userRole === "admin",
+  });
+
+  // Update API key mutation
+  const updateApiKey = useMutation({
+    mutationFn: async (newApiKey: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "jellyfin_api_key",
+          setting_value: newApiKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Jellyfin API-nøkkel oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere API-nøkkel");
+    },
+  });
 
   useEffect(() => {
     if (serverUrl && !newServerUrl) {
       setNewServerUrl(serverUrl);
     }
   }, [serverUrl]);
+
+  useEffect(() => {
+    if (currentApiKey && !apiKey) {
+      setApiKey(currentApiKey);
+    }
+  }, [currentApiKey]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -33,6 +84,12 @@ const Admin = () => {
 
   const handleUpdateUrl = () => {
     updateServerUrl.mutate(newServerUrl);
+  };
+
+  const handleUpdateApiKey = () => {
+    if (apiKey.trim()) {
+      updateApiKey.mutate(apiKey.trim());
+    }
   };
 
   if (authLoading || roleLoading) {
@@ -87,6 +144,35 @@ const Admin = () => {
                 className="cinema-glow"
               >
                 {updateServerUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle>Jellyfin API-nøkkel</CardTitle>
+              <CardDescription>
+                Konfigurer API-nøkkelen for å autentisere mot Jellyfin-serveren
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="api-key">API-nøkkel</Label>
+                <Input
+                  id="api-key"
+                  type="password"
+                  placeholder="Skriv inn Jellyfin API-nøkkel"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  className="bg-secondary/50 border-border/50"
+                />
+              </div>
+              <Button 
+                onClick={handleUpdateApiKey}
+                disabled={updateApiKey.isPending}
+                className="cinema-glow"
+              >
+                {updateApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
               </Button>
             </CardContent>
           </Card>

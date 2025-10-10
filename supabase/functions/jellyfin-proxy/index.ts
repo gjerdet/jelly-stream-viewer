@@ -59,16 +59,34 @@ serve(async (req) => {
 
     const jellyfinServerUrl = settings.setting_value.replace(/\/$/, '');
 
+    // Get Jellyfin API key from settings
+    const { data: apiKeySettings, error: apiKeyError } = await supabaseClient
+      .from('server_settings')
+      .select('setting_value')
+      .eq('setting_key', 'jellyfin_api_key')
+      .maybeSingle();
+
+    if (apiKeyError || !apiKeySettings) {
+      console.error('Error fetching Jellyfin API key:', apiKeyError);
+      return new Response(JSON.stringify({ error: 'Jellyfin API key not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const apiKey = apiKeySettings.setting_value;
+
     // Parse request body
     const { endpoint, method = 'GET', body }: JellyfinRequest = await req.json();
 
     console.log(`Proxying request to Jellyfin: ${method} ${jellyfinServerUrl}${endpoint}`);
 
-    // Make request to Jellyfin API
+    // Make request to Jellyfin API with authentication
     const jellyfinResponse = await fetch(`${jellyfinServerUrl}${endpoint}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
+        'X-Emby-Token': apiKey,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
