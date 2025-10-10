@@ -118,6 +118,7 @@ const Header = () => {
     { name: "Hjem", path: "/browse" },
     { name: "Filmer", path: "/movies" },
     { name: "Serier", path: "/series" },
+    { name: "Min liste", path: "/my-list" },
     { name: "Ønsker", path: "/wishes" },
     { name: "Søk", path: "/requests" },
     { name: "Historikk", path: "/history" },

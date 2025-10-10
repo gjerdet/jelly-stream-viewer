@@ -5,8 +5,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Select,
   SelectContent,
@@ -87,12 +89,122 @@ const Detail = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!loading && !user) {
       navigate("/");
     }
   }, [user, loading, navigate]);
+
+  // Check if item is in favorites
+  const { data: isFavorite } = useQuery({
+    queryKey: ["is-favorite", id, user?.id],
+    queryFn: async () => {
+      if (!user || !id) return false;
+      const { data, error } = await supabase
+        .from("user_favorites")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("jellyfin_item_id", id)
+        .maybeSingle();
+      
+      if (error) console.error("Error checking favorite:", error);
+      return !!data;
+    },
+    enabled: !!user && !!id,
+  });
+
+  // Check if item is liked
+  const { data: isLiked } = useQuery({
+    queryKey: ["is-liked", id, user?.id],
+    queryFn: async () => {
+      if (!user || !id) return false;
+      const { data, error } = await supabase
+        .from("user_likes")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("jellyfin_item_id", id)
+        .maybeSingle();
+      
+      if (error) console.error("Error checking like:", error);
+      return !!data;
+    },
+    enabled: !!user && !!id,
+  });
+
+  // Toggle favorite mutation
+  const toggleFavorite = useMutation({
+    mutationFn: async () => {
+      if (!user || !id || !item) return;
+
+      if (isFavorite) {
+        const { error } = await supabase
+          .from("user_favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("jellyfin_item_id", id);
+        
+        if (error) throw error;
+      } else {
+        const imageUrl = item.ImageTags?.Primary && serverUrl
+          ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
+          : undefined;
+
+        const { error } = await supabase
+          .from("user_favorites")
+          .insert({
+            user_id: user.id,
+            jellyfin_item_id: id,
+            jellyfin_item_name: item.Name,
+            jellyfin_item_type: item.Type,
+            image_url: imageUrl,
+          });
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["is-favorite", id, user?.id] });
+      toast.success(isFavorite ? "Fjernet fra Min liste" : "Lagt til i Min liste");
+    },
+    onError: () => {
+      toast.error("Noe gikk galt");
+    },
+  });
+
+  // Toggle like mutation
+  const toggleLike = useMutation({
+    mutationFn: async () => {
+      if (!user || !id) return;
+
+      if (isLiked) {
+        const { error } = await supabase
+          .from("user_likes")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("jellyfin_item_id", id);
+        
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("user_likes")
+          .insert({
+            user_id: user.id,
+            jellyfin_item_id: id,
+          });
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["is-liked", id, user?.id] });
+      toast.success(isLiked ? "Like fjernet" : "Liked!");
+    },
+    onError: () => {
+      toast.error("Noe gikk galt");
+    },
+  });
 
   // First fetch users to get a valid user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -285,12 +397,23 @@ const Detail = () => {
                   <Play className="h-5 w-5" />
                   Spill av
                 </Button>
-                <Button size="lg" variant="outline" className="gap-2">
-                  <Plus className="h-5 w-5" />
+                <Button 
+                  size="lg" 
+                  variant={isFavorite ? "default" : "outline"}
+                  className="gap-2"
+                  onClick={() => toggleFavorite.mutate()}
+                  disabled={toggleFavorite.isPending}
+                >
+                  {isFavorite ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
                   Min liste
                 </Button>
-                <Button size="lg" variant="outline">
-                  <ThumbsUp className="h-5 w-5" />
+                <Button 
+                  size="lg" 
+                  variant={isLiked ? "default" : "outline"}
+                  onClick={() => toggleLike.mutate()}
+                  disabled={toggleLike.isPending}
+                >
+                  <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
                 </Button>
                 {subtitles.length > 0 && (
                   <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>

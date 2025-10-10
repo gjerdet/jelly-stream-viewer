@@ -13,6 +13,7 @@ import Person from "./pages/Person";
 import Admin from "./pages/Admin";
 import Requests from "./pages/Requests";
 import Wishes from "./pages/Wishes";
+import MyList from "./pages/MyList";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/history" element={<History />} />
           <Route path="/requests" element={<Requests />} />
           <Route path="/wishes" element={<Wishes />} />
+          <Route path="/my-list" element={<MyList />} />
           <Route path="/detail/:id" element={<Detail />} />
           <Route path="/person/:personId" element={<Person />} />
           <Route path="/player/:id" element={<Player />} />
