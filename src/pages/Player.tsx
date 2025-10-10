@@ -23,6 +23,16 @@ interface MediaStream {
   IsDefault?: boolean;
 }
 
+interface MediaSource {
+  Id: string;
+  DirectStreamUrl?: string;
+  TranscodingUrl?: string;
+}
+
+interface PlaybackInfo {
+  MediaSources: MediaSource[];
+}
+
 interface JellyfinItemDetail {
   Id: string;
   Name: string;
@@ -37,27 +47,8 @@ const Player = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
-  const [apiKey, setApiKey] = useState<string>("");
+  const [streamUrl, setStreamUrl] = useState<string>("");
   const hideControlsTimer = useRef<NodeJS.Timeout>();
-
-  // Fetch API key from server settings
-  useEffect(() => {
-    const fetchApiKey = async () => {
-      const { data } = await supabase
-        .from("server_settings")
-        .select("setting_value")
-        .eq("setting_key", "jellyfin_api_key")
-        .single();
-      
-      if (data?.setting_value) {
-        setApiKey(data.setting_value);
-      }
-    };
-    
-    if (user) {
-      fetchApiKey();
-    }
-  }, [user]);
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -78,6 +69,24 @@ const Player = () => {
 
   const subtitles = item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
 
+  // Fetch playback info and set stream URL
+  useEffect(() => {
+    const getStreamUrl = async () => {
+      if (!userId || !id) return;
+      
+      // Use our edge function to get authenticated stream URL
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const streamEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}`;
+      setStreamUrl(streamEndpoint);
+    };
+
+    if (item) {
+      getStreamUrl();
+    }
+  }, [item, userId, id]);
+
   const handleMouseMove = () => {
     setShowControls(true);
     if (hideControlsTimer.current) {
@@ -96,15 +105,13 @@ const Player = () => {
     };
   }, []);
 
-  if (!serverUrl || !userId || !id || !apiKey) {
+  if (!serverUrl || !userId || !id || !streamUrl) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         Laster...
       </div>
     );
   }
-
-  const streamUrl = `${serverUrl.replace(/\/$/, '')}/Videos/${id}/stream?UserId=${userId}&api_key=${apiKey}&MediaSourceId=${id}&Static=false`;
 
   return (
     <div 
@@ -117,17 +124,19 @@ const Player = () => {
         className="w-full h-full"
         controls
         autoPlay
-        src={streamUrl}
+        crossOrigin="anonymous"
       >
+        <source src={streamUrl} type="video/mp4" />
         {subtitles.map((subtitle) => (
           <track
             key={subtitle.Index}
             kind="subtitles"
-            src={`${serverUrl.replace(/\/$/, '')}/Videos/${id}/${id}/Subtitles/${subtitle.Index}/Stream.vtt?api_key=${apiKey}`}
+            src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitle.Index}`}
             label={subtitle.DisplayTitle || subtitle.Language || `Subtitle ${subtitle.Index}`}
             default={subtitle.IsDefault}
           />
         ))}
+        Din nettleser støtter ikke videoavspilling.
       </video>
 
       {/* Custom overlay controls */}

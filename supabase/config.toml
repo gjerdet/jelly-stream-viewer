@@ -2,3 +2,9 @@ project_id = "ypjihlfhxqyrpfjfmjdm"
 
 [functions.jellyfin-proxy]
 verify_jwt = true
+
+[functions.jellyfin-stream]
+verify_jwt = true
+
+[functions.jellyfin-subtitle]
+verify_jwt = true
