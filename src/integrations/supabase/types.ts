@@ -80,6 +80,57 @@ export type Database = {
         }
         Relationships: []
       }
+      watch_history: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_season_id: string | null
+          jellyfin_series_id: string | null
+          jellyfin_series_name: string | null
+          last_position_ticks: number | null
+          runtime_ticks: number | null
+          updated_at: string
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_season_id?: string | null
+          jellyfin_series_id?: string | null
+          jellyfin_series_name?: string | null
+          last_position_ticks?: number | null
+          runtime_ticks?: number | null
+          updated_at?: string
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id?: string
+          jellyfin_item_name?: string
+          jellyfin_item_type?: string
+          jellyfin_season_id?: string | null
+          jellyfin_series_id?: string | null
+          jellyfin_series_name?: string | null
+          last_position_ticks?: number | null
+          runtime_ticks?: number | null
+          updated_at?: string
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

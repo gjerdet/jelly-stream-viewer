@@ -36,6 +36,12 @@ interface PlaybackInfo {
 interface JellyfinItemDetail {
   Id: string;
   Name: string;
+  Type: string;
+  SeriesId?: string;
+  SeriesName?: string;
+  SeasonId?: string;
+  RunTimeTicks?: number;
+  ImageTags?: { Primary?: string };
   MediaStreams?: MediaStream[];
 }
 
@@ -48,6 +54,7 @@ const Player = () => {
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
+  const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState<string>("");
   const hideControlsTimer = useRef<NodeJS.Timeout>();
 
@@ -83,7 +90,7 @@ const Player = () => {
   const { data: item } = useJellyfinApi<JellyfinItemDetail>(
     ["item-detail-player", id || ""],
     {
-      endpoint: id && userId ? `/Users/${userId}/Items/${id}?Fields=MediaStreams` : "",
+      endpoint: id && userId ? `/Users/${userId}/Items/${id}?Fields=MediaStreams,Overview&EnableImageTypes=Primary` : "",
     },
     !!user && !!userId && !!id
   );
@@ -116,6 +123,67 @@ const Player = () => {
       }
     };
   }, []);
+
+  // Register watch history when playback starts
+  useEffect(() => {
+    if (!user || !item || !serverUrl || watchHistoryId) return;
+
+    const registerWatch = async () => {
+      const imageUrl = item.ImageTags?.Primary && serverUrl
+        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        : undefined;
+
+      const { data, error } = await supabase
+        .from("watch_history")
+        .upsert({
+          user_id: user.id,
+          jellyfin_item_id: item.Id,
+          jellyfin_item_name: item.Name,
+          jellyfin_item_type: item.Type,
+          jellyfin_series_id: item.SeriesId,
+          jellyfin_series_name: item.SeriesName,
+          jellyfin_season_id: item.SeasonId,
+          image_url: imageUrl,
+          runtime_ticks: item.RunTimeTicks,
+          watched_at: new Date().toISOString(),
+        }, {
+          onConflict: 'jellyfin_item_id,user_id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        setWatchHistoryId(data.id);
+      }
+    };
+
+    registerWatch();
+  }, [user, item, serverUrl, watchHistoryId]);
+
+  // Update playback position periodically
+  useEffect(() => {
+    if (!watchHistoryId || !videoRef.current) return;
+
+    const updatePosition = async () => {
+      const currentTime = videoRef.current?.currentTime;
+      if (currentTime === undefined) return;
+
+      const positionTicks = Math.floor(currentTime * 10000000);
+
+      await supabase
+        .from("watch_history")
+        .update({ 
+          last_position_ticks: positionTicks,
+          watched_at: new Date().toISOString()
+        })
+        .eq("id", watchHistoryId);
+    };
+
+    const interval = setInterval(updatePosition, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [watchHistoryId]);
 
   if (!serverUrl || !userId || !id || !streamUrl || !apiKey) {
     return (
