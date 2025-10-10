@@ -52,10 +52,13 @@ serve(async (req) => {
     const jellyfinUrl = serverUrlData.setting_value.replace(/\/$/, ''); // Remove trailing slash
     const jellyfinApiKey = apiKeyData.setting_value;
 
-    console.log('Authenticating with Jellyfin:', jellyfinUrl);
+    // TEMPORARY FIX: Add port 8096 if not present
+    const serverUrl = jellyfinUrl.includes(':8096') ? jellyfinUrl : `${jellyfinUrl}:8096`;
+    
+    console.log('Authenticating with Jellyfin:', serverUrl);
 
     // Authenticate with Jellyfin - try with both Authorization headers
-    const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
+    const authUrl = `${serverUrl}/Users/AuthenticateByName`;
     const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`;
     
     console.log('Auth header:', authHeader);
