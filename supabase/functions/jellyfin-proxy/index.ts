@@ -91,6 +91,23 @@ serve(async (req) => {
       body: body ? JSON.stringify(body) : undefined,
     });
 
+    // Check if response is JSON
+    const contentType = jellyfinResponse.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const textResponse = await jellyfinResponse.text();
+      console.error('Non-JSON response from Jellyfin:', textResponse);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Invalid response from Jellyfin server',
+          details: textResponse.substring(0, 200)
+        }),
+        {
+          status: jellyfinResponse.status || 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const jellyfinData = await jellyfinResponse.json();
 
     return new Response(JSON.stringify(jellyfinData), {

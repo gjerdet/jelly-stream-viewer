@@ -92,15 +92,17 @@ const Browse = () => {
 
   // Show error message if API key is not configured
   if (hasApiError && !loading) {
+    const errorMessage = latestError?.message || resumeError?.message || 'Ukjent feil';
+    
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-2xl mx-auto text-center space-y-6">
             <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-              <h2 className="text-2xl font-bold mb-2">Jellyfin ikke konfigurert</h2>
+              <h2 className="text-2xl font-bold mb-2">Kunne ikke koble til Jellyfin</h2>
               <p className="text-muted-foreground mb-4">
-                Jellyfin API-nøkkelen er ikke satt opp ennå. Du må konfigurere den før du kan hente innhold.
+                {errorMessage}
               </p>
               <button
                 onClick={() => navigate("/admin")}
@@ -110,12 +112,13 @@ const Browse = () => {
               </button>
             </div>
             <div className="text-sm text-muted-foreground space-y-2">
-              <p>For å konfigurere Jellyfin:</p>
-              <ol className="list-decimal list-inside text-left max-w-md mx-auto space-y-1">
-                <li>Gå til Admin-innstillinger</li>
-                <li>Skriv inn din Jellyfin API-nøkkel</li>
-                <li>Bekreft at server URL er korrekt</li>
-              </ol>
+              <p>Mulige årsaker:</p>
+              <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
+                <li>Jellyfin API-nøkkel er feil eller mangler</li>
+                <li>Jellyfin server URL er feil</li>
+                <li>Jellyfin-serveren er ikke tilgjengelig</li>
+                <li>API-nøkkelen har ikke riktige tilganger</li>
+              </ul>
             </div>
           </div>
         </div>
