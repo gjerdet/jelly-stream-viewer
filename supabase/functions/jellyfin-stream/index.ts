@@ -78,14 +78,36 @@ serve(async (req) => {
       });
     }
 
-    // Use Jellyfin's direct stream endpoint with proper browser-compatible parameters
-    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-      + `UserId=${userId}`
-      + `&Static=true`
-      + `&MediaSourceId=${videoId}`
-      + `&api_key=${apiKey}`;
-
-    console.log(`Streaming video: ${videoId}`);
+    // First check the video format
+    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}`;
+    const infoResponse = await fetch(infoUrl);
+    const itemInfo = await infoResponse.json();
+    
+    // Check if we need transcoding based on container format
+    const container = itemInfo.Container?.toLowerCase() || '';
+    const needsTranscoding = !['mp4', 'webm'].includes(container);
+    
+    console.log(`Video ${videoId}: container=${container}, needsTranscoding=${needsTranscoding}`);
+    
+    let streamUrl;
+    if (needsTranscoding) {
+      // Use Jellyfin's universal audio endpoint with transcoding
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+        + `UserId=${userId}`
+        + `&MediaSourceId=${videoId}`
+        + `&Container=mp4`
+        + `&VideoCodec=h264`
+        + `&AudioCodec=aac`
+        + `&MaxAudioChannels=2`
+        + `&api_key=${apiKey}`;
+    } else {
+      // Direct stream for compatible formats
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+        + `UserId=${userId}`
+        + `&Static=true`
+        + `&MediaSourceId=${videoId}`
+        + `&api_key=${apiKey}`;
+    }
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
