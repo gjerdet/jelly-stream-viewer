@@ -55,7 +55,7 @@ serve(async (req) => {
     console.log('Authenticating with Jellyfin:', jellyfinUrl);
 
     // Authenticate with Jellyfin
-    const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
+    const authUrl = `${jellyfinUrl}/Users/authenticatebyname`;
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
