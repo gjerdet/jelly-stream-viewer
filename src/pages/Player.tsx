@@ -245,13 +245,17 @@ const Player = () => {
     >
       <video
         ref={videoRef}
+        key={streamUrl}
+        src={streamUrl}
         className="w-full h-full"
         controls
         autoPlay
         crossOrigin="anonymous"
+        onError={(e) => {
+          console.error('Video playback error:', e);
+          console.log('Stream URL:', streamUrl);
+        }}
       >
-        <source src={streamUrl} type="video/mp4" />
-        {/* Subtitles are handled through subtitle selection UI */}
         Din nettleser støtter ikke videoavspilling.
       </video>
 
