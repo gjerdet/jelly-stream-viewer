@@ -78,14 +78,14 @@ serve(async (req) => {
       });
     }
 
-    // Use Jellyfin's playback endpoint which handles format negotiation automatically
+    // Use Jellyfin's direct stream endpoint with proper browser-compatible parameters
     const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
       + `UserId=${userId}`
+      + `&Static=true`
       + `&MediaSourceId=${videoId}`
-      + `&Static=false`
       + `&api_key=${apiKey}`;
 
-    console.log(`Proxying stream for video: ${videoId}`);
+    console.log(`Streaming video: ${videoId}`);
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
