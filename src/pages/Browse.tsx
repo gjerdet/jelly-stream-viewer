@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import MediaRow from "@/components/MediaRow";
@@ -7,6 +7,14 @@ import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface JellyfinItem {
   Id: string;
@@ -16,6 +24,7 @@ interface JellyfinItem {
   CommunityRating?: number;
   Overview?: string;
   ImageTags?: { Primary?: string };
+  Genres?: string[];
 }
 
 interface JellyfinResponse {
@@ -27,6 +36,7 @@ const Browse = () => {
   const location = useLocation();
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
+  const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
   // Determine what content type to show based on route
   const contentType = location.pathname === '/movies' ? 'movies' : 
@@ -59,7 +69,7 @@ const Browse = () => {
     ["all-items", userId || "", contentType],
     {
       endpoint: userId 
-        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,Genres&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
     !!user && !!userId
@@ -90,6 +100,30 @@ const Browse = () => {
   // Separate movies and series
   const movies = allItems?.Items?.filter(item => item.Type === "Movie") || [];
   const series = allItems?.Items?.filter(item => item.Type === "Series") || [];
+
+  // Extract all unique genres
+  const allGenres = new Set<string>();
+  allItems?.Items?.forEach(item => {
+    item.Genres?.forEach(genre => allGenres.add(genre));
+  });
+  const genres = Array.from(allGenres).sort();
+
+  // Filter items by selected genre
+  const filteredMovies = selectedGenre === "all" 
+    ? movies 
+    : movies.filter(movie => movie.Genres?.includes(selectedGenre));
+  const filteredSeries = selectedGenre === "all"
+    ? series
+    : series.filter(show => show.Genres?.includes(selectedGenre));
+
+  // Group movies by genre for home page
+  const moviesByGenre = genres.reduce((acc, genre) => {
+    const genreMovies = movies.filter(movie => movie.Genres?.includes(genre));
+    if (genreMovies.length > 0) {
+      acc[genre] = genreMovies;
+    }
+    return acc;
+  }, {} as Record<string, JellyfinItem[]>);
 
   const hasApiError = itemsError || resumeError;
 
@@ -187,13 +221,17 @@ const Browse = () => {
             onItemClick={handleItemClick}
           />
         )}
-        {contentType === 'all' && movies.length > 0 && (
+        
+        {/* Movies by genre for home page */}
+        {contentType === 'all' && Object.entries(moviesByGenre).map(([genre, genreMovies]) => (
           <MediaRow
-            title="Filmer"
-            items={mapJellyfinItems(movies)}
+            key={genre}
+            title={`${genre} filmer`}
+            items={mapJellyfinItems(genreMovies)}
             onItemClick={handleItemClick}
           />
-        )}
+        ))}
+        
         {contentType === 'all' && series.length > 0 && (
           <MediaRow
             title="Serier"
@@ -201,19 +239,63 @@ const Browse = () => {
             onItemClick={handleItemClick}
           />
         )}
-        {contentType === 'movies' && movies.length > 0 && (
-          <MediaGrid
-            title="Alle filmer"
-            items={mapJellyfinItems(movies)}
-            onItemClick={handleItemClick}
-          />
+
+        {/* Movies page with genre filter */}
+        {contentType === 'movies' && (
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Filmer</h2>
+              <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Velg sjanger" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">Alle sjangere</SelectItem>
+                  {genres.map((genre) => (
+                    <SelectItem key={genre} value={genre}>
+                      {genre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {filteredMovies.length > 0 && (
+              <MediaGrid
+                title=""
+                items={mapJellyfinItems(filteredMovies)}
+                onItemClick={handleItemClick}
+              />
+            )}
+          </div>
         )}
-        {contentType === 'series' && series.length > 0 && (
-          <MediaGrid
-            title="Alle serier"
-            items={mapJellyfinItems(series)}
-            onItemClick={handleItemClick}
-          />
+
+        {/* Series page with genre filter */}
+        {contentType === 'series' && (
+          <div className="container mx-auto px-4">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold">Serier</h2>
+              <Select value={selectedGenre} onValueChange={setSelectedGenre}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Velg sjanger" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  <SelectItem value="all">Alle sjangere</SelectItem>
+                  {genres.map((genre) => (
+                    <SelectItem key={genre} value={genre}>
+                      {genre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {filteredSeries.length > 0 && (
+              <MediaGrid
+                title=""
+                items={mapJellyfinItems(filteredSeries)}
+                onItemClick={handleItemClick}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
