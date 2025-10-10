@@ -405,9 +405,9 @@ const Detail = () => {
             ))}
           </div>
 
-          {/* Episodes Grid */}
+          {/* Episodes List */}
           {episodesData?.Items && episodesData.Items.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-3">
               {episodesData.Items.map((episode) => {
                 const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
                   ? getJellyfinImageUrl(serverUrl, episode.Id, 'Primary', { maxHeight: '300' })
@@ -425,11 +425,11 @@ const Detail = () => {
                     key={episode.Id}
                     ref={(el) => episodeRefs.current[episode.Id] = el}
                     onClick={() => navigate(`/player/${episode.Id}`)}
-                    className={`group cursor-pointer bg-card rounded-lg overflow-hidden border smooth-transition ${
+                    className={`group cursor-pointer bg-card rounded-lg overflow-hidden border smooth-transition flex gap-4 p-3 ${
                       episodeId === episode.Id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary'
                     }`}
                   >
-                    <div className="aspect-video relative bg-secondary">
+                    <div className="relative w-52 h-28 flex-shrink-0 bg-secondary rounded overflow-hidden">
                       {episodeImageUrl ? (
                         <img
                           src={episodeImageUrl}
@@ -438,12 +438,12 @@ const Detail = () => {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <Play className="h-12 w-12 text-muted-foreground" />
+                          <Play className="h-8 w-8 text-muted-foreground" />
                         </div>
                       )}
                       {isWatched && (
                         <div className="absolute top-2 right-2 bg-green-600 rounded-full p-1">
-                          <CheckCircle className="h-5 w-5 text-white" />
+                          <CheckCircle className="h-4 w-4 text-white" />
                         </div>
                       )}
                       {watchedPercentage > 0 && watchedPercentage < 95 && (
@@ -455,16 +455,16 @@ const Detail = () => {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
-                        <Play className="h-12 w-12 text-white" />
+                        <Play className="h-8 w-8 text-white" />
                       </div>
                     </div>
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="font-semibold line-clamp-1">
+                    <div className="flex-1 min-w-0 py-1">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <h3 className="font-semibold text-lg">
                           {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
                         </h3>
                         {episodeRuntime && (
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          <span className="text-sm text-muted-foreground whitespace-nowrap">
                             {episodeRuntime} min
                           </span>
                         )}
