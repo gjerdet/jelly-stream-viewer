@@ -44,15 +44,10 @@ serve(async (req) => {
       .eq('setting_key', 'jellyseerr_api_key')
       .maybeSingle();
 
-    // Force HTTP and remove any existing protocol
-    let jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '');
-    if (jellyseerrUrl) {
-      jellyseerrUrl = jellyseerrUrl.replace(/^https?:\/\//, '');
-      jellyseerrUrl = `http://${jellyseerrUrl}`;
-    }
+    const rawUrl = urlData?.setting_value;
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
-    if (!jellyseerrUrl || !jellyseerrApiKey) {
+    if (!rawUrl || !jellyseerrApiKey) {
       console.error('Missing Jellyseerr configuration');
       return new Response(
         JSON.stringify({ error: 'Jellyseerr er ikke konfigurert' }),
@@ -62,6 +57,13 @@ serve(async (req) => {
         }
       );
     }
+
+    // Force HTTP by stripping protocol and domain, then reconstructing
+    const cleanDomain = rawUrl
+      .replace(/^https?:\/\//, '')  // Remove any protocol
+      .replace(/\/$/, '');            // Remove trailing slash
+    
+    const jellyseerrUrl = `http://${cleanDomain}`;
 
     // Fetch discover data from Jellyseerr
     const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
