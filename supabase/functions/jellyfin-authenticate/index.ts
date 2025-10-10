@@ -55,15 +55,15 @@ serve(async (req) => {
     console.log('Authenticating with Jellyfin:', jellyfinUrl);
 
     // Authenticate with Jellyfin
-    const authUrl = `${jellyfinUrl}/Users/authenticatebyname`;
+    const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Emby-Authorization': `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0", Token="${jellyfinApiKey}"`,
+        'Authorization': `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`,
       },
       body: JSON.stringify({
-        Username: username,
+        username: username,
         Pw: password,
       }),
     });
