@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -391,6 +391,7 @@ const Detail = () => {
                 const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
                   ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
                   : 0;
+                const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
 
                 return (
                   <div
@@ -408,6 +409,11 @@ const Detail = () => {
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <Play className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                      )}
+                      {isWatched && (
+                        <div className="absolute top-2 right-2 bg-green-600 rounded-full p-1">
+                          <CheckCircle className="h-5 w-5 text-white" />
                         </div>
                       )}
                       {watchedPercentage > 0 && watchedPercentage < 95 && (
