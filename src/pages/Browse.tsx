@@ -1,6 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
-import Header from "@/components/Header";
 import MediaRow from "@/components/MediaRow";
 import FeaturedCarousel from "@/components/FeaturedCarousel";
 import MediaGrid from "@/components/MediaGrid";
@@ -169,7 +168,6 @@ const Browse = () => {
     
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-2xl mx-auto text-center space-y-6">
             <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
@@ -219,9 +217,7 @@ const Browse = () => {
   }));
 
   return (
-    <div className="min-h-screen bg-background relative">
-      <Header />
-      
+    <div className="min-h-screen bg-background">
       {/* Featured Carousel - Only on home page */}
       {contentType === 'all' && carouselItemsWithImages.length > 0 && (
         <div className="container mx-auto px-4 pt-8 relative z-0">

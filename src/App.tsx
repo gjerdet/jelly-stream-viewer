@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import Header from "./components/Header";
 import Login from "./pages/Login";
 import Browse from "./pages/Browse";
 import Search from "./pages/Search";
@@ -37,24 +38,27 @@ const AppContent = () => {
     <SidebarProvider defaultOpen={false}>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/browse" element={<Browse />} />
-            <Route path="/movies" element={<Browse />} />
-            <Route path="/series" element={<Browse />} />
-            <Route path="/search" element={<Search />} />
-            <Route path="/history" element={<History />} />
-            <Route path="/requests" element={<Requests />} />
-            <Route path="/wishes" element={<Wishes />} />
-            <Route path="/my-list" element={<MyList />} />
-            <Route path="/news" element={<News />} />
-            <Route path="/detail/:id" element={<Detail />} />
-            <Route path="/person/:personId" element={<Person />} />
-            <Route path="/player/:id" element={<Player />} />
-            <Route path="/admin" element={<Admin />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+        <main className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1">
+            <Routes>
+              <Route path="/browse" element={<Browse />} />
+              <Route path="/movies" element={<Browse />} />
+              <Route path="/series" element={<Browse />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/history" element={<History />} />
+              <Route path="/requests" element={<Requests />} />
+              <Route path="/wishes" element={<Wishes />} />
+              <Route path="/my-list" element={<MyList />} />
+              <Route path="/news" element={<News />} />
+              <Route path="/detail/:id" element={<Detail />} />
+              <Route path="/person/:personId" element={<Person />} />
+              <Route path="/player/:id" element={<Player />} />
+              <Route path="/admin" element={<Admin />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
         </main>
       </div>
     </SidebarProvider>

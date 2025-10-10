@@ -1,6 +1,5 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useEffect } from "react";
-import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
@@ -86,7 +85,6 @@ const Person = () => {
   if (!person) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-20">
           <p className="text-center text-muted-foreground">Person ikke funnet</p>
         </div>
@@ -103,8 +101,6 @@ const Person = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       <div className="container mx-auto px-4 py-8">
         <Button
           variant="ghost"

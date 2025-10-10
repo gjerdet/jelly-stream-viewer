@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Header from "@/components/Header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -332,7 +331,6 @@ const Admin = () => {
   if (authLoading || roleLoading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-12">
           <p className="text-center text-muted-foreground">Laster...</p>
         </div>
@@ -342,8 +340,6 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto space-y-6">
           <div className="flex items-center gap-4">

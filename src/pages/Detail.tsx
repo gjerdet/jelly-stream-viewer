@@ -1,6 +1,5 @@
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useRef } from "react";
-import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
@@ -365,7 +364,6 @@ const Detail = () => {
   if (!item) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-20">
           <p className="text-center text-muted-foreground">Innhold ikke funnet</p>
         </div>
@@ -389,8 +387,6 @@ const Detail = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       {/* Hero Section with Backdrop */}
       <div className="relative h-[70vh] overflow-hidden">
         {/* Backdrop Image with Blur */}

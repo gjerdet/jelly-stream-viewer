@@ -1,6 +1,5 @@
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
-import Header from "@/components/Header";
 import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
@@ -82,7 +81,6 @@ const Search = () => {
   if (searchError) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-destructive">Kunne ikke søke: {searchError.message}</p>
@@ -96,8 +94,6 @@ const Search = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       <div className="container mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-2">Søkeresultater</h1>
         <p className="text-muted-foreground mb-8">
