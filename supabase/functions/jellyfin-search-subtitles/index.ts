@@ -63,8 +63,10 @@ serve(async (req) => {
     const jellyfinUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Search for subtitles using Jellyfin API
-    const searchUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/NoLanguage`;
+    // Search for Norwegian subtitles using Jellyfin API
+    const searchUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/nor`;
+    
+    console.log('Searching for subtitles at:', searchUrl);
     
     const searchResponse = await fetch(searchUrl, {
       headers: {
@@ -73,7 +75,7 @@ serve(async (req) => {
     });
 
     if (!searchResponse.ok) {
-      console.error('Failed to search subtitles:', searchResponse.status);
+      console.error('Failed to search subtitles:', searchResponse.status, await searchResponse.text());
       return new Response(JSON.stringify({ error: 'Failed to search subtitles' }), {
         status: searchResponse.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -81,6 +83,7 @@ serve(async (req) => {
     }
 
     const results = await searchResponse.json();
+    console.log('Subtitle search results:', results?.length || 0, 'found');
 
     // If subtitles are found, download the first one
     if (results && results.length > 0) {
