@@ -10,7 +10,7 @@ En moderne webapplikasjon for streaming fra Jellyfin media server, bygget med Re
 - ⭐ Favoritter og visningshistorikk
 - 📺 Chromecast-støtte
 - 🌐 Undertekststøtte
-- 🎯 Integrasjon med Jellyseerr for forespørsler
+- 🎯 Integrasjon med Jellyseerr for forespørsler (under jobb enda)
 
 ## Forutsetninger
 
