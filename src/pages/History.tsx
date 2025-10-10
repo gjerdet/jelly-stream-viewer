@@ -78,6 +78,11 @@ const History = () => {
     const movies: WatchHistoryItem[] = [];
 
     items.forEach((item) => {
+      // Skip "Series" type items - we only want Episodes and Movies
+      if (item.jellyfin_item_type === "Series") {
+        return;
+      }
+      
       if (item.jellyfin_item_type === "Episode" && item.jellyfin_series_id) {
         if (!seriesMap.has(item.jellyfin_series_id)) {
           seriesMap.set(item.jellyfin_series_id, {
@@ -96,7 +101,7 @@ const History = () => {
         }
         
         series.seasons.get(seasonId)!.push(item);
-      } else {
+      } else if (item.jellyfin_item_type === "Movie") {
         movies.push(item);
       }
     });
