@@ -12,22 +12,24 @@ interface JellyfinRequest {
   body?: any;
 }
 
-// Whitelist of allowed Jellyfin API endpoints
+// Whitelist of allowed Jellyfin API endpoints (base paths only, query params allowed)
 const ALLOWED_ENDPOINT_PATTERNS = [
   /^\/Users$/,
   /^\/Users\/[a-f0-9]{32}\/Items/,
   /^\/Users\/[a-f0-9]{32}\/Suggestions/,
   /^\/Users\/[a-f0-9]{32}\/Views$/,
   /^\/Items\/[a-f0-9]{32}/,
-  /^\/Shows\/[a-f0-9]{32}\/Seasons$/,
-  /^\/Shows\/[a-f0-9]{32}\/Episodes$/,
+  /^\/Shows\/[a-f0-9]{32}\/Seasons/,
+  /^\/Shows\/[a-f0-9]{32}\/Episodes/,
   /^\/Persons\/[a-f0-9]{32}/,
   /^\/Search\/Hints/,
   /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/,
 ];
 
 function validateEndpoint(endpoint: string): boolean {
-  return ALLOWED_ENDPOINT_PATTERNS.some(pattern => pattern.test(endpoint));
+  // Extract path without query parameters for validation
+  const path = endpoint.split('?')[0];
+  return ALLOWED_ENDPOINT_PATTERNS.some(pattern => pattern.test(path));
 }
 
 serve(async (req) => {
