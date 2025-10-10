@@ -57,10 +57,8 @@ export const useServerSettings = () => {
   return { serverUrl, apiKey, isLoading, updateServerUrl };
 };
 
-// Helper function to generate image URL through proxy
-export const getJellyfinImageUrl = (itemId: string, imageType: 'Primary' | 'Backdrop', params?: Record<string, string>) => {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+// Helper function to generate Jellyfin image URL
+export const getJellyfinImageUrl = (serverUrl: string, itemId: string, imageType: 'Primary' | 'Backdrop', params?: Record<string, string>) => {
   const queryParams = new URLSearchParams(params || {});
-  const imagePath = `/Items/${itemId}/Images/${imageType}?${queryParams.toString()}`;
-  return `${supabaseUrl}/functions/v1/jellyfin-image?path=${encodeURIComponent(imagePath)}`;
+  return `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/Images/${imageType}?${queryParams.toString()}`;
 };

@@ -159,10 +159,10 @@ const Detail = () => {
     );
   }
 
-  const backdropUrl = item.BackdropImageTags?.[0]
-    ? getJellyfinImageUrl(item.Id, 'Backdrop', { maxHeight: '1080' })
-    : item.ImageTags?.Primary
-    ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '1080' })
+  const backdropUrl = item.BackdropImageTags?.[0] && serverUrl
+    ? getJellyfinImageUrl(serverUrl, item.Id, 'Backdrop', { maxHeight: '1080' })
+    : item.ImageTags?.Primary && serverUrl
+    ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '1080' })
     : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop";
 
   // Check if we're using the primary image as backdrop (needs blur effect)
@@ -223,10 +223,10 @@ const Detail = () => {
 
           {/* Cover Image */}
           <div className="flex items-end gap-6 mb-6">
-            {item.ImageTags?.Primary && (
+            {item.ImageTags?.Primary && serverUrl && (
               <div className="w-48 h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
                 <img
-                  src={getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })}
+                  src={getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })}
                   alt={item.Name}
                   className="w-full h-full object-cover"
                 />
@@ -319,8 +319,8 @@ const Detail = () => {
               <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {item.People.filter(p => p.Type === "Actor").slice(0, 6).map((person, index) => {
-                  const personImageUrl = person.Id && person.PrimaryImageTag
-                    ? getJellyfinImageUrl(person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
+                  const personImageUrl = person.Id && person.PrimaryImageTag && serverUrl
+                    ? getJellyfinImageUrl(serverUrl, person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
                     : null;
                   
                   return (
@@ -382,8 +382,8 @@ const Detail = () => {
           {episodesData?.Items && episodesData.Items.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {episodesData.Items.map((episode) => {
-                const episodeImageUrl = episode.ImageTags?.Primary
-                  ? getJellyfinImageUrl(episode.Id, 'Primary', { maxHeight: '300' })
+                const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
+                  ? getJellyfinImageUrl(serverUrl, episode.Id, 'Primary', { maxHeight: '300' })
                   : null;
                 const episodeRuntime = episode.RunTimeTicks 
                   ? Math.round(episode.RunTimeTicks / 600000000) 

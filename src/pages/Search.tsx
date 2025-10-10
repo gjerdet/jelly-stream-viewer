@@ -55,12 +55,12 @@ const Search = () => {
   );
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
-    if (!items) return [];
+    if (!items || !serverUrl) return [];
     return items.map((item) => ({
       id: item.Id,
       title: item.Name,
       image: item.ImageTags?.Primary
-        ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })
+        ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),

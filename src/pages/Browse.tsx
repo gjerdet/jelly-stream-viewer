@@ -129,12 +129,12 @@ const Browse = () => {
   const hasApiError = itemsError || resumeError;
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
-    if (!items) return [];
+    if (!items || !serverUrl) return [];
     return items.map((item) => ({
       id: item.Id,
       title: item.Name,
       image: item.ImageTags?.Primary
-        ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })
+        ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),
@@ -198,14 +198,24 @@ const Browse = () => {
     year: item.ProductionYear?.toString(),
   })) || [];
 
+  // Generate carousel image URLs  
+  const carouselItemsWithImages = latestItems.map(item => ({
+    ...item,
+    imageUrl: serverUrl && item.backdropTag
+      ? getJellyfinImageUrl(serverUrl, item.id, 'Backdrop', { maxHeight: '800' })
+      : serverUrl && item.imageTag
+      ? getJellyfinImageUrl(serverUrl, item.id, 'Primary', { maxHeight: '800' })
+      : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=800&fit=crop"
+  }));
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
       {/* Featured Carousel - Only on home page */}
-      {contentType === 'all' && latestItems.length > 0 && (
+      {contentType === 'all' && carouselItemsWithImages.length > 0 && (
         <div className="container mx-auto px-4 pt-8">
-          <FeaturedCarousel items={latestItems} onItemClick={handleItemClick} />
+          <FeaturedCarousel items={carouselItemsWithImages} onItemClick={handleItemClick} />
         </div>
       )}
       

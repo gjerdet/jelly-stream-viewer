@@ -1,13 +1,11 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getJellyfinImageUrl } from "@/hooks/useServerSettings";
 
 interface CarouselItem {
   id: string;
   title: string;
-  imageTag?: string;
-  backdropTag?: string;
+  imageUrl: string;
   year?: string;
 }
 
@@ -38,18 +36,13 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
   if (items.length === 0) return null;
 
   const currentItem = items[currentIndex];
-  const imageUrl = currentItem.backdropTag 
-    ? getJellyfinImageUrl(currentItem.id, 'Backdrop', { maxHeight: '800' })
-    : currentItem.imageTag
-    ? getJellyfinImageUrl(currentItem.id, 'Primary', { maxHeight: '800' })
-    : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=800&fit=crop";
 
   return (
     <div className="relative w-full h-[400px] md:h-[500px] overflow-hidden rounded-lg group">
       {/* Carousel Images */}
       <div className="absolute inset-0">
         <img
-          src={imageUrl}
+          src={currentItem.imageUrl}
           alt={currentItem.title}
           className="w-full h-full object-cover transition-opacity duration-500"
         />
