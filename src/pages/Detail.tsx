@@ -519,9 +519,11 @@ const Detail = () => {
 
               {item.Overview && (
                 <div className="max-w-2xl">
-                  <p className={`text-white/90 text-lg leading-relaxed ${!isOverviewExpanded ? 'line-clamp-4' : ''}`}>
-                    {item.Overview}
-                  </p>
+                  <div className={`text-white/90 text-lg leading-relaxed overflow-y-auto transition-all duration-300 ${
+                    isOverviewExpanded ? 'max-h-96' : 'max-h-24'
+                  }`}>
+                    <p>{item.Overview}</p>
+                  </div>
                   {item.Overview.length > 200 && (
                     <Button
                       variant="ghost"
