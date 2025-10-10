@@ -66,12 +66,23 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Construct Jellyfin stream URL with transcoding for browser compatibility
+    // Get user ID from Jellyfin to build proper playback URL
+    const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`);
+    const users = await usersResponse.json();
+    const userId = users[0]?.Id;
+
+    if (!userId) {
+      return new Response('Jellyfin user not found', { 
+        status: 500,
+        headers: corsHeaders 
+      });
+    }
+
+    // Use Jellyfin's playback endpoint which handles format negotiation automatically
     const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-      + `Container=mp4,webm`
-      + `&VideoCodec=h264,vp8,vp9`
-      + `&AudioCodec=aac,mp3,opus`
-      + `&TranscodingMaxAudioChannels=2`
+      + `UserId=${userId}`
+      + `&MediaSourceId=${videoId}`
+      + `&Static=false`
       + `&api_key=${apiKey}`;
 
     console.log(`Proxying stream for video: ${videoId}`);
