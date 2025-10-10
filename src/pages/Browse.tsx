@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
 import MediaRow from "@/components/MediaRow";
+import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
@@ -183,14 +184,14 @@ const Browse = () => {
           />
         )}
         {contentType === 'movies' && movies.length > 0 && (
-          <MediaRow
+          <MediaGrid
             title="Alle filmer"
             items={mapJellyfinItems(movies)}
             onItemClick={handleItemClick}
           />
         )}
         {contentType === 'series' && series.length > 0 && (
-          <MediaRow
+          <MediaGrid
             title="Alle serier"
             items={mapJellyfinItems(series)}
             onItemClick={handleItemClick}
