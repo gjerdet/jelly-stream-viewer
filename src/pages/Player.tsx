@@ -74,15 +74,21 @@ const Player = () => {
     const getStreamUrl = async () => {
       if (!userId || !id) return;
       
-      // Use our edge function to get authenticated stream URL
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.error('No session found');
+        return;
+      }
       
-      const streamEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}`;
+      // Create stream URL with access token in query params
+      const streamEndpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
+      
       setStreamUrl(streamEndpoint);
+      console.log('Stream URL set with token');
     };
 
-    if (item) {
+    if (item && userId) {
+      console.log('Preparing stream for item:', id);
       getStreamUrl();
     }
   }, [item, userId, id]);
@@ -124,14 +130,13 @@ const Player = () => {
         className="w-full h-full"
         controls
         autoPlay
-        crossOrigin="anonymous"
       >
         <source src={streamUrl} type="video/mp4" />
         {subtitles.map((subtitle) => (
           <track
             key={subtitle.Index}
             kind="subtitles"
-            src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitle.Index}`}
+            src={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitle.Index}&token=${streamUrl.split('token=')[1]}`}
             label={subtitle.DisplayTitle || subtitle.Language || `Subtitle ${subtitle.Index}`}
             default={subtitle.IsDefault}
           />

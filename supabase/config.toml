@@ -4,7 +4,7 @@ project_id = "ypjihlfhxqyrpfjfmjdm"
 verify_jwt = true
 
 [functions.jellyfin-stream]
-verify_jwt = true
+verify_jwt = false
 
 [functions.jellyfin-subtitle]
-verify_jwt = true
+verify_jwt = false

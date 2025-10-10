@@ -1,26 +1,46 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, range',
+  'Access-Control-Expose-Headers': 'content-length, content-range, accept-ranges',
+};
+
 serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
-    // Create Supabase client
+    // Get video ID and token from URL
+    const url = new URL(req.url);
+    const videoId = url.searchParams.get('id');
+    const token = url.searchParams.get('token');
+    
+    if (!videoId || !token) {
+      return new Response('Video ID and token required', { 
+        status: 400,
+        headers: corsHeaders 
+      });
+    }
+
+    // Create Supabase client and verify token
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify user is authenticated
-    const {
-      data: { user },
-    } = await supabaseClient.auth.getUser();
+    // Verify the user token
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
-    if (!user) {
-      return new Response('Unauthorized', { status: 401 });
+    if (authError || !user) {
+      console.error('Authentication failed:', authError);
+      return new Response('Unauthorized', { 
+        status: 401,
+        headers: corsHeaders 
+      });
     }
 
     // Get Jellyfin server URL and API key from settings
@@ -37,31 +57,66 @@ serve(async (req) => {
       .single();
 
     if (!serverSettings || !apiKeySettings) {
-      return new Response('Server configuration not found', { status: 500 });
+      return new Response('Server configuration not found', { 
+        status: 500,
+        headers: corsHeaders 
+      });
     }
 
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Get video ID and other params from URL
-    const url = new URL(req.url);
-    const videoId = url.searchParams.get('id');
-    
-    if (!videoId) {
-      return new Response('Video ID required', { status: 400 });
-    }
-
     // Construct Jellyfin stream URL with authentication
     const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?Static=true&api_key=${apiKey}`;
 
-    console.log(`Redirecting to stream: ${streamUrl.replace(apiKey, '***')}`);
+    console.log(`Proxying stream for video: ${videoId}`);
 
-    // Redirect to the actual stream URL
-    return Response.redirect(streamUrl, 302);
+    // Forward range header for seeking support
+    const requestHeaders: Record<string, string> = {
+      'Authorization': `MediaBrowser Token="${apiKey}"`,
+    };
+    
+    const rangeHeader = req.headers.get('range');
+    if (rangeHeader) {
+      requestHeaders['Range'] = rangeHeader;
+    }
+
+    // Fetch the video stream from Jellyfin
+    const jellyfinResponse = await fetch(streamUrl, {
+      headers: requestHeaders,
+    });
+
+    // Forward the response with CORS headers
+    const responseHeaders = new Headers(corsHeaders);
+    
+    // Copy important headers from Jellyfin response
+    const headersToForward = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'last-modified',
+      'etag',
+    ];
+    
+    for (const header of headersToForward) {
+      const value = jellyfinResponse.headers.get(header);
+      if (value) {
+        responseHeaders.set(header, value);
+      }
+    }
+
+    return new Response(jellyfinResponse.body, {
+      status: jellyfinResponse.status,
+      headers: responseHeaders,
+    });
 
   } catch (error) {
     console.error('Error in jellyfin-stream:', error);
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return new Response(errorMessage, { status: 500 });
+    return new Response(errorMessage, { 
+      status: 500,
+      headers: corsHeaders 
+    });
   }
 });
