@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -203,6 +203,33 @@ const Detail = () => {
     },
     onError: () => {
       toast.error("Noe gikk galt");
+    },
+  });
+
+  // Search for subtitles mutation
+  const searchSubtitles = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+
+      const { data, error } = await supabase.functions.invoke("jellyfin-search-subtitles", {
+        body: { itemId: id },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data?.success) {
+        toast.success(data.message);
+        // Refetch item to get updated subtitle list
+        queryClient.invalidateQueries({ queryKey: ["item-detail", id] });
+      } else {
+        toast.info(data?.message || "Ingen undertekster funnet");
+      }
+    },
+    onError: (error) => {
+      console.error("Search subtitles error:", error);
+      toast.error("Kunne ikke søke etter undertekster");
     },
   });
 
@@ -414,6 +441,17 @@ const Detail = () => {
                   disabled={toggleLike.isPending}
                 >
                   <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => searchSubtitles.mutate()}
+                  disabled={searchSubtitles.isPending}
+                  title="Søk etter undertekster"
+                >
+                  <Download className="h-5 w-5" />
+                  {searchSubtitles.isPending ? "Søker..." : "Søk undertekster"}
                 </Button>
                 {subtitles.length > 0 && (
                   <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
