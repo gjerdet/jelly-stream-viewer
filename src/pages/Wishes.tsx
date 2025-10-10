@@ -264,6 +264,22 @@ const Wishes = () => {
             </p>
           </div>
 
+          <Alert className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Eller{" "}
+              <a
+                href={jellyseerrUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+              >
+                åpne Jellyseerr i ny fane
+              </a>
+              {" "}for å søke direkte
+            </AlertDescription>
+          </Alert>
+
           <Tabs defaultValue="movies" className="w-full">
             <TabsList className="grid w-full max-w-md mx-auto mb-8 grid-cols-2">
               <TabsTrigger value="movies">Filmer</TabsTrigger>
