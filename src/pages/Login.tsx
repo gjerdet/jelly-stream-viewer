@@ -61,11 +61,21 @@ const Login = () => {
 
       if (error) throw error;
 
-      // Store session in localStorage
-      localStorage.setItem('jellyfin_session', JSON.stringify(data));
+      // Store Jellyfin session in localStorage
+      if (data.jellyfin_session) {
+        localStorage.setItem('jellyfin_session', JSON.stringify(data.jellyfin_session));
+      }
+
+      // Set Supabase session
+      if (data.supabase_session) {
+        await supabase.auth.setSession({
+          access_token: data.supabase_session.access_token,
+          refresh_token: data.supabase_session.refresh_token,
+        });
+      }
       
       toast.success("Logget inn!");
-      window.location.href = "/browse";
+      navigate("/browse");
     } catch (error) {
       console.error('Login error:', error);
       toast.error("Feil brukernavn eller passord");
