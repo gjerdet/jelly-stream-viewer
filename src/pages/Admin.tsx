@@ -21,6 +21,8 @@ const Admin = () => {
   const { serverUrl, updateServerUrl } = useServerSettings();
   const [newServerUrl, setNewServerUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [jellyseerrUrl, setJellyseerrUrl] = useState("");
+  const [jellyseerrApiKey, setJellyseerrApiKey] = useState("");
 
   // Fetch API key
   const { data: currentApiKey } = useQuery({
@@ -30,6 +32,38 @@ const Admin = () => {
         .from("server_settings")
         .select("setting_value")
         .eq("setting_key", "jellyfin_api_key")
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value || "";
+    },
+    enabled: !!user && userRole === "admin",
+  });
+
+  // Fetch Jellyseerr URL
+  const { data: currentJellyseerrUrl } = useQuery({
+    queryKey: ["server-settings", "jellyseerr_url"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyseerr_url")
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value || "";
+    },
+    enabled: !!user && userRole === "admin",
+  });
+
+  // Fetch Jellyseerr API key
+  const { data: currentJellyseerrApiKey } = useQuery({
+    queryKey: ["server-settings", "jellyseerr_api_key"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyseerr_api_key")
         .maybeSingle();
 
       if (error) throw error;
@@ -62,6 +96,54 @@ const Admin = () => {
     },
   });
 
+  // Update Jellyseerr URL mutation
+  const updateJellyseerrUrl = useMutation({
+    mutationFn: async (newUrl: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "jellyseerr_url",
+          setting_value: newUrl,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Jellyseerr URL oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Jellyseerr URL");
+    },
+  });
+
+  // Update Jellyseerr API key mutation
+  const updateJellyseerrApiKey = useMutation({
+    mutationFn: async (newApiKey: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "jellyseerr_api_key",
+          setting_value: newApiKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Jellyseerr API-nøkkel oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Jellyseerr API-nøkkel");
+    },
+  });
+
   useEffect(() => {
     if (serverUrl && !newServerUrl) {
       setNewServerUrl(serverUrl);
@@ -73,6 +155,18 @@ const Admin = () => {
       setApiKey(currentApiKey);
     }
   }, [currentApiKey]);
+
+  useEffect(() => {
+    if (currentJellyseerrUrl && !jellyseerrUrl) {
+      setJellyseerrUrl(currentJellyseerrUrl);
+    }
+  }, [currentJellyseerrUrl]);
+
+  useEffect(() => {
+    if (currentJellyseerrApiKey && !jellyseerrApiKey) {
+      setJellyseerrApiKey(currentJellyseerrApiKey);
+    }
+  }, [currentJellyseerrApiKey]);
 
   useEffect(() => {
     // Wait for both auth and role to finish loading
@@ -92,6 +186,18 @@ const Admin = () => {
   const handleUpdateApiKey = () => {
     if (apiKey.trim()) {
       updateApiKey.mutate(apiKey.trim());
+    }
+  };
+
+  const handleUpdateJellyseerrUrl = () => {
+    if (jellyseerrUrl.trim()) {
+      updateJellyseerrUrl.mutate(jellyseerrUrl.trim());
+    }
+  };
+
+  const handleUpdateJellyseerrApiKey = () => {
+    if (jellyseerrApiKey.trim()) {
+      updateJellyseerrApiKey.mutate(jellyseerrApiKey.trim());
     }
   };
 
@@ -118,7 +224,7 @@ const Admin = () => {
             </div>
             <div>
               <h1 className="text-3xl font-bold">Admin-innstillinger</h1>
-              <p className="text-muted-foreground">Administrer Jellyfin-server</p>
+              <p className="text-muted-foreground">Administrer server-tilkoblinger</p>
             </div>
           </div>
 
@@ -176,6 +282,64 @@ const Admin = () => {
                 className="cinema-glow"
               >
                 {updateApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle>Jellyseerr Server</CardTitle>
+              <CardDescription>
+                Konfigurer Jellyseerr for å be om innhold
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="jellyseerr-url">Jellyseerr Server URL</Label>
+                <Input
+                  id="jellyseerr-url"
+                  type="url"
+                  placeholder="https://jellyseerr.dittdomene.com"
+                  value={jellyseerrUrl}
+                  onChange={(e) => setJellyseerrUrl(e.target.value)}
+                  className="bg-secondary/50 border-border/50"
+                />
+              </div>
+              <Button 
+                onClick={handleUpdateJellyseerrUrl}
+                disabled={updateJellyseerrUrl.isPending}
+                className="cinema-glow"
+              >
+                {updateJellyseerrUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle>Jellyseerr API-nøkkel</CardTitle>
+              <CardDescription>
+                Konfigurer API-nøkkelen for Jellyseerr (finn den i Settings → General)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="jellyseerr-api-key">API-nøkkel</Label>
+                <Input
+                  id="jellyseerr-api-key"
+                  type="password"
+                  placeholder="Skriv inn Jellyseerr API-nøkkel"
+                  value={jellyseerrApiKey}
+                  onChange={(e) => setJellyseerrApiKey(e.target.value)}
+                  className="bg-secondary/50 border-border/50"
+                />
+              </div>
+              <Button 
+                onClick={handleUpdateJellyseerrApiKey}
+                disabled={updateJellyseerrApiKey.isPending}
+                className="cinema-glow"
+              >
+                {updateJellyseerrApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
               </Button>
             </CardContent>
           </Card>
