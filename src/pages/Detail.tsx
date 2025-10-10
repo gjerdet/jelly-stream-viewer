@@ -143,15 +143,15 @@ const Detail = () => {
       if (seasonIdFromUrl) {
         // If seasonId is in URL, select that season
         const season = seasonsData.Items.find(s => s.Id === seasonIdFromUrl);
-        if (season && selectedSeasonId !== season.Id) {
+        if (season) {
           setSelectedSeasonId(season.Id);
         }
-      } else if (!selectedSeasonId) {
+      } else {
         // Otherwise select first season
         setSelectedSeasonId(seasonsData.Items[0].Id);
       }
     }
-  }, [seasonsData, selectedSeasonId, seasonIdFromUrl]);
+  }, [seasonsData, seasonIdFromUrl]);
 
   // Scroll to episode when episodes load and episodeId is in URL
   useEffect(() => {
@@ -195,12 +195,6 @@ const Detail = () => {
 
   // Check if we're using the primary image as backdrop (needs blur effect)
   const isUsingPrimaryAsBackdrop = !item.BackdropImageTags?.[0] && item.ImageTags?.Primary;
-
-  console.log('Item:', item.Name);
-  console.log('Has Backdrop:', !!item.BackdropImageTags?.[0]);
-  console.log('Has Primary:', !!item.ImageTags?.Primary);
-  console.log('Backdrop URL:', backdropUrl);
-  console.log('Using Primary as Backdrop:', isUsingPrimaryAsBackdrop);
 
   const runtime = item.RunTimeTicks ? Math.round(item.RunTimeTicks / 600000000) : null;
 
