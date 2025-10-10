@@ -43,12 +43,12 @@ const Browse = () => {
 
   const userId = usersData?.[0]?.Id;
 
-  // Fetch latest items with user ID
-  const { data: latestItems, error: latestError } = useJellyfinApi<JellyfinResponse>(
-    ["latest-items", userId || ""],
+  // Fetch all media items
+  const { data: allItems, error: itemsError } = useJellyfinApi<JellyfinResponse>(
+    ["all-items", userId || ""],
     {
       endpoint: userId 
-        ? `/Users/${userId}/Items/Latest?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=Movie,Series&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Limit=100`
         : "",
     },
     !!user && !!userId
@@ -59,24 +59,28 @@ const Browse = () => {
     ["resume-items", userId || ""],
     {
       endpoint: userId
-        ? `/Users/${userId}/Items/Resume?Limit=10&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Items/Resume?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
     !!user && !!userId
   );
 
-  const hasApiError = latestError || resumeError;
+  // Separate movies and series
+  const movies = allItems?.Items?.filter(item => item.Type === "Movie") || [];
+  const series = allItems?.Items?.filter(item => item.Type === "Series") || [];
+
+  const hasApiError = itemsError || resumeError;
 
   // Use first item as featured
-  const featuredContent = latestItems?.Items?.[0]
+  const featuredContent = allItems?.Items?.[0]
     ? {
-        title: latestItems.Items[0].Name,
-        description: latestItems.Items[0].Overview || "Ingen beskrivelse tilgjengelig",
-        image: serverUrl && latestItems.Items[0].ImageTags?.Primary
-          ? `${serverUrl}/Items/${latestItems.Items[0].Id}/Images/Primary?maxHeight=600`
+        title: allItems.Items[0].Name,
+        description: allItems.Items[0].Overview || "Ingen beskrivelse tilgjengelig",
+        image: serverUrl && allItems.Items[0].ImageTags?.Primary
+          ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Primary?maxHeight=600`
           : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop",
-        rating: latestItems.Items[0].CommunityRating?.toFixed(1),
-        year: latestItems.Items[0].ProductionYear?.toString(),
+        rating: allItems.Items[0].CommunityRating?.toFixed(1),
+        year: allItems.Items[0].ProductionYear?.toString(),
       }
     : null;
 
@@ -86,7 +90,7 @@ const Browse = () => {
       id: item.Id,
       title: item.Name,
       image: serverUrl && item.ImageTags?.Primary
-        ? `${serverUrl}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),
@@ -107,7 +111,7 @@ const Browse = () => {
 
   // Show error message if API key is not configured
   if (hasApiError && !loading) {
-    const errorMessage = latestError?.message || resumeError?.message || 'Ukjent feil';
+    const errorMessage = itemsError?.message || resumeError?.message || 'Ukjent feil';
     
     return (
       <div className="min-h-screen bg-background">
@@ -147,15 +151,24 @@ const Browse = () => {
       {featuredContent && <Hero {...featuredContent} />}
       
       <div className="space-y-12 py-12">
-        <MediaRow
-          title="Siste innhold"
-          items={mapJellyfinItems(latestItems?.Items)}
-          onItemClick={handleItemClick}
-        />
         {resumeItems?.Items && resumeItems.Items.length > 0 && (
           <MediaRow
             title="Fortsett å se"
             items={mapJellyfinItems(resumeItems.Items)}
+            onItemClick={handleItemClick}
+          />
+        )}
+        {movies.length > 0 && (
+          <MediaRow
+            title="Filmer"
+            items={mapJellyfinItems(movies)}
+            onItemClick={handleItemClick}
+          />
+        )}
+        {series.length > 0 && (
+          <MediaRow
+            title="Serier"
+            items={mapJellyfinItems(series)}
             onItemClick={handleItemClick}
           />
         )}
