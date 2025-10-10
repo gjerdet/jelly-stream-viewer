@@ -19,6 +19,20 @@ export const useServerSettings = () => {
     },
   });
 
+  const { data: apiKey } = useQuery({
+    queryKey: ["server-settings", "jellyfin_api_key"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyfin_api_key")
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value || "";
+    },
+  });
+
   const updateServerUrl = useMutation({
     mutationFn: async (newUrl: string) => {
       const { error } = await supabase
@@ -40,5 +54,5 @@ export const useServerSettings = () => {
     },
   });
 
-  return { serverUrl, isLoading, updateServerUrl };
+  return { serverUrl, apiKey, isLoading, updateServerUrl };
 };

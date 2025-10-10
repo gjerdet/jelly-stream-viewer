@@ -36,7 +36,7 @@ const Browse = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading } = useAuth();
-  const { serverUrl } = useServerSettings();
+  const { serverUrl, apiKey } = useServerSettings();
   const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
   // Determine what content type to show based on route
@@ -154,11 +154,11 @@ const Browse = () => {
     ? {
         title: featuredItem.Name,
         description: featuredItem.Overview || "Ingen beskrivelse tilgjengelig",
-        image: serverUrl
+        image: serverUrl && apiKey
           ? featuredItem.BackdropImageTags?.[0]
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Backdrop?maxHeight=1080`
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Backdrop?maxHeight=1080&api_key=${apiKey}`
             : featuredItem.ImageTags?.Primary
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Primary?maxHeight=1080`
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Primary?maxHeight=1080&api_key=${apiKey}`
             : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop"
           : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop",
         rating: featuredItem.CommunityRating?.toFixed(1),
@@ -171,8 +171,8 @@ const Browse = () => {
     return items.map((item) => ({
       id: item.Id,
       title: item.Name,
-      image: serverUrl && item.ImageTags?.Primary
-        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+      image: serverUrl && apiKey && item.ImageTags?.Primary
+        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600&api_key=${apiKey}`
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),
