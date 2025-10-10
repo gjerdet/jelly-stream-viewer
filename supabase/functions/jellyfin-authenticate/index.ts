@@ -54,22 +54,23 @@ serve(async (req) => {
 
     console.log('Authenticating with Jellyfin:', jellyfinUrl);
 
-    // Authenticate with Jellyfin - using Authorization header exactly as in working Python example
+    // Authenticate with Jellyfin - try with both Authorization headers
     const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
     const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`;
     
     console.log('Auth header:', authHeader);
     console.log('Full URL:', authUrl);
-    console.log('Request body:', JSON.stringify({ username: username.trim(), Pw: '***' }));
+    console.log('Request body:', JSON.stringify({ Username: username.trim(), Pw: '***' }));
     
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        'X-Emby-Authorization': authHeader,
+        'Accept': 'application/json',
       },
       body: JSON.stringify({
-        username: username.trim(),
+        Username: username.trim(),
         Pw: password,
       }),
     });
