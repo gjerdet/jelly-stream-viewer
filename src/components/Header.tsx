@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Film, Search, User, LogOut, Settings } from "lucide-react";
+import { Film, Search, User, LogOut, Settings, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,15 +12,76 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useServerSettings } from "@/hooks/useServerSettings";
+import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+
+interface JellyfinItem {
+  Id: string;
+  Name: string;
+  Type: string;
+  ProductionYear?: number;
+  ImageTags?: { Primary?: string };
+}
+
+interface JellyfinResponse {
+  Items: JellyfinItem[];
+}
 
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: userRole } = useUserRole(user?.id);
+  const { serverUrl } = useServerSettings();
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch users to get user ID
+  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
+    ["jellyfin-users-header"],
+    {
+      endpoint: `/Users`,
+    },
+    !!user
+  );
+
+  const userId = usersData?.[0]?.Id;
+
+  // Search suggestions
+  const { data: suggestions } = useJellyfinApi<JellyfinResponse>(
+    ["search-suggestions", userId || "", debouncedQuery],
+    {
+      endpoint: userId && debouncedQuery.trim()
+        ? `/Users/${userId}/Items?SearchTerm=${encodeURIComponent(debouncedQuery.trim())}&IncludeItemTypes=Movie,Series&Recursive=true&Fields=PrimaryImageAspectRatio&ImageTypeLimit=1&EnableImageTypes=Primary&Limit=5`
+        : "",
+    },
+    !!user && !!userId && !!debouncedQuery.trim()
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -31,8 +92,26 @@ const Header = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setShowSuggestions(false);
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
     }
+  };
+
+  const handleSuggestionClick = (id: string) => {
+    setShowSuggestions(false);
+    setSearchQuery("");
+    navigate(`/detail/${id}`);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    setShowSuggestions(value.trim().length > 0);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setShowSuggestions(false);
   };
 
   const navItems = [
@@ -72,15 +151,60 @@ const Header = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <form onSubmit={handleSearch} className="relative hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Søk..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-64 bg-secondary/50 border-border/50"
-              />
-            </form>
+            <div ref={searchRef} className="relative hidden sm:block">
+              <form onSubmit={handleSearch}>
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                <Input
+                  placeholder="Søk..."
+                  value={searchQuery}
+                  onChange={handleInputChange}
+                  onFocus={() => searchQuery.trim() && setShowSuggestions(true)}
+                  className="pl-10 pr-10 w-64 bg-secondary/50 border-border/50"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </form>
+
+              {showSuggestions && suggestions?.Items && suggestions.Items.length > 0 && (
+                <div className="absolute top-full mt-2 w-full bg-card border border-border rounded-lg shadow-lg overflow-hidden z-50">
+                  {suggestions.Items.map((item) => (
+                    <button
+                      key={item.Id}
+                      onClick={() => handleSuggestionClick(item.Id)}
+                      className="w-full flex items-center gap-3 p-3 hover:bg-accent smooth-transition text-left"
+                    >
+                      <div className="w-10 h-14 flex-shrink-0 bg-secondary rounded overflow-hidden">
+                        {serverUrl && item.ImageTags?.Primary ? (
+                          <img
+                            src={`${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=100`}
+                            alt={item.Name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Film className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{item.Name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.Type === "Movie" ? "Film" : "Serie"}
+                          {item.ProductionYear && ` • ${item.ProductionYear}`}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
