@@ -76,6 +76,17 @@ const Browse = () => {
     !!user && !!userId
   );
 
+  // Fetch recommended items
+  const { data: recommendedItems } = useJellyfinApi<JellyfinResponse>(
+    ["recommended-items", userId || ""],
+    {
+      endpoint: userId
+        ? `/Users/${userId}/Suggestions?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        : "",
+    },
+    !!user && !!userId
+  );
+
   // Separate movies and series
   const movies = allItems?.Items?.filter(item => item.Type === "Movie") || [];
   const series = allItems?.Items?.filter(item => item.Type === "Series") || [];
@@ -162,6 +173,13 @@ const Browse = () => {
       {contentType === 'all' && featuredContent && <Hero {...featuredContent} />}
       
       <div className="space-y-12 py-12">
+        {contentType === 'all' && recommendedItems?.Items && recommendedItems.Items.length > 0 && (
+          <MediaRow
+            title="Anbefalt for deg"
+            items={mapJellyfinItems(recommendedItems.Items)}
+            onItemClick={handleItemClick}
+          />
+        )}
         {contentType === 'all' && resumeItems?.Items && resumeItems.Items.length > 0 && (
           <MediaRow
             title="Fortsett å se"
