@@ -23,7 +23,10 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-border/50">
+    <Sidebar 
+      collapsible="icon" 
+      className="border-r border-border/50 group/sidebar hover:w-64 transition-all duration-300"
+    >
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
@@ -32,17 +35,21 @@ export function AppSidebar() {
                 const Icon = item.icon;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild tooltip={item.title}>
+                    <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
                       <NavLink
                         to={item.url}
                         className={({ isActive }) =>
-                          isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "hover:bg-accent"
+                          `flex items-center gap-3 ${
+                            isActive
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "hover:bg-accent"
+                          }`
                         }
                       >
-                        <Icon className="h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
+                        <Icon className="h-4 w-4 flex-shrink-0" />
+                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                          {item.title}
+                        </span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
