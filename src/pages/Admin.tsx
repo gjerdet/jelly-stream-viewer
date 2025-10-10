@@ -75,9 +75,12 @@ const Admin = () => {
   }, [currentApiKey]);
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    // Wait for both auth and role to finish loading
+    if (authLoading || roleLoading) return;
+    
+    if (!user) {
       navigate("/");
-    } else if (!roleLoading && userRole !== "admin") {
+    } else if (userRole && userRole !== "admin") {
       navigate("/browse");
     }
   }, [user, userRole, authLoading, roleLoading, navigate]);
