@@ -64,11 +64,13 @@ const Detail = () => {
 
   const userId = usersData?.[0]?.Id;
 
-  // Fetch item details with media streams
+  // Fetch item details with media streams and backdrop images
   const { data: item, isLoading: itemLoading } = useJellyfinApi<JellyfinItemDetail>(
     ["item-detail", id || ""],
     {
-      endpoint: id && userId ? `/Users/${userId}/Items/${id}?Fields=MediaStreams` : "",
+      endpoint: id && userId 
+        ? `/Users/${userId}/Items/${id}?Fields=MediaStreams,Overview,Genres,People,Studios&EnableImageTypes=Primary,Backdrop,Thumb` 
+        : "",
     },
     !!user && !!userId && !!id
   );
