@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import Header from "@/components/Header";
 import Hero from "@/components/Hero";
@@ -23,8 +23,14 @@ interface JellyfinResponse {
 
 const Browse = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
+
+  // Determine what content type to show based on route
+  const contentType = location.pathname === '/movies' ? 'movies' : 
+                      location.pathname === '/series' ? 'series' : 
+                      'all';
 
   useEffect(() => {
     if (!loading && !user) {
@@ -43,12 +49,16 @@ const Browse = () => {
 
   const userId = usersData?.[0]?.Id;
 
-  // Fetch all media items
+  // Fetch all media items based on content type
+  const includeItemTypes = contentType === 'movies' ? 'Movie' : 
+                           contentType === 'series' ? 'Series' : 
+                           'Movie,Series';
+
   const { data: allItems, error: itemsError } = useJellyfinApi<JellyfinResponse>(
-    ["all-items", userId || ""],
+    ["all-items", userId || "", contentType],
     {
       endpoint: userId 
-        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=Movie,Series&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Limit=100`
+        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb&Limit=100`
         : "",
     },
     !!user && !!userId
@@ -148,26 +158,40 @@ const Browse = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      {featuredContent && <Hero {...featuredContent} />}
+      {contentType === 'all' && featuredContent && <Hero {...featuredContent} />}
       
       <div className="space-y-12 py-12">
-        {resumeItems?.Items && resumeItems.Items.length > 0 && (
+        {contentType === 'all' && resumeItems?.Items && resumeItems.Items.length > 0 && (
           <MediaRow
             title="Fortsett å se"
             items={mapJellyfinItems(resumeItems.Items)}
             onItemClick={handleItemClick}
           />
         )}
-        {movies.length > 0 && (
+        {contentType === 'all' && movies.length > 0 && (
           <MediaRow
             title="Filmer"
             items={mapJellyfinItems(movies)}
             onItemClick={handleItemClick}
           />
         )}
-        {series.length > 0 && (
+        {contentType === 'all' && series.length > 0 && (
           <MediaRow
             title="Serier"
+            items={mapJellyfinItems(series)}
+            onItemClick={handleItemClick}
+          />
+        )}
+        {contentType === 'movies' && movies.length > 0 && (
+          <MediaRow
+            title="Alle filmer"
+            items={mapJellyfinItems(movies)}
+            onItemClick={handleItemClick}
+          />
+        )}
+        {contentType === 'series' && series.length > 0 && (
+          <MediaRow
+            title="Alle serier"
             items={mapJellyfinItems(series)}
             onItemClick={handleItemClick}
           />
