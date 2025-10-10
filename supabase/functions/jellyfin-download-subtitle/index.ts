@@ -31,10 +31,10 @@ serve(async (req) => {
       });
     }
 
-    const { itemId } = await req.json();
+    const { itemId, subtitleId } = await req.json();
 
-    if (!itemId) {
-      return new Response(JSON.stringify({ error: 'Item ID required' }), {
+    if (!itemId || !subtitleId) {
+      return new Response(JSON.stringify({ error: 'Item ID and Subtitle ID required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -63,38 +63,36 @@ serve(async (req) => {
     const jellyfinUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Search for Norwegian subtitles using Jellyfin API
-    const searchUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/nor`;
+    // Download the selected subtitle
+    const downloadUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/${subtitleId}`;
     
-    console.log('Searching for subtitles at:', searchUrl);
+    console.log('Downloading subtitle from:', downloadUrl);
     
-    const searchResponse = await fetch(searchUrl, {
+    const downloadResponse = await fetch(downloadUrl, {
+      method: 'POST',
       headers: {
         'X-Emby-Token': apiKey,
       },
     });
 
-    if (!searchResponse.ok) {
-      console.error('Failed to search subtitles:', searchResponse.status, await searchResponse.text());
-      return new Response(JSON.stringify({ error: 'Failed to search subtitles' }), {
-        status: searchResponse.status,
+    if (!downloadResponse.ok) {
+      console.error('Failed to download subtitle:', downloadResponse.status, await downloadResponse.text());
+      return new Response(JSON.stringify({ error: 'Failed to download subtitle' }), {
+        status: downloadResponse.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const results = await searchResponse.json();
-    console.log('Subtitle search results:', results?.length || 0, 'found');
-
     return new Response(JSON.stringify({ 
-      success: true,
-      results: results || []
+      success: true, 
+      message: 'Undertekst lastet ned'
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in jellyfin-search-subtitles:', error);
+    console.error('Error in jellyfin-download-subtitle:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Internal server error' 
     }), {
