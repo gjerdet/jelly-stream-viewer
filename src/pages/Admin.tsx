@@ -12,7 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Settings, Newspaper, Trash2 } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -246,6 +246,7 @@ const Admin = () => {
       const { data, error } = await supabase
         .from("news_posts")
         .select("*")
+        .order("pinned", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -299,6 +300,26 @@ const Admin = () => {
     },
     onError: () => {
       toast.error("Kunne ikke slette nyhet");
+    },
+  });
+
+  // Toggle pin mutation
+  const togglePin = useMutation({
+    mutationFn: async ({ postId, currentPinned }: { postId: string; currentPinned: boolean }) => {
+      const { error } = await supabase
+        .from("news_posts")
+        .update({ pinned: !currentPinned })
+        .eq("id", postId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-news-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["news-posts"] });
+      toast.success("Nyhet oppdatert");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere nyhet");
     },
   });
 
@@ -603,23 +624,41 @@ const Admin = () => {
                   {!newsPosts || newsPosts.length === 0 ? (
                     <p className="text-muted-foreground text-center py-8">Ingen nyheter ennå</p>
                   ) : (
-                    <div className="space-y-4">
+                     <div className="space-y-4">
                       {newsPosts.map((post) => (
                         <div key={post.id} className="p-4 border border-border rounded-lg space-y-2">
-                          <div className="flex items-start justify-between">
+                          <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
-                              <h3 className="font-semibold">{post.title}</h3>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold">{post.title}</h3>
+                                {post.pinned && (
+                                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+                                    Festa
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-sm text-muted-foreground line-clamp-2">{post.content}</p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteNewsPost.mutate(post.id)}
-                              disabled={deleteNewsPost.isPending}
-                              className="text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => togglePin.mutate({ postId: post.id, currentPinned: post.pinned })}
+                                disabled={togglePin.isPending}
+                                title={post.pinned ? "Løs frå toppen" : "Fest til toppen"}
+                              >
+                                <Pin className={`h-4 w-4 ${post.pinned ? 'fill-current text-primary' : ''}`} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteNewsPost.mutate(post.id)}
+                                disabled={deleteNewsPost.isPending}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       ))}

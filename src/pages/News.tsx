@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Newspaper } from "lucide-react";
+import { Newspaper, Pin } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 
@@ -15,6 +15,7 @@ interface NewsPost {
   content: string;
   created_at: string;
   updated_at: string;
+  pinned: boolean;
 }
 
 const News = () => {
@@ -34,6 +35,7 @@ const News = () => {
         .from("news_posts")
         .select("*")
         .eq("published", true)
+        .order("pinned", { ascending: false })
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -79,11 +81,18 @@ const News = () => {
           ) : (
             <div className="space-y-6">
               {posts.map((post) => (
-                <Card key={post.id} className="border-border/50">
+                <Card key={post.id} className={`border-border/50 ${post.pinned ? 'border-primary/50 bg-primary/5' : ''}`}>
                   <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-2xl">{post.title}</CardTitle>
-                      <time className="text-sm text-muted-foreground">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          {post.pinned && (
+                            <Pin className="h-4 w-4 text-primary fill-current" />
+                          )}
+                          <CardTitle className="text-2xl">{post.title}</CardTitle>
+                        </div>
+                      </div>
+                      <time className="text-sm text-muted-foreground whitespace-nowrap">
                         {format(new Date(post.created_at), "d. MMMM yyyy", { locale: nb })}
                       </time>
                     </div>
