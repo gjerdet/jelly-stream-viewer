@@ -46,12 +46,42 @@ interface JellyfinItemDetail {
   MediaStreams?: MediaStream[];
 }
 
+interface Season {
+  Id: string;
+  Name: string;
+  IndexNumber?: number;
+  ImageTags?: { Primary?: string };
+}
+
+interface Episode {
+  Id: string;
+  Name: string;
+  IndexNumber?: number;
+  SeasonId: string;
+  Overview?: string;
+  ImageTags?: { Primary?: string };
+  RunTimeTicks?: number;
+  UserData?: {
+    Played?: boolean;
+    PlaybackPositionTicks?: number;
+  };
+}
+
+interface SeasonsResponse {
+  Items: Season[];
+}
+
+interface EpisodesResponse {
+  Items: Episode[];
+}
+
 const Detail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -80,6 +110,35 @@ const Detail = () => {
     },
     !!user && !!userId && !!id
   );
+
+  // Fetch seasons if this is a series
+  const { data: seasonsData } = useJellyfinApi<SeasonsResponse>(
+    ["series-seasons", id || ""],
+    {
+      endpoint: id && userId && item?.Type === "Series"
+        ? `/Shows/${id}/Seasons?UserId=${userId}&Fields=PrimaryImageAspectRatio`
+        : "",
+    },
+    !!user && !!userId && !!id && item?.Type === "Series"
+  );
+
+  // Fetch episodes for selected season
+  const { data: episodesData } = useJellyfinApi<EpisodesResponse>(
+    ["season-episodes", selectedSeasonId],
+    {
+      endpoint: selectedSeasonId && userId
+        ? `/Shows/${id}/Episodes?SeasonId=${selectedSeasonId}&UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio`
+        : "",
+    },
+    !!selectedSeasonId && !!userId
+  );
+
+  // Auto-select first season when seasons load
+  useEffect(() => {
+    if (seasonsData?.Items && seasonsData.Items.length > 0 && !selectedSeasonId) {
+      setSelectedSeasonId(seasonsData.Items[0].Id);
+    }
+  }, [seasonsData, selectedSeasonId]);
 
   if (loading || itemLoading) {
     return (
@@ -299,6 +358,94 @@ const Detail = () => {
           )}
         </div>
       </div>
+
+      {/* Seasons and Episodes for Series */}
+      {item.Type === "Series" && seasonsData?.Items && seasonsData.Items.length > 0 && (
+        <div className="container mx-auto px-4 py-12 border-t border-border">
+          <h2 className="text-2xl font-bold mb-6">Episoder</h2>
+          
+          {/* Season Selector */}
+          <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide pb-2">
+            {seasonsData.Items.map((season) => (
+              <Button
+                key={season.Id}
+                variant={selectedSeasonId === season.Id ? "default" : "outline"}
+                onClick={() => setSelectedSeasonId(season.Id)}
+                className="whitespace-nowrap"
+              >
+                {season.Name}
+              </Button>
+            ))}
+          </div>
+
+          {/* Episodes Grid */}
+          {episodesData?.Items && episodesData.Items.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {episodesData.Items.map((episode) => {
+                const episodeImageUrl = serverUrl && episode.ImageTags?.Primary
+                  ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=300`
+                  : null;
+                const episodeRuntime = episode.RunTimeTicks 
+                  ? Math.round(episode.RunTimeTicks / 600000000) 
+                  : null;
+                const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
+                  ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
+                  : 0;
+
+                return (
+                  <div
+                    key={episode.Id}
+                    onClick={() => navigate(`/player/${episode.Id}`)}
+                    className="group cursor-pointer bg-card rounded-lg overflow-hidden border border-border hover:border-primary smooth-transition"
+                  >
+                    <div className="aspect-video relative bg-secondary">
+                      {episodeImageUrl ? (
+                        <img
+                          src={episodeImageUrl}
+                          alt={episode.Name}
+                          className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Play className="h-12 w-12 text-muted-foreground" />
+                        </div>
+                      )}
+                      {watchedPercentage > 0 && watchedPercentage < 95 && (
+                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
+                          <div 
+                            className="h-full bg-primary"
+                            style={{ width: `${watchedPercentage}%` }}
+                          />
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
+                        <Play className="h-12 w-12 text-white" />
+                      </div>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <h3 className="font-semibold line-clamp-1">
+                          {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
+                        </h3>
+                        {episodeRuntime && (
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {episodeRuntime} min
+                          </span>
+                        )}
+                      </div>
+                      {episode.Overview && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {episode.Overview}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
