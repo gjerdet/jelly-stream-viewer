@@ -5,7 +5,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, List, Cast } from "lucide-react";
+import { ArrowLeft, Subtitles, List, Cast, Play, Pause, Square } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -87,8 +87,10 @@ const Player = () => {
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [isCasting, setIsCasting] = useState(false);
+  const [castPlayerState, setCastPlayerState] = useState<any>(null);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const castPlayerRef = useRef<any>(null);
+  const castRemotePlayerRef = useRef<any>(null);
   const castContextRef = useRef<any>(null);
 
   // Set stream URL using edge function
@@ -188,7 +190,23 @@ const Player = () => {
         });
 
         const player = new cast.framework.RemotePlayer();
+        castRemotePlayerRef.current = player;
         castPlayerRef.current = new cast.framework.RemotePlayerController(player);
+
+        // Track all player state changes
+        castPlayerRef.current.addEventListener(
+          cast.framework.RemotePlayerEventType.ANY_CHANGE,
+          () => {
+            setCastPlayerState({
+              isConnected: player.isConnected,
+              isPaused: player.isPaused,
+              currentTime: player.currentTime,
+              duration: player.duration,
+              canPause: player.canPause,
+              canSeek: player.canSeek,
+            });
+          }
+        );
 
         castPlayerRef.current.addEventListener(
           cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
@@ -265,6 +283,55 @@ const Player = () => {
       },
       (error: any) => console.error('Cast session error:', error)
     );
+  };
+
+  const handleCastPlayPause = () => {
+    if (!castPlayerRef.current || !castRemotePlayerRef.current) return;
+    castPlayerRef.current.playOrPause();
+  };
+
+  const handleCastStop = () => {
+    if (!castContextRef.current) return;
+    const session = castContextRef.current.getCurrentSession();
+    if (session) {
+      session.endSession(true);
+    }
+  };
+
+  const handleCastSeek = (time: number) => {
+    if (!castPlayerRef.current || !castRemotePlayerRef.current) return;
+    castRemotePlayerRef.current.currentTime = time;
+    castPlayerRef.current.seek();
+  };
+
+  const handleCastSubtitleChange = async (subtitleIndex: string) => {
+    if (!castContextRef.current || subtitleIndex === 'none') return;
+    
+    const session = castContextRef.current.getCurrentSession();
+    if (!session) return;
+
+    const media = session.getMediaSession();
+    if (!media) return;
+
+    try {
+      const subtitleUrl = await getSubtitleUrl(parseInt(subtitleIndex));
+      if (!subtitleUrl) return;
+
+      const cast = (window as any).chrome.cast;
+      const track = new cast.media.Track(parseInt(subtitleIndex), cast.media.TrackType.TEXT);
+      track.trackContentId = subtitleUrl;
+      track.trackContentType = 'text/vtt';
+      track.subtype = cast.media.TextTrackType.SUBTITLES;
+      track.name = subtitles.find(s => s.Index === parseInt(subtitleIndex))?.DisplayTitle || 'Subtitle';
+
+      const tracksInfoRequest = new cast.media.EditTracksInfoRequest([parseInt(subtitleIndex)]);
+      media.editTracksInfo(tracksInfoRequest,
+        () => console.log('Subtitle changed'),
+        (error: any) => console.error('Subtitle change error:', error)
+      );
+    } catch (error) {
+      console.error('Error changing subtitle:', error);
+    }
   };
 
   // Register watch history when playback starts
@@ -496,7 +563,15 @@ const Player = () => {
             )}
             
             {subtitles.length > 0 && (
-              <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
+              <Select 
+                value={selectedSubtitle} 
+                onValueChange={(value) => {
+                  setSelectedSubtitle(value);
+                  if (isCasting) {
+                    handleCastSubtitleChange(value);
+                  }
+                }}
+              >
                 <SelectTrigger className="w-[180px] bg-black/50 backdrop-blur-sm border-white/20 text-white">
                   <Subtitles className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Undertekster" />
@@ -513,9 +588,77 @@ const Player = () => {
             )}
           </div>
         </div>
+
+        {/* Cast Controls */}
+        {isCasting && castPlayerState && (
+          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-4 pointer-events-auto">
+            <div className="bg-black/80 backdrop-blur-md rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between text-white">
+                <span className="text-sm">Caster til TV</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCastStop}
+                  className="text-white hover:bg-white/20"
+                >
+                  <Square className="h-4 w-4 mr-2" />
+                  Stopp casting
+                </Button>
+              </div>
+
+              {/* Progress bar */}
+              {castPlayerState.canSeek && (
+                <div className="space-y-2">
+                  <input
+                    type="range"
+                    min="0"
+                    max={castPlayerState.duration || 0}
+                    value={castPlayerState.currentTime || 0}
+                    onChange={(e) => handleCastSeek(parseFloat(e.target.value))}
+                    className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary"
+                  />
+                  <div className="flex justify-between text-xs text-white/70">
+                    <span>{formatTime(castPlayerState.currentTime || 0)}</span>
+                    <span>{formatTime(castPlayerState.duration || 0)}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Play/Pause button */}
+              {castPlayerState.canPause && (
+                <div className="flex justify-center">
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    onClick={handleCastPlayPause}
+                    className="text-white hover:bg-white/20 w-16 h-16"
+                  >
+                    {castPlayerState.isPaused ? (
+                      <Play className="h-8 w-8" />
+                    ) : (
+                      <Pause className="h-8 w-8" />
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
+};
+
+// Helper function to format time
+const formatTime = (seconds: number) => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
 export default Player;
