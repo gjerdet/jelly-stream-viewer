@@ -10,6 +10,7 @@ import History from "./pages/History";
 import Detail from "./pages/Detail";
 import Player from "./pages/Player";
 import Admin from "./pages/Admin";
+import Requests from "./pages/Requests";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/series" element={<Browse />} />
           <Route path="/search" element={<Search />} />
           <Route path="/history" element={<History />} />
+          <Route path="/requests" element={<Requests />} />
           <Route path="/detail/:id" element={<Detail />} />
           <Route path="/player/:id" element={<Player />} />
           <Route path="/admin" element={<Admin />} />

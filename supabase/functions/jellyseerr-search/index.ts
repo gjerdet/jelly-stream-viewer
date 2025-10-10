@@ -6,28 +6,32 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface RequestBody {
-  mediaType: 'movie' | 'tv';
-  mediaId: number;
-  seasons?: number[] | 'all';
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { mediaType, mediaId, seasons }: RequestBody = await req.json();
+    const { query } = await req.json();
     
-    console.log('Jellyseerr request:', { mediaType, mediaId, seasons });
+    if (!query || query.trim().length === 0) {
+      return new Response(
+        JSON.stringify({ error: 'Søkeord er påkrevd' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('Search query:', query);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch Jellyseerr settings from database
+    // Fetch Jellyseerr settings
     const { data: urlData } = await supabase
       .from('server_settings')
       .select('setting_value')
@@ -46,7 +50,7 @@ serve(async (req) => {
     if (!jellyseerrUrl || !jellyseerrApiKey) {
       console.error('Missing Jellyseerr configuration');
       return new Response(
-        JSON.stringify({ error: 'Jellyseerr er ikke konfigurert. Gå til Admin for å sette opp.' }),
+        JSON.stringify({ error: 'Jellyseerr er ikke konfigurert' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -54,38 +58,25 @@ serve(async (req) => {
       );
     }
 
-    // Build request payload
-    const payload: any = {
-      mediaType,
-      mediaId,
-    };
+    // Search via Jellyseerr API
+    const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=1&language=no`;
+    console.log('Searching Jellyseerr:', searchUrl);
 
-    // Add seasons for TV shows
-    if (mediaType === 'tv') {
-      payload.seasons = seasons || 'all';
-    }
-
-    console.log('Sending request to Jellyseerr:', payload);
-
-    // Send request to Jellyseerr
-    const response = await fetch(`${jellyseerrUrl}/api/v1/request`, {
-      method: 'POST',
+    const response = await fetch(searchUrl, {
+      method: 'GET',
       headers: {
         'X-Api-Key': jellyseerrApiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
     });
 
-    const responseData = await response.json();
-    console.log('Jellyseerr response:', responseData);
-
     if (!response.ok) {
-      console.error('Jellyseerr error:', response.status, responseData);
+      const errorText = await response.text();
+      console.error('Jellyseerr search error:', response.status, errorText);
       return new Response(
         JSON.stringify({ 
-          error: responseData.message || 'Kunne ikke sende forespørsel til Jellyseerr',
-          details: responseData 
+          error: 'Søket feilet',
+          details: errorText 
         }),
         { 
           status: response.status, 
@@ -94,12 +85,11 @@ serve(async (req) => {
       );
     }
 
+    const data = await response.json();
+    console.log('Search results count:', data.results?.length || 0);
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        data: responseData,
-        message: 'Forespørsel sendt til Jellyseerr!' 
-      }),
+      JSON.stringify(data),
       { 
         status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -107,10 +97,10 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error in jellyseerr-request:', error);
+    console.error('Error in jellyseerr-search:', error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Ukjent feil oppstod' 
+        error: error instanceof Error ? error.message : 'Ukjent feil' 
       }),
       { 
         status: 500, 

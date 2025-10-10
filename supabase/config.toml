@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.jellyseerr-request]
 verify_jwt = true
+
+[functions.jellyseerr-search]
+verify_jwt = true

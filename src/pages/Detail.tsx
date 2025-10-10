@@ -4,9 +4,8 @@ import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
-import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Download } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Select,
@@ -46,10 +45,6 @@ interface JellyfinItemDetail {
     PrimaryImageTag?: string;
   }[];
   MediaStreams?: MediaStream[];
-  ProviderIds?: {
-    Tmdb?: string;
-    Imdb?: string;
-  };
 }
 
 interface Season {
@@ -92,7 +87,6 @@ const Detail = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const jellyseerrRequest = useJellyseerrRequest();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -208,23 +202,6 @@ const Detail = () => {
   // Filter subtitle streams
   const subtitles = item.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
 
-  const handleJellyseerrRequest = () => {
-    const tmdbId = item.ProviderIds?.Tmdb;
-    
-    if (!tmdbId) {
-      toast.error("TMDB ID ikke funnet for dette innholdet");
-      return;
-    }
-
-    const mediaType = item.Type === "Movie" ? "movie" : "tv";
-    
-    jellyseerrRequest.mutate({
-      mediaType,
-      mediaId: parseInt(tmdbId),
-      seasons: mediaType === "tv" ? "all" : undefined,
-    });
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -315,18 +292,6 @@ const Detail = () => {
                 <Button size="lg" variant="outline">
                   <ThumbsUp className="h-5 w-5" />
                 </Button>
-                {item.ProviderIds?.Tmdb && (
-                  <Button 
-                    size="lg" 
-                    variant="outline" 
-                    className="gap-2"
-                    onClick={handleJellyseerrRequest}
-                    disabled={jellyseerrRequest.isPending}
-                  >
-                    <Download className="h-5 w-5" />
-                    {jellyseerrRequest.isPending ? "Sender..." : "Be om innhold"}
-                  </Button>
-                )}
                 {subtitles.length > 0 && (
                   <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
                     <SelectTrigger className="w-[200px] bg-background/80 backdrop-blur-sm border-white/20 text-white">
