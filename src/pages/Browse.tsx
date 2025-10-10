@@ -219,12 +219,12 @@ const Browse = () => {
   }));
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Header />
       
       {/* Featured Carousel - Only on home page */}
       {contentType === 'all' && carouselItemsWithImages.length > 0 && (
-        <div className="container mx-auto px-4 pt-8">
+        <div className="container mx-auto px-4 pt-8 relative z-0">
           <FeaturedCarousel items={carouselItemsWithImages} onItemClick={handleItemClick} />
         </div>
       )}

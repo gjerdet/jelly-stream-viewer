@@ -40,7 +40,7 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
   return (
     <div className="relative w-full h-[400px] md:h-[500px] overflow-hidden rounded-lg group">
       {/* Carousel Images */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 z-0">
         <img
           src={currentItem.imageUrl}
           alt={currentItem.title}
@@ -51,7 +51,7 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
       </div>
 
       {/* Content */}
-      <div className="relative h-full flex flex-col justify-end p-8 md:p-12">
+      <div className="relative h-full flex flex-col justify-end p-8 md:p-12 z-10">
         <h2 className="text-3xl md:text-5xl font-bold mb-2 text-white drop-shadow-lg">
           {currentItem.title}
         </h2>
@@ -71,7 +71,7 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
         variant="ghost"
         size="icon"
         onClick={goToPrevious}
-        className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white"
+        className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20"
       >
         <ChevronLeft className="h-8 w-8" />
       </Button>
@@ -79,13 +79,13 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
         variant="ghost"
         size="icon"
         onClick={goToNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white"
+        className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20"
       >
         <ChevronRight className="h-8 w-8" />
       </Button>
 
       {/* Indicators */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
         {items.map((_, index) => (
           <button
             key={index}
