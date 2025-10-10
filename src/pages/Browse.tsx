@@ -128,20 +128,41 @@ const Browse = () => {
 
   const hasApiError = itemsError || resumeError;
 
-  // Use first item as featured with backdrop image
-  const featuredContent = allItems?.Items?.[0]
+  // Use item with backdrop for featured, or pick random one if first doesn't have backdrop
+  const getFeaturedItem = () => {
+    if (!allItems?.Items || allItems.Items.length === 0) return null;
+    
+    const firstItem = allItems.Items[0];
+    
+    // If first item has backdrop, use it
+    if (firstItem.BackdropImageTags?.[0]) {
+      return firstItem;
+    }
+    
+    // Otherwise, find all items with backdrops and pick a random one
+    const itemsWithBackdrops = allItems.Items.filter(item => item.BackdropImageTags?.[0]);
+    if (itemsWithBackdrops.length > 0) {
+      return itemsWithBackdrops[Math.floor(Math.random() * itemsWithBackdrops.length)];
+    }
+    
+    // Fallback to first item if no items have backdrops
+    return firstItem;
+  };
+
+  const featuredItem = getFeaturedItem();
+  const featuredContent = featuredItem
     ? {
-        title: allItems.Items[0].Name,
-        description: allItems.Items[0].Overview || "Ingen beskrivelse tilgjengelig",
+        title: featuredItem.Name,
+        description: featuredItem.Overview || "Ingen beskrivelse tilgjengelig",
         image: serverUrl
-          ? allItems.Items[0].BackdropImageTags?.[0]
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Backdrop?maxHeight=1080`
-            : allItems.Items[0].ImageTags?.Primary
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${allItems.Items[0].Id}/Images/Primary?maxHeight=1080`
+          ? featuredItem.BackdropImageTags?.[0]
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Backdrop?maxHeight=1080`
+            : featuredItem.ImageTags?.Primary
+            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Primary?maxHeight=1080`
             : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop"
           : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop",
-        rating: allItems.Items[0].CommunityRating?.toFixed(1),
-        year: allItems.Items[0].ProductionYear?.toString(),
+        rating: featuredItem.CommunityRating?.toFixed(1),
+        year: featuredItem.ProductionYear?.toString(),
       }
     : null;
 
