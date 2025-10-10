@@ -216,12 +216,21 @@ const Browse = () => {
       : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=800&fit=crop"
   }));
 
+  console.log('Browse debug:', {
+    contentType,
+    carouselItemsLength: carouselItemsWithImages.length,
+    hasData: !!allItems,
+    itemsCount: allItems?.Items?.length || 0
+  });
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Featured Carousel - Only on home page */}
       {contentType === 'all' && carouselItemsWithImages.length > 0 && (
-        <div className="container mx-auto px-4 pt-8 relative z-0">
-          <FeaturedCarousel items={carouselItemsWithImages} onItemClick={handleItemClick} />
+        <div className="w-full px-4 pt-8">
+          <div className="container mx-auto">
+            <FeaturedCarousel items={carouselItemsWithImages} onItemClick={handleItemClick} />
+          </div>
         </div>
       )}
       

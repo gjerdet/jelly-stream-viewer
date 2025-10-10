@@ -36,11 +36,11 @@ const AppContent = () => {
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full overflow-hidden">
         <AppSidebar />
-        <main className="flex-1 flex flex-col">
+        <main className="flex-1 flex flex-col min-w-0">
           <Header />
-          <div className="flex-1">
+          <div className="flex-1 overflow-auto">
             <Routes>
               <Route path="/browse" element={<Browse />} />
               <Route path="/movies" element={<Browse />} />
