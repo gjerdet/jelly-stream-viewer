@@ -1,73 +1,140 @@
-# Welcome to your Lovable project
+# Jelly Stream Viewer
 
-## Project info
+En moderne webapplikasjon for streaming fra Jellyfin media server, bygget med React, TypeScript, Tailwind CSS og Supabase.
 
-**URL**: https://lovable.dev/projects/205817f9-c090-44eb-91ab-92eabefe1aae
+## Funksjoner
 
-## How can I edit this code?
+- 🎬 Stream filmer og serier fra Jellyfin
+- 📱 Mobilvennlig design
+- 🔐 Brukerautentisering og rollestyring
+- ⭐ Favoritter og visningshistorikk
+- 📺 Chromecast-støtte
+- 🌐 Undertekststøtte
+- 🎯 Integrasjon med Jellyseerr for forespørsler
 
-There are several ways of editing your application.
+## Forutsetninger
 
-**Use Lovable**
+- Ubuntu Server 20.04+ (eller annen Linux-distribusjon)
+- Node.js 18+ og npm
+- En Jellyfin media server (kjørende og tilgjengelig)
+- En Supabase-konto (eller selvhostet Supabase)
+- (Valgfritt) Jellyseerr-instans for medieforespørsler
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/205817f9-c090-44eb-91ab-92eabefe1aae) and start prompting.
+## Rask installasjon på Ubuntu
 
-Changes made via Lovable will be committed automatically to this repo.
+### Automatisk installasjon
 
-**Use your preferred IDE**
+Kjør installasjonsskriptet for automatisk oppsett:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```bash
+# Last ned prosjektet fra GitHub
+git clone <DIN_GITHUB_URL>
+cd jelly-stream-viewer
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+# Gjør skriptet kjørbart
+chmod +x setup.sh
 
-Follow these steps:
+# Kjør installasjonsskriptet
+sudo ./setup.sh
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Skriptet vil:
+1. Installere Node.js og npm hvis de mangler
+2. Installere alle nødvendige avhengigheter
+3. Sette opp miljøvariabler
+4. Bygge produksjonsversjonen
+5. Installere og konfigurere Nginx som reverse proxy
+6. Sette opp systemd-tjeneste for automatisk start
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Manuell installasjon
 
-# Step 3: Install the necessary dependencies.
-npm i
+Hvis du foretrekker manuell installasjon, se [DEPLOYMENT.md](DEPLOYMENT.md) for detaljerte instruksjoner.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+## Konfigurasjon
+
+### Første gangs oppsett
+
+1. Besøk applikasjonen i nettleseren: `http://din-server-ip`
+2. Registrer en brukerkonto
+3. Logg inn som admin (sett i databasen)
+4. Gå til Admin-siden og konfigurer:
+   - **Jellyfin Server URL**: URL til din Jellyfin-server
+   - **Jellyfin API Key**: API-nøkkel fra Jellyfin
+   - **Jellyseerr URL**: (valgfritt) URL til Jellyseerr
+   - **Jellyseerr API Key**: (valgfritt) API-nøkkel for Jellyseerr
+
+Se [DEPLOYMENT.md](DEPLOYMENT.md) for fullstendig installasjonsveiledning.
+
+## Oppgradering
+
+For å oppdatere til nyeste versjon:
+
+```bash
+# Pull nyeste endringer fra GitHub
+git pull origin main
+
+# Installer nye avhengigheter
+npm install
+
+# Bygg på nytt
+npm run build
+
+# Restart tjenesten
+sudo systemctl restart nginx
+```
+
+## Utviklingsmodus
+
+For å kjøre i utviklingsmodus:
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Applikasjonen vil være tilgjengelig på `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Dokumentasjon
 
-**Use GitHub Codespaces**
+- [Deployment Guide](DEPLOYMENT.md) - Fullstendig guide for lokal installasjon
+- [Supabase Setup](DEPLOYMENT.md#steg-3-konfigurer-supabase) - Database og edge functions
+- [Feilsøking](DEPLOYMENT.md#feilsøking) - Vanlige problemer og løsninger
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## Teknologi
 
-## What technologies are used for this project?
-
-This project is built with:
+Dette prosjektet er bygget med:
 
 - Vite
 - TypeScript
 - React
 - shadcn-ui
 - Tailwind CSS
+- Supabase (database + edge functions)
+- Jellyfin API
 
-## How can I deploy this project?
+## Sikkerhet
 
-Simply open [Lovable](https://lovable.dev/projects/205817f9-c090-44eb-91ab-92eabefe1aae) and click on Share -> Publish.
+Applikasjonen har følgende sikkerhetstiltak:
+- API-nøkler lagres sikret i database (kun tilgjengelig via edge functions)
+- JWT-basert autentisering for streaming
+- Input-validering på alle endpoints
+- Row Level Security (RLS) i Supabase
+- HTTPS støtte via Nginx + Certbot
 
-## Can I connect a custom domain to my Lovable project?
+## Support
 
-Yes, you can!
+For problemer eller spørsmål:
+- Opprett en issue på GitHub
+- Se [DEPLOYMENT.md](DEPLOYMENT.md) for feilsøking
+- Sjekk Supabase logs for backend-feil
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Lovable Integration
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Dette prosjektet kan også redigeres via Lovable:
+
+**URL**: https://lovable.dev/projects/205817f9-c090-44eb-91ab-92eabefe1aae
+
+Endringer gjort i Lovable vil automatisk committes til dette repoet, og endringer pushet til GitHub vil reflekteres i Lovable.
+
+## Lisens
+
+Dette prosjektet er åpen kildekode.
