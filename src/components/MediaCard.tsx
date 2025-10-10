@@ -16,7 +16,7 @@ const MediaCard = ({ title, image, year, rating, onClick }: MediaCardProps) => {
 
   return (
     <Card
-      className="group relative overflow-hidden bg-card border-border/50 cursor-pointer smooth-transition hover:scale-105 hover:z-10"
+      className="group relative overflow-hidden bg-card border-border/50 cursor-pointer smooth-transition hover:scale-105 hover:z-10 touch-manipulation"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onClick}
@@ -29,18 +29,19 @@ const MediaCard = ({ title, image, year, rating, onClick }: MediaCardProps) => {
         />
         <div className="absolute inset-0 gradient-card opacity-0 group-hover:opacity-100 smooth-transition" />
         
-        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 smooth-transition ${isHovered ? 'cinema-glow' : ''}`}>
-          <Button size="icon" className="rounded-full h-12 w-12 cinema-glow">
-            <Play className="h-5 w-5 fill-current" />
+        {/* Touch-friendly overlay - show on mobile, hover on desktop */}
+        <div className={`absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-0 md:group-hover:opacity-100 smooth-transition ${isHovered ? 'cinema-glow' : ''}`}>
+          <Button size="icon" className="rounded-full h-14 w-14 sm:h-12 sm:w-12 cinema-glow">
+            <Play className="h-6 w-6 sm:h-5 sm:w-5 fill-current" />
           </Button>
-          <Button size="icon" variant="secondary" className="rounded-full h-10 w-10">
-            <Info className="h-4 w-4" />
+          <Button size="icon" variant="secondary" className="rounded-full h-12 w-12 sm:h-10 sm:w-10">
+            <Info className="h-5 w-5 sm:h-4 sm:w-4" />
           </Button>
         </div>
       </div>
       
-      <div className="p-3 space-y-1">
-        <h3 className="font-semibold text-sm line-clamp-1">{title}</h3>
+      <div className="p-2 sm:p-3 space-y-1">
+        <h3 className="font-semibold text-xs sm:text-sm line-clamp-1">{title}</h3>
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {year && <span>{year}</span>}
           {rating && (

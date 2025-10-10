@@ -9,6 +9,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -42,6 +49,8 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
@@ -126,16 +135,16 @@ const Header = () => {
 
   return (
     <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50 w-full">
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+      <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleSidebar}
-              className="flex-shrink-0"
+              className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10"
             >
-              <Menu className="h-5 w-5" />
+              <Menu className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
             
             <Link to="/browse" className="flex items-center gap-2 group flex-shrink-0">
@@ -143,14 +152,14 @@ const Header = () => {
                 <img 
                   src={logoUrl} 
                   alt={siteName}
-                  className="h-8 w-auto object-contain"
+                  className="h-7 sm:h-8 w-auto object-contain"
                 />
               ) : (
-                <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 smooth-transition">
-                  <Film className="h-5 w-5 text-primary" />
+                <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 smooth-transition">
+                  <Film className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
               )}
-              <span className="text-lg font-bold hidden lg:block">{headerTitle}</span>
+              <span className="text-base sm:text-lg font-bold hidden lg:block">{headerTitle}</span>
             </Link>
 
             <nav className="hidden lg:flex items-center gap-4">
@@ -170,7 +179,84 @@ const Header = () => {
             </nav>
           </div>
 
-          <div className="flex items-center gap-4 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Mobile Search Button */}
+            <Sheet open={showMobileSearch} onOpenChange={setShowMobileSearch}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="md:hidden h-9 w-9">
+                  <Search className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="top" className="h-auto">
+                <SheetHeader>
+                  <SheetTitle>Søk</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4">
+                  <form onSubmit={(e) => {
+                    handleSearch(e);
+                    setShowMobileSearch(false);
+                  }}>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                      <Input
+                        placeholder="Søk etter filmer og serier..."
+                        value={searchQuery}
+                        onChange={handleInputChange}
+                        className="pl-10 pr-10 text-base"
+                        autoFocus
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={handleClearSearch}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  </form>
+
+                  {suggestions?.Items && suggestions.Items.length > 0 && searchQuery.trim() && (
+                    <div className="mt-4 space-y-2">
+                      {suggestions.Items.map((item) => (
+                        <button
+                          key={item.Id}
+                          onClick={() => {
+                            handleSuggestionClick(item.Id);
+                            setShowMobileSearch(false);
+                          }}
+                          className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-accent smooth-transition text-left"
+                        >
+                          <div className="w-12 h-16 flex-shrink-0 bg-secondary rounded overflow-hidden">
+                            {serverUrl && item.ImageTags?.Primary ? (
+                              <img
+                                src={`${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=100`}
+                                alt={item.Name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <Film className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{item.Name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.Type === "Movie" ? "Film" : "Serie"}
+                              {item.ProductionYear && ` • ${item.ProductionYear}`}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Desktop Search */}
             <div ref={searchRef} className="relative hidden md:block">
               <form onSubmit={handleSearch}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
@@ -225,11 +311,41 @@ const Header = () => {
                 </div>
               )}
             </div>
+
+            {/* Mobile Menu */}
+            <Sheet open={showMobileMenu} onOpenChange={setShowMobileMenu}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon" className="lg:hidden h-9 w-9">
+                  <Menu className="h-4 w-4" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right">
+                <SheetHeader>
+                  <SheetTitle>Meny</SheetTitle>
+                </SheetHeader>
+                <nav className="mt-6 space-y-1">
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setShowMobileMenu(false)}
+                      className={`block px-4 py-3 rounded-lg text-base font-medium smooth-transition ${
+                        location.pathname === item.path
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-accent"
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </nav>
+              </SheetContent>
+            </Sheet>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <User className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 sm:h-10 sm:w-10">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">

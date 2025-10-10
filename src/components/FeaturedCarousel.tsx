@@ -38,7 +38,7 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
   const currentItem = items[currentIndex];
 
   return (
-    <div className="relative w-full h-[400px] md:h-[500px] overflow-hidden rounded-lg group">
+    <div className="relative w-full h-[300px] sm:h-[400px] md:h-[500px] overflow-hidden rounded-lg group touch-manipulation">
       {/* Carousel Images */}
       <div className="absolute inset-0 z-0">
         <img
@@ -51,49 +51,49 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
       </div>
 
       {/* Content */}
-      <div className="relative h-full flex flex-col justify-end p-8 md:p-12 z-10">
-        <h2 className="text-3xl md:text-5xl font-bold mb-2 text-white drop-shadow-lg">
+      <div className="relative h-full flex flex-col justify-end p-4 sm:p-6 md:p-12 z-10">
+        <h2 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-2 text-white drop-shadow-lg line-clamp-2">
           {currentItem.title}
         </h2>
         {currentItem.year && (
-          <p className="text-lg text-white/90 mb-4">{currentItem.year}</p>
+          <p className="text-base sm:text-lg text-white/90 mb-3 sm:mb-4">{currentItem.year}</p>
         )}
         <Button 
           onClick={() => onItemClick(currentItem.id)}
-          className="w-fit"
+          className="w-fit text-sm sm:text-base px-4 sm:px-6 h-10 sm:h-11"
         >
           Se detaljer
         </Button>
       </div>
 
-      {/* Navigation Buttons */}
+      {/* Navigation Buttons - Always visible on mobile for better usability */}
       <Button
         variant="ghost"
         size="icon"
         onClick={goToPrevious}
-        className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20"
+        className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20 h-10 w-10 sm:h-12 sm:w-12"
       >
-        <ChevronLeft className="h-8 w-8" />
+        <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
         onClick={goToNext}
-        className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20"
+        className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 md:opacity-0 md:group-hover:opacity-100 transition-opacity bg-black/50 hover:bg-black/70 text-white z-20 h-10 w-10 sm:h-12 sm:w-12"
       >
-        <ChevronRight className="h-8 w-8" />
+        <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8" />
       </Button>
 
-      {/* Indicators */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+      {/* Indicators - Larger touch targets on mobile */}
+      <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
         {items.map((_, index) => (
           <button
             key={index}
             onClick={() => setCurrentIndex(index)}
-            className={`w-2 h-2 rounded-full transition-all ${
+            className={`h-2 rounded-full transition-all touch-manipulation ${
               index === currentIndex 
-                ? 'bg-white w-8' 
-                : 'bg-white/50 hover:bg-white/75'
+                ? 'bg-white w-8 sm:w-8' 
+                : 'bg-white/50 hover:bg-white/75 w-2'
             }`}
           />
         ))}
