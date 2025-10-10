@@ -66,8 +66,13 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Construct Jellyfin stream URL with authentication
-    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?Static=true&api_key=${apiKey}`;
+    // Construct Jellyfin stream URL with transcoding for browser compatibility
+    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+      + `Container=mp4,webm`
+      + `&VideoCodec=h264,vp8,vp9`
+      + `&AudioCodec=aac,mp3,opus`
+      + `&TranscodingMaxAudioChannels=2`
+      + `&api_key=${apiKey}`;
 
     console.log(`Proxying stream for video: ${videoId}`);
 
