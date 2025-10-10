@@ -53,23 +53,23 @@ serve(async (req) => {
     const jellyfinApiKey = apiKeyData.setting_value;
 
     console.log('Authenticating with Jellyfin:', jellyfinUrl);
-    console.log('Request body:', JSON.stringify({ username, Pw: '***' }));
 
-    // Authenticate with Jellyfin
+    // Authenticate with Jellyfin - for authentication we use X-Emby-Authorization with client info only (no token)
     const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
     const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`;
     
     console.log('Auth header:', authHeader);
     console.log('Full URL:', authUrl);
+    console.log('Request body:', JSON.stringify({ Username: username.trim(), Pw: '***' }));
     
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader,
+        'X-Emby-Authorization': authHeader,
       },
       body: JSON.stringify({
-        username: username,
+        Username: username.trim(),
         Pw: password,
       }),
     });
