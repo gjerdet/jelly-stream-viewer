@@ -44,7 +44,12 @@ serve(async (req) => {
       .eq('setting_key', 'jellyseerr_api_key')
       .maybeSingle();
 
-    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '').replace('https://', 'http://');
+    // Force HTTP and remove any existing protocol
+    let jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '');
+    if (jellyseerrUrl) {
+      jellyseerrUrl = jellyseerrUrl.replace(/^https?:\/\//, '');
+      jellyseerrUrl = `http://${jellyseerrUrl}`;
+    }
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
     if (!jellyseerrUrl || !jellyseerrApiKey) {
