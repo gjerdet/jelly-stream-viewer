@@ -5,7 +5,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, List } from "lucide-react";
+import { ArrowLeft, Subtitles, List, Cast } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -86,7 +86,10 @@ const Player = () => {
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showEpisodes, setShowEpisodes] = useState(false);
+  const [isCasting, setIsCasting] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
+  const castPlayerRef = useRef<any>(null);
+  const castContextRef = useRef<any>(null);
 
   // Set stream URL using edge function
   useEffect(() => {
@@ -167,6 +170,102 @@ const Player = () => {
       }
     };
   }, []);
+
+  // Initialize Chromecast
+  useEffect(() => {
+    const initializeCast = () => {
+      const cast = (window as any).chrome?.cast;
+      if (!cast) {
+        console.log('Cast SDK not loaded yet');
+        return;
+      }
+
+      try {
+        castContextRef.current = cast.framework.CastContext.getInstance();
+        castContextRef.current.setOptions({
+          receiverApplicationId: cast.framework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          autoJoinPolicy: cast.framework.AutoJoinPolicy.ORIGIN_SCOPED,
+        });
+
+        const player = new cast.framework.RemotePlayer();
+        castPlayerRef.current = new cast.framework.RemotePlayerController(player);
+
+        castPlayerRef.current.addEventListener(
+          cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
+          (event: any) => {
+            setIsCasting(event.value);
+            if (event.value && streamUrl && item) {
+              loadMediaToCast();
+            }
+          }
+        );
+
+        console.log('Cast initialized');
+      } catch (error) {
+        console.error('Cast initialization error:', error);
+      }
+    };
+
+    // Wait for Cast SDK to load
+    if ((window as any)['__onGCastApiAvailable']) {
+      initializeCast();
+    } else {
+      (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
+        if (isAvailable) {
+          initializeCast();
+        }
+      };
+    }
+  }, []);
+
+  const loadMediaToCast = () => {
+    if (!streamUrl || !item || !castContextRef.current) return;
+
+    const cast = (window as any).chrome.cast;
+    const session = castContextRef.current.getCurrentSession();
+    
+    if (!session) return;
+
+    const mediaInfo = new cast.media.MediaInfo(streamUrl, 'video/mp4');
+    mediaInfo.metadata = new cast.media.GenericMediaMetadata();
+    mediaInfo.metadata.title = item.Name;
+    
+    if (item.SeriesName) {
+      mediaInfo.metadata.subtitle = `${item.SeriesName}${item.IndexNumber ? ` - Episode ${item.IndexNumber}` : ''}`;
+    }
+
+    if (item.ImageTags?.Primary && serverUrl) {
+      const imageUrl = `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`;
+      mediaInfo.metadata.images = [new cast.Image(imageUrl)];
+    }
+
+    const request = new cast.media.LoadRequest(mediaInfo);
+    
+    // Resume from last position if available
+    if (item.UserData?.PlaybackPositionTicks) {
+      request.currentTime = item.UserData.PlaybackPositionTicks / 10000000;
+    }
+
+    session.loadMedia(request).then(
+      () => console.log('Media loaded to Cast'),
+      (error: any) => console.error('Cast load error:', error)
+    );
+  };
+
+  const handleCastClick = () => {
+    if (!castContextRef.current) return;
+    
+    const cast = (window as any).chrome.cast;
+    castContextRef.current.requestSession().then(
+      () => {
+        console.log('Cast session started');
+        if (streamUrl && item) {
+          loadMediaToCast();
+        }
+      },
+      (error: any) => console.error('Cast session error:', error)
+    );
+  };
 
   // Register watch history when playback starts
   useEffect(() => {
@@ -286,6 +385,17 @@ const Player = () => {
           </div>
 
           <div className="flex gap-2">
+            {/* Chromecast Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCastClick}
+              className={`text-white hover:bg-white/20 ${isCasting ? 'bg-primary/20' : ''}`}
+              title="Cast til TV"
+            >
+              <Cast className="h-4 w-4" />
+            </Button>
+
             {isEpisode && episodes.length > 0 && (
               <Sheet open={showEpisodes} onOpenChange={setShowEpisodes}>
                 <SheetTrigger asChild>
