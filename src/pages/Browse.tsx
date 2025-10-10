@@ -1,11 +1,11 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
-import Hero from "@/components/Hero";
 import MediaRow from "@/components/MediaRow";
+import FeaturedCarousel from "@/components/FeaturedCarousel";
 import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
-import { useServerSettings } from "@/hooks/useServerSettings";
+import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +36,7 @@ const Browse = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading } = useAuth();
-  const { serverUrl, apiKey } = useServerSettings();
+  const { serverUrl } = useServerSettings();
   const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
   // Determine what content type to show based on route
@@ -128,51 +128,13 @@ const Browse = () => {
 
   const hasApiError = itemsError || resumeError;
 
-  // Use item with backdrop for featured, or pick random one if first doesn't have backdrop
-  const getFeaturedItem = () => {
-    if (!allItems?.Items || allItems.Items.length === 0) return null;
-    
-    const firstItem = allItems.Items[0];
-    
-    // If first item has backdrop, use it
-    if (firstItem.BackdropImageTags?.[0]) {
-      return firstItem;
-    }
-    
-    // Otherwise, find all items with backdrops and pick a random one
-    const itemsWithBackdrops = allItems.Items.filter(item => item.BackdropImageTags?.[0]);
-    if (itemsWithBackdrops.length > 0) {
-      return itemsWithBackdrops[Math.floor(Math.random() * itemsWithBackdrops.length)];
-    }
-    
-    // Fallback to first item if no items have backdrops
-    return firstItem;
-  };
-
-  const featuredItem = getFeaturedItem();
-  const featuredContent = featuredItem
-    ? {
-        title: featuredItem.Name,
-        description: featuredItem.Overview || "Ingen beskrivelse tilgjengelig",
-        image: serverUrl && apiKey
-          ? featuredItem.BackdropImageTags?.[0]
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Backdrop?maxHeight=1080&api_key=${apiKey}`
-            : featuredItem.ImageTags?.Primary
-            ? `${serverUrl.replace(/\/$/, '')}/Items/${featuredItem.Id}/Images/Primary?maxHeight=1080&api_key=${apiKey}`
-            : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop"
-          : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop",
-        rating: featuredItem.CommunityRating?.toFixed(1),
-        year: featuredItem.ProductionYear?.toString(),
-      }
-    : null;
-
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items) return [];
     return items.map((item) => ({
       id: item.Id,
       title: item.Name,
-      image: serverUrl && apiKey && item.ImageTags?.Primary
-        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600&api_key=${apiKey}`
+      image: item.ImageTags?.Primary
+        ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),
@@ -227,10 +189,25 @@ const Browse = () => {
     );
   }
 
+  // Get latest 10 items for carousel
+  const latestItems = allItems?.Items?.slice(0, 10).map(item => ({
+    id: item.Id,
+    title: item.Name,
+    imageTag: item.ImageTags?.Primary,
+    backdropTag: item.BackdropImageTags?.[0],
+    year: item.ProductionYear?.toString(),
+  })) || [];
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      {contentType === 'all' && featuredContent && <Hero {...featuredContent} />}
+      
+      {/* Featured Carousel - Only on home page */}
+      {contentType === 'all' && latestItems.length > 0 && (
+        <div className="container mx-auto px-4 pt-8">
+          <FeaturedCarousel items={latestItems} onItemClick={handleItemClick} />
+        </div>
+      )}
       
       <div className="space-y-12 py-12">
         {contentType === 'all' && recommendedItems?.Items && recommendedItems.Items.length > 0 && (

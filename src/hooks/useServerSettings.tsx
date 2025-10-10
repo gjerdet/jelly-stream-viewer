@@ -56,3 +56,10 @@ export const useServerSettings = () => {
 
   return { serverUrl, apiKey, isLoading, updateServerUrl };
 };
+
+// Helper function to generate image URL through proxy
+export const getJellyfinImageUrl = (itemId: string, imageType: 'Primary' | 'Backdrop', params?: Record<string, string>) => {
+  const queryParams = new URLSearchParams(params || {});
+  const imagePath = `/Items/${itemId}/Images/${imageType}?${queryParams.toString()}`;
+  return `/functions/v1/jellyfin-image?path=${encodeURIComponent(imagePath)}`;
+};

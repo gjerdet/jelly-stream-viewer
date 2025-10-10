@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import Header from "@/components/Header";
 import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
-import { useServerSettings } from "@/hooks/useServerSettings";
+import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 
 interface JellyfinItem {
@@ -24,7 +24,7 @@ const Search = () => {
   const [searchParams] = useSearchParams();
   const searchQuery = searchParams.get("q") || "";
   const { user, loading } = useAuth();
-  const { serverUrl, apiKey } = useServerSettings();
+  const { serverUrl } = useServerSettings();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -59,8 +59,8 @@ const Search = () => {
     return items.map((item) => ({
       id: item.Id,
       title: item.Name,
-      image: serverUrl && apiKey && item.ImageTags?.Primary
-        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600&api_key=${apiKey}`
+      image: item.ImageTags?.Primary
+        ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),

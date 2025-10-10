@@ -2,7 +2,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
-import { useServerSettings } from "@/hooks/useServerSettings";
+import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
 import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle } from "lucide-react";
@@ -79,7 +79,7 @@ const Detail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user, loading } = useAuth();
-  const { serverUrl, apiKey } = useServerSettings();
+  const { serverUrl } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
 
@@ -159,10 +159,10 @@ const Detail = () => {
     );
   }
 
-  const backdropUrl = item.BackdropImageTags?.[0] && serverUrl && apiKey
-    ? `${serverUrl}/Items/${item.Id}/Images/Backdrop?maxHeight=1080&api_key=${apiKey}`
-    : item.ImageTags?.Primary && serverUrl && apiKey
-    ? `${serverUrl}/Items/${item.Id}/Images/Primary?maxHeight=1080&api_key=${apiKey}`
+  const backdropUrl = item.BackdropImageTags?.[0]
+    ? getJellyfinImageUrl(item.Id, 'Backdrop', { maxHeight: '1080' })
+    : item.ImageTags?.Primary
+    ? getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '1080' })
     : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop";
 
   // Check if we're using the primary image as backdrop (needs blur effect)
@@ -223,10 +223,10 @@ const Detail = () => {
 
           {/* Cover Image */}
           <div className="flex items-end gap-6 mb-6">
-            {item.ImageTags?.Primary && serverUrl && apiKey && (
+            {item.ImageTags?.Primary && (
               <div className="w-48 h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
                 <img
-                  src={`${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600&api_key=${apiKey}`}
+                  src={getJellyfinImageUrl(item.Id, 'Primary', { maxHeight: '600' })}
                   alt={item.Name}
                   className="w-full h-full object-cover"
                 />
@@ -319,8 +319,8 @@ const Detail = () => {
               <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {item.People.filter(p => p.Type === "Actor").slice(0, 6).map((person, index) => {
-                  const personImageUrl = serverUrl && apiKey && person.Id && person.PrimaryImageTag
-                    ? `${serverUrl.replace(/\/$/, '')}/Items/${person.Id}/Images/Primary?tag=${person.PrimaryImageTag}&maxHeight=300&api_key=${apiKey}`
+                  const personImageUrl = person.Id && person.PrimaryImageTag
+                    ? getJellyfinImageUrl(person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
                     : null;
                   
                   return (
@@ -382,8 +382,8 @@ const Detail = () => {
           {episodesData?.Items && episodesData.Items.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {episodesData.Items.map((episode) => {
-                const episodeImageUrl = serverUrl && apiKey && episode.ImageTags?.Primary
-                  ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=300&api_key=${apiKey}`
+                const episodeImageUrl = episode.ImageTags?.Primary
+                  ? getJellyfinImageUrl(episode.Id, 'Primary', { maxHeight: '300' })
                   : null;
                 const episodeRuntime = episode.RunTimeTicks 
                   ? Math.round(episode.RunTimeTicks / 600000000) 
