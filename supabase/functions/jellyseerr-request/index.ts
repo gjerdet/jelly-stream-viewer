@@ -68,14 +68,34 @@ serve(async (req) => {
     console.log('Sending request to Jellyseerr:', payload);
 
     // Send request to Jellyseerr
-    const response = await fetch(`${jellyseerrUrl}/api/v1/request`, {
-      method: 'POST',
-      headers: {
-        'X-Api-Key': jellyseerrApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
+    let response;
+    try {
+      response = await fetch(`${jellyseerrUrl}/api/v1/request`, {
+        method: 'POST',
+        headers: {
+          'X-Api-Key': jellyseerrApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (fetchError: any) {
+      // If SSL error, try with http instead of https as fallback
+      if (fetchError.message?.includes('certificate') || fetchError.message?.includes('TLS')) {
+        console.log('SSL error detected, retrying with HTTP...');
+        const httpUrl = jellyseerrUrl.replace('https://', 'http://');
+        
+        response = await fetch(`${httpUrl}/api/v1/request`, {
+          method: 'POST',
+          headers: {
+            'X-Api-Key': jellyseerrApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        throw fetchError;
+      }
+    }
 
     const responseData = await response.json();
     console.log('Jellyseerr response:', responseData);

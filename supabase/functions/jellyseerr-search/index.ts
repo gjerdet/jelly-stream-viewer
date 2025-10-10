@@ -62,13 +62,33 @@ serve(async (req) => {
     const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=1&language=no`;
     console.log('Searching Jellyseerr:', searchUrl);
 
-    const response = await fetch(searchUrl, {
-      method: 'GET',
-      headers: {
-        'X-Api-Key': jellyseerrApiKey,
-        'Content-Type': 'application/json',
-      },
-    });
+    let response;
+    try {
+      response = await fetch(searchUrl, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': jellyseerrApiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (fetchError: any) {
+      // If SSL error, try with http instead of https as fallback
+      if (fetchError.message?.includes('certificate') || fetchError.message?.includes('TLS')) {
+        console.log('SSL error detected, retrying with HTTP...');
+        const httpUrl = jellyseerrUrl.replace('https://', 'http://');
+        const httpSearchUrl = `${httpUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=1&language=no`;
+        
+        response = await fetch(httpSearchUrl, {
+          method: 'GET',
+          headers: {
+            'X-Api-Key': jellyseerrApiKey,
+            'Content-Type': 'application/json',
+          },
+        });
+      } else {
+        throw fetchError;
+      }
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
