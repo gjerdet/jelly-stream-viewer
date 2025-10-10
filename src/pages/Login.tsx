@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import { Film } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -69,43 +69,6 @@ const Login = () => {
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrors({});
-    
-    try {
-      authSchema.parse({ email, password });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: { email?: string; password?: string } = {};
-        error.errors.forEach((err) => {
-          if (err.path[0]) {
-            fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
-          }
-        });
-        setErrors(fieldErrors);
-        return;
-      }
-    }
-
-    setLoading(true);
-
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/browse`
-      }
-    });
-
-    setLoading(false);
-
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("Konto opprettet! Du kan nå logge inn.");
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
@@ -124,92 +87,43 @@ const Login = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Logg inn</TabsTrigger>
-              <TabsTrigger value="signup">Registrer</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email-login">E-post</Label>
-                  <Input
-                    id="email-login"
-                    type="email"
-                    placeholder="din@epost.no"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-secondary/50 border-border/50"
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-login">Passord</Label>
-                  <Input
-                    id="password-login"
-                    type="password"
-                    placeholder="Skriv inn passord"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-secondary/50 border-border/50"
-                  />
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password}</p>
-                  )}
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
-                  disabled={loading}
-                >
-                  {loading ? "Logger inn..." : "Logg inn"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email-signup">E-post</Label>
-                  <Input
-                    id="email-signup"
-                    type="email"
-                    placeholder="din@epost.no"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-secondary/50 border-border/50"
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive">{errors.email}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password-signup">Passord</Label>
-                  <Input
-                    id="password-signup"
-                    type="password"
-                    placeholder="Minst 6 tegn"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="bg-secondary/50 border-border/50"
-                  />
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password}</p>
-                  )}
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
-                  disabled={loading}
-                >
-                  {loading ? "Registrerer..." : "Opprett konto"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">E-post</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="din@epost.no"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="bg-secondary/50 border-border/50"
+              />
+              {errors.email && (
+                <p className="text-sm text-destructive">{errors.email}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Passord</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Skriv inn passord"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="bg-secondary/50 border-border/50"
+              />
+              {errors.password && (
+                <p className="text-sm text-destructive">{errors.password}</p>
+              )}
+            </div>
+            <Button 
+              type="submit" 
+              className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
+              disabled={loading}
+            >
+              {loading ? "Logger inn..." : "Logg inn"}
+            </Button>
+          </form>
           
           <p className="text-xs text-muted-foreground text-center mt-4">
             Jellyfin server: {serverUrl || "Laster..."}
