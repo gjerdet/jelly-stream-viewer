@@ -26,6 +26,8 @@ interface JellyfinItem {
   ImageTags?: { Primary?: string };
   BackdropImageTags?: string[];
   Genres?: string[];
+  SeriesId?: string;
+  SeasonId?: string;
 }
 
 interface JellyfinResponse {
@@ -87,12 +89,12 @@ const Browse = () => {
     !!user && !!userId
   );
 
-  // Fetch recommended items
+  // Fetch recommended items with Series and Season IDs for episodes
   const { data: recommendedItems } = useJellyfinApi<JellyfinResponse>(
     ["recommended-items", userId || ""],
     {
       endpoint: userId
-        ? `/Users/${userId}/Suggestions?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Suggestions?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo,SeriesId,SeasonId&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
     !!user && !!userId
@@ -138,11 +140,19 @@ const Browse = () => {
         : "https://images.unsplash.com/photo-1509347528160-9a9e33742cdb?w=400&h=600&fit=crop",
       year: item.ProductionYear?.toString(),
       rating: item.CommunityRating?.toFixed(1),
+      type: item.Type,
+      seriesId: item.SeriesId,
+      seasonId: item.SeasonId,
     }));
   };
 
-  const handleItemClick = (id: string) => {
-    navigate(`/detail/${id}`);
+  const handleItemClick = (id: string, item?: { type?: string; seriesId?: string; seasonId?: string }) => {
+    // If it's an episode, navigate to the series with episode parameters
+    if (item?.type === 'Episode' && item.seriesId) {
+      navigate(`/detail/${item.seriesId}?episodeId=${id}${item.seasonId ? `&seasonId=${item.seasonId}` : ''}`);
+    } else {
+      navigate(`/detail/${id}`);
+    }
   };
 
   if (loading) {
@@ -224,7 +234,10 @@ const Browse = () => {
           <MediaRow
             title="Anbefalt for deg"
             items={mapJellyfinItems(recommendedItems.Items)}
-            onItemClick={handleItemClick}
+            onItemClick={(id) => {
+              const item = recommendedItems.Items.find(i => i.Id === id);
+              handleItemClick(id, { type: item?.Type, seriesId: item?.SeriesId, seasonId: item?.SeasonId });
+            }}
           />
         )}
         {contentType === 'all' && resumeItems?.Items && resumeItems.Items.length > 0 && (

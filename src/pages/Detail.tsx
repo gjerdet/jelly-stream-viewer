@@ -1,5 +1,5 @@
-import { useNavigate, useParams } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
@@ -78,10 +78,14 @@ interface EpisodesResponse {
 const Detail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const episodeId = searchParams.get('episodeId');
+  const seasonIdFromUrl = searchParams.get('seasonId');
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
+  const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!loading && !user) {
@@ -133,12 +137,36 @@ const Detail = () => {
     !!selectedSeasonId && !!userId
   );
 
-  // Auto-select first season when seasons load
+  // Auto-select season based on URL parameter or first season
   useEffect(() => {
-    if (seasonsData?.Items && seasonsData.Items.length > 0 && !selectedSeasonId) {
-      setSelectedSeasonId(seasonsData.Items[0].Id);
+    if (seasonsData?.Items && seasonsData.Items.length > 0) {
+      if (seasonIdFromUrl) {
+        // If seasonId is in URL, select that season
+        const season = seasonsData.Items.find(s => s.Id === seasonIdFromUrl);
+        if (season && selectedSeasonId !== season.Id) {
+          setSelectedSeasonId(season.Id);
+        }
+      } else if (!selectedSeasonId) {
+        // Otherwise select first season
+        setSelectedSeasonId(seasonsData.Items[0].Id);
+      }
     }
-  }, [seasonsData, selectedSeasonId]);
+  }, [seasonsData, selectedSeasonId, seasonIdFromUrl]);
+
+  // Scroll to episode when episodes load and episodeId is in URL
+  useEffect(() => {
+    if (episodeId && episodesData?.Items && episodesData.Items.length > 0) {
+      const episode = episodesData.Items.find(e => e.Id === episodeId);
+      if (episode && episodeRefs.current[episodeId]) {
+        setTimeout(() => {
+          episodeRefs.current[episodeId]?.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+        }, 300);
+      }
+    }
+  }, [episodeId, episodesData]);
 
   if (loading || itemLoading) {
     return (
@@ -396,8 +424,11 @@ const Detail = () => {
                 return (
                   <div
                     key={episode.Id}
+                    ref={(el) => episodeRefs.current[episode.Id] = el}
                     onClick={() => navigate(`/player/${episode.Id}`)}
-                    className="group cursor-pointer bg-card rounded-lg overflow-hidden border border-border hover:border-primary smooth-transition"
+                    className={`group cursor-pointer bg-card rounded-lg overflow-hidden border smooth-transition ${
+                      episodeId === episode.Id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary'
+                    }`}
                   >
                     <div className="aspect-video relative bg-secondary">
                       {episodeImageUrl ? (
