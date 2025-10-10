@@ -7,6 +7,12 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'content-length, content-range, accept-ranges',
 };
 
+// Input validation helper
+function validateVideoId(videoId: string): boolean {
+  // Jellyfin IDs are 32-character hex strings
+  return /^[a-f0-9]{32}$/i.test(videoId);
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -15,35 +21,44 @@ serve(async (req) => {
 
   try {
     // Get video ID and token from URL
+    // Note: Token in URL is required for browser video elements (can't send custom headers)
     const url = new URL(req.url);
     const videoId = url.searchParams.get('id');
     const token = url.searchParams.get('token');
     
     if (!videoId || !token) {
-      return new Response('Video ID and token required', { 
+      return new Response('Missing required parameters', { 
         status: 400,
         headers: corsHeaders 
       });
     }
 
-    // Create Supabase client and verify token
+    // Validate video ID format to prevent injection
+    if (!validateVideoId(videoId)) {
+      console.warn(`Invalid video ID format attempt: ${videoId.substring(0, 10)}...`);
+      return new Response('Invalid request', { 
+        status: 400,
+        headers: corsHeaders 
+      });
+    }
+
+    // Validate token and get user
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify the user token
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
+      console.error('Authentication failed');
       return new Response('Unauthorized', { 
         status: 401,
         headers: corsHeaders 
       });
     }
 
-    // Get Jellyfin server URL and API key from settings
+    // Get Jellyfin server settings using service role key
     const { data: serverSettings } = await supabaseClient
       .from('server_settings')
       .select('setting_value')
@@ -57,8 +72,9 @@ serve(async (req) => {
       .single();
 
     if (!serverSettings || !apiKeySettings) {
-      return new Response('Server configuration not found', { 
-        status: 500,
+      console.error('Server configuration not found');
+      return new Response('Service temporarily unavailable', { 
+        status: 503,
         headers: corsHeaders 
       });
     }
@@ -66,32 +82,50 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Get user ID from Jellyfin to build proper playback URL
+    // Get user ID from Jellyfin
     const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`);
+    if (!usersResponse.ok) {
+      console.error('Failed to fetch Jellyfin users');
+      return new Response('Service temporarily unavailable', { 
+        status: 503,
+        headers: corsHeaders 
+      });
+    }
+    
     const users = await usersResponse.json();
     const userId = users[0]?.Id;
 
     if (!userId) {
-      return new Response('Jellyfin user not found', { 
+      console.error('Jellyfin user not found');
+      return new Response('Service configuration error', { 
         status: 500,
         headers: corsHeaders 
       });
     }
 
-    // First check the video format
+    // Check the video format
     const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}`;
     const infoResponse = await fetch(infoUrl);
+    
+    if (!infoResponse.ok) {
+      console.error('Failed to fetch video info:', infoResponse.status);
+      return new Response('Content not found', { 
+        status: 404,
+        headers: corsHeaders 
+      });
+    }
+    
     const itemInfo = await infoResponse.json();
     
     // Check if we need transcoding based on container format
     const container = itemInfo.Container?.toLowerCase() || '';
     const needsTranscoding = !['mp4', 'webm'].includes(container);
     
-    console.log(`Video ${videoId}: container=${container}, needsTranscoding=${needsTranscoding}`);
+    console.log(`Streaming video ${videoId} for user ${user.id}: container=${container}, transcoding=${needsTranscoding}`);
     
     let streamUrl;
     if (needsTranscoding) {
-      // Use Jellyfin's universal audio endpoint with transcoding
+      // Use Jellyfin's transcoding endpoint
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
@@ -124,13 +158,9 @@ serve(async (req) => {
       headers: requestHeaders,
     });
 
-    console.log('Jellyfin response status:', jellyfinResponse.status);
-    console.log('Jellyfin response headers:', Object.fromEntries(jellyfinResponse.headers.entries()));
-
     if (!jellyfinResponse.ok) {
-      const errorText = await jellyfinResponse.text();
-      console.error('Jellyfin error:', errorText);
-      return new Response(`Jellyfin error: ${jellyfinResponse.status} - ${errorText}`, {
+      console.error('Jellyfin streaming error:', jellyfinResponse.status);
+      return new Response('Stream unavailable', {
         status: jellyfinResponse.status,
         headers: corsHeaders,
       });
@@ -163,8 +193,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in jellyfin-stream:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return new Response(errorMessage, { 
+    return new Response('Request failed', { 
       status: 500,
       headers: corsHeaders 
     });

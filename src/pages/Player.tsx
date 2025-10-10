@@ -102,10 +102,11 @@ const Player = () => {
       if (!session?.access_token) return;
 
       // Use Supabase edge function for streaming
+      // Token in URL is required for browser video element (can't send custom headers)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const url = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
       setStreamUrl(url);
-      console.log('Stream URL configured:', url);
+      console.log('Stream URL configured');
     };
 
     setupStream();
@@ -150,7 +151,8 @@ const Player = () => {
     return supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.access_token) return '';
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      return `${supabaseUrl}/functions/v1/jellyfin-subtitle?videoId=${id}&subtitleIndex=${subtitleIndex}&token=${session.access_token}`;
+      // Token in URL is required for browser subtitle tracks (can't send custom headers)
+      return `${supabaseUrl}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitleIndex}&token=${session.access_token}`;
     });
   };
 

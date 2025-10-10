@@ -6,6 +6,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Input validation helpers
+function validateVideoId(videoId: string): boolean {
+  // Jellyfin IDs are 32-character hex strings
+  return /^[a-f0-9]{32}$/i.test(videoId);
+}
+
+function validateSubtitleIndex(index: string): boolean {
+  const num = parseInt(index, 10);
+  // Subtitle index should be a reasonable number (0-99)
+  return !isNaN(num) && num >= 0 && num < 100;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -14,36 +26,53 @@ serve(async (req) => {
 
   try {
     // Get parameters from URL
+    // Note: Token in URL is required for browser subtitle tracks (can't send custom headers)
     const url = new URL(req.url);
     const videoId = url.searchParams.get('id');
     const subtitleIndex = url.searchParams.get('index');
     const token = url.searchParams.get('token');
     
     if (!videoId || !subtitleIndex || !token) {
-      return new Response('Video ID, subtitle index and token required', { 
+      return new Response('Missing required parameters', { 
         status: 400,
         headers: corsHeaders 
       });
     }
 
-    // Create Supabase client and verify token
+    // Validate inputs to prevent injection
+    if (!validateVideoId(videoId)) {
+      console.warn(`Invalid video ID format attempt: ${videoId.substring(0, 10)}...`);
+      return new Response('Invalid request', { 
+        status: 400,
+        headers: corsHeaders 
+      });
+    }
+
+    if (!validateSubtitleIndex(subtitleIndex)) {
+      console.warn(`Invalid subtitle index: ${subtitleIndex}`);
+      return new Response('Invalid request', { 
+        status: 400,
+        headers: corsHeaders 
+      });
+    }
+
+    // Validate token and get user
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify the user token
     const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
     if (authError || !user) {
-      console.error('Authentication failed:', authError);
+      console.error('Authentication failed');
       return new Response('Unauthorized', { 
         status: 401,
         headers: corsHeaders 
       });
     }
 
-    // Get Jellyfin server URL and API key from settings
+    // Get Jellyfin server settings using service role key
     const { data: serverSettings } = await supabaseClient
       .from('server_settings')
       .select('setting_value')
@@ -57,8 +86,9 @@ serve(async (req) => {
       .single();
 
     if (!serverSettings || !apiKeySettings) {
-      return new Response('Server configuration not found', { 
-        status: 500,
+      console.error('Server configuration not found');
+      return new Response('Service temporarily unavailable', { 
+        status: 503,
         headers: corsHeaders 
       });
     }
@@ -66,10 +96,10 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Construct Jellyfin subtitle URL with authentication
+    // Construct Jellyfin subtitle URL
     const subtitleUrl = `${jellyfinServerUrl}/Videos/${videoId}/${videoId}/Subtitles/${subtitleIndex}/Stream.vtt?api_key=${apiKey}`;
 
-    console.log(`Proxying subtitle ${subtitleIndex} for video: ${videoId}`);
+    console.log(`Fetching subtitle ${subtitleIndex} for video ${videoId} for user ${user.id}`);
 
     // Fetch subtitle from Jellyfin
     const jellyfinResponse = await fetch(subtitleUrl);
@@ -94,8 +124,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in jellyfin-subtitle:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
-    return new Response(errorMessage, { 
+    return new Response('Request failed', { 
       status: 500,
       headers: corsHeaders 
     });

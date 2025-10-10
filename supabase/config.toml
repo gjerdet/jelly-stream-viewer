@@ -11,9 +11,13 @@ verify_jwt = true
 
 [functions.jellyfin-stream]
 verify_jwt = false
+# Note: JWT verification disabled for browser video element compatibility
+# Authentication is validated internally using token parameter
 
 [functions.jellyfin-subtitle]
 verify_jwt = false
+# Note: JWT verification disabled for browser subtitle track compatibility
+# Authentication is validated internally using token parameter
 
 [functions.jellyseerr-request]
 verify_jwt = true

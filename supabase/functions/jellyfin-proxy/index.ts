@@ -12,6 +12,24 @@ interface JellyfinRequest {
   body?: any;
 }
 
+// Whitelist of allowed Jellyfin API endpoints
+const ALLOWED_ENDPOINT_PATTERNS = [
+  /^\/Users$/,
+  /^\/Users\/[a-f0-9]{32}\/Items/,
+  /^\/Users\/[a-f0-9]{32}\/Suggestions/,
+  /^\/Users\/[a-f0-9]{32}\/Views$/,
+  /^\/Items\/[a-f0-9]{32}/,
+  /^\/Shows\/[a-f0-9]{32}\/Seasons$/,
+  /^\/Shows\/[a-f0-9]{32}\/Episodes$/,
+  /^\/Persons\/[a-f0-9]{32}/,
+  /^\/Search\/Hints/,
+  /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/,
+];
+
+function validateEndpoint(endpoint: string): boolean {
+  return ALLOWED_ENDPOINT_PATTERNS.some(pattern => pattern.test(endpoint));
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -42,16 +60,33 @@ serve(async (req) => {
       });
     }
 
-    // Get Jellyfin server URL from settings
-    const { data: settings, error: settingsError } = await supabaseClient
+    // Parse request body
+    const { endpoint, method = 'GET', body }: JellyfinRequest = await req.json();
+
+    // Validate endpoint
+    if (!endpoint || !validateEndpoint(endpoint)) {
+      console.warn(`Invalid or disallowed endpoint: ${endpoint}`);
+      return new Response(JSON.stringify({ error: 'Invalid endpoint' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get Jellyfin server settings using service role key
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data: settings, error: settingsError } = await supabaseAdmin
       .from('server_settings')
       .select('setting_value')
       .eq('setting_key', 'jellyfin_server_url')
       .single();
 
     if (settingsError || !settings) {
-      console.error('Error fetching server settings:', settingsError);
-      return new Response(JSON.stringify({ error: 'Server configuration not found' }), {
+      console.error('Error fetching server settings');
+      return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -59,16 +94,16 @@ serve(async (req) => {
 
     const jellyfinServerUrl = settings.setting_value.replace(/\/$/, '');
 
-    // Get Jellyfin API key from settings
-    const { data: apiKeySettings, error: apiKeyError } = await supabaseClient
+    // Get Jellyfin API key
+    const { data: apiKeySettings, error: apiKeyError } = await supabaseAdmin
       .from('server_settings')
       .select('setting_value')
       .eq('setting_key', 'jellyfin_api_key')
       .maybeSingle();
 
     if (apiKeyError || !apiKeySettings) {
-      console.error('Error fetching Jellyfin API key:', apiKeyError);
-      return new Response(JSON.stringify({ error: 'Jellyfin API key not configured' }), {
+      console.error('Error fetching Jellyfin API key');
+      return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -76,12 +111,9 @@ serve(async (req) => {
 
     const apiKey = apiKeySettings.setting_value;
 
-    // Parse request body
-    const { endpoint, method = 'GET', body }: JellyfinRequest = await req.json();
-
     console.log(`Proxying request to Jellyfin: ${method} ${jellyfinServerUrl}${endpoint}`);
 
-    // Make request to Jellyfin API with authentication using the new format
+    // Make request to Jellyfin API with authentication
     const jellyfinResponse = await fetch(`${jellyfinServerUrl}${endpoint}`, {
       method,
       headers: {
@@ -95,11 +127,10 @@ serve(async (req) => {
     const contentType = jellyfinResponse.headers.get('content-type');
     if (!contentType || !contentType.includes('application/json')) {
       const textResponse = await jellyfinResponse.text();
-      console.error('Non-JSON response from Jellyfin:', textResponse);
+      console.error('Non-JSON response from Jellyfin');
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid response from Jellyfin server',
-          details: textResponse.substring(0, 200)
+          error: 'Invalid response from service'
         }),
         {
           status: jellyfinResponse.status || 502,
@@ -116,9 +147,8 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error in jellyfin-proxy:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Request failed' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
