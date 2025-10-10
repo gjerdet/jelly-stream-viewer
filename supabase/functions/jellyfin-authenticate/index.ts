@@ -49,8 +49,10 @@ serve(async (req) => {
       );
     }
 
-    const jellyfinUrl = serverUrlData.setting_value;
+    const jellyfinUrl = serverUrlData.setting_value.replace(/\/$/, ''); // Remove trailing slash
     const jellyfinApiKey = apiKeyData.setting_value;
+
+    console.log('Authenticating with Jellyfin:', jellyfinUrl);
 
     // Authenticate with Jellyfin
     const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
