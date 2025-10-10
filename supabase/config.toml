@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.jellyfin-subtitle]
 verify_jwt = false
+
+[functions.jellyseerr-request]
+verify_jwt = true
