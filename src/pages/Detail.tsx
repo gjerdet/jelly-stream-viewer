@@ -109,6 +109,12 @@ const Detail = () => {
   // Check if we're using the primary image as backdrop (needs blur effect)
   const isUsingPrimaryAsBackdrop = !item.BackdropImageTags?.[0] && item.ImageTags?.Primary;
 
+  console.log('Item:', item.Name);
+  console.log('Has Backdrop:', !!item.BackdropImageTags?.[0]);
+  console.log('Has Primary:', !!item.ImageTags?.Primary);
+  console.log('Backdrop URL:', backdropUrl);
+  console.log('Using Primary as Backdrop:', isUsingPrimaryAsBackdrop);
+
   const runtime = item.RunTimeTicks ? Math.round(item.RunTimeTicks / 600000000) : null;
 
   // Filter subtitle streams
@@ -156,64 +162,79 @@ const Detail = () => {
             Tilbake
           </Button>
 
-          <h1 className="text-5xl font-bold mb-4 text-white drop-shadow-lg">
-            {item.Name}
-          </h1>
+          {/* Cover Image */}
+          <div className="flex items-end gap-6 mb-6">
+            {item.ImageTags?.Primary && serverUrl && (
+              <div className="w-48 h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
+                <img
+                  src={`${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`}
+                  alt={item.Name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            
+            <div className="flex-1">
+              <h1 className="text-5xl font-bold mb-4 text-white drop-shadow-lg">
+                {item.Name}
+              </h1>
 
-          <div className="flex items-center gap-4 mb-6 text-sm text-white/90">
-            {item.CommunityRating && (
-              <span className="font-semibold text-green-400">
-                {item.CommunityRating.toFixed(1)} ⭐
-              </span>
-            )}
-            {item.ProductionYear && <span>{item.ProductionYear}</span>}
-            {item.OfficialRating && (
-              <span className="px-2 py-1 border border-white/50 rounded">
-                {item.OfficialRating}
-              </span>
-            )}
-            {runtime && <span>{runtime} min</span>}
+              <div className="flex items-center gap-4 mb-6 text-sm text-white/90">
+                {item.CommunityRating && (
+                  <span className="font-semibold text-green-400">
+                    {item.CommunityRating.toFixed(1)} ⭐
+                  </span>
+                )}
+                {item.ProductionYear && <span>{item.ProductionYear}</span>}
+                {item.OfficialRating && (
+                  <span className="px-2 py-1 border border-white/50 rounded">
+                    {item.OfficialRating}
+                  </span>
+                )}
+                {runtime && <span>{runtime} min</span>}
+              </div>
+
+              <div className="flex flex-wrap gap-3 mb-6">
+                <Button 
+                  size="lg" 
+                  className="gap-2"
+                  onClick={() => navigate(`/player/${id}`)}
+                >
+                  <Play className="h-5 w-5" />
+                  Spill av
+                </Button>
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Plus className="h-5 w-5" />
+                  Min liste
+                </Button>
+                <Button size="lg" variant="outline">
+                  <ThumbsUp className="h-5 w-5" />
+                </Button>
+                {subtitles.length > 0 && (
+                  <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
+                    <SelectTrigger className="w-[200px] bg-background/80 backdrop-blur-sm border-white/20 text-white">
+                      <Subtitles className="mr-2 h-4 w-4" />
+                      <SelectValue placeholder="Undertekster" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ingen undertekster</SelectItem>
+                      {subtitles.map((subtitle) => (
+                        <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
+                          {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {item.Overview && (
+                <p className="max-w-2xl text-white/90 text-lg leading-relaxed">
+                  {item.Overview}
+                </p>
+              )}
+            </div>
           </div>
-
-          <div className="flex flex-wrap gap-3 mb-6">
-            <Button 
-              size="lg" 
-              className="gap-2"
-              onClick={() => navigate(`/player/${id}`)}
-            >
-              <Play className="h-5 w-5" />
-              Spill av
-            </Button>
-            <Button size="lg" variant="outline" className="gap-2">
-              <Plus className="h-5 w-5" />
-              Min liste
-            </Button>
-            <Button size="lg" variant="outline">
-              <ThumbsUp className="h-5 w-5" />
-            </Button>
-            {subtitles.length > 0 && (
-              <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
-                <SelectTrigger className="w-[200px] bg-background/80 backdrop-blur-sm border-white/20 text-white">
-                  <Subtitles className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Undertekster" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Ingen undertekster</SelectItem>
-                  {subtitles.map((subtitle) => (
-                    <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
-                      {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-
-          {item.Overview && (
-            <p className="max-w-2xl text-white/90 text-lg leading-relaxed">
-              {item.Overview}
-            </p>
-          )}
         </div>
       </div>
 
