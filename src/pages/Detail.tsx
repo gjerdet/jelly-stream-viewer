@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -36,7 +36,13 @@ interface JellyfinItemDetail {
   OfficialRating?: string;
   Genres?: string[];
   Studios?: { Name: string }[];
-  People?: { Name: string; Role: string; Type: string }[];
+  People?: { 
+    Name: string; 
+    Role: string; 
+    Type: string; 
+    Id?: string;
+    PrimaryImageTag?: string;
+  }[];
   MediaStreams?: MediaStream[];
 }
 
@@ -232,14 +238,41 @@ const Detail = () => {
             <div className="md:col-span-3">
               <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {item.People.filter(p => p.Type === "Actor").slice(0, 6).map((person, index) => (
-                  <div key={index} className="text-sm">
-                    <p className="font-medium">{person.Name}</p>
-                    {person.Role && (
-                      <p className="text-muted-foreground text-xs">{person.Role}</p>
-                    )}
-                  </div>
-                ))}
+                {item.People.filter(p => p.Type === "Actor").slice(0, 6).map((person, index) => {
+                  const personImageUrl = serverUrl && person.Id && person.PrimaryImageTag
+                    ? `${serverUrl.replace(/\/$/, '')}/Items/${person.Id}/Images/Primary?tag=${person.PrimaryImageTag}&maxHeight=300`
+                    : null;
+                  
+                  return (
+                    <div key={index} className="text-sm space-y-2">
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary">
+                        {personImageUrl ? (
+                          <img
+                            src={personImageUrl}
+                            alt={person.Name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                parent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>`;
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <User className="h-12 w-12 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium truncate">{person.Name}</p>
+                        {person.Role && (
+                          <p className="text-muted-foreground text-xs truncate">{person.Role}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
