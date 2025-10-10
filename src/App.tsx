@@ -9,6 +9,7 @@ import Search from "./pages/Search";
 import History from "./pages/History";
 import Detail from "./pages/Detail";
 import Player from "./pages/Player";
+import Person from "./pages/Person";
 import Admin from "./pages/Admin";
 import Requests from "./pages/Requests";
 import Wishes from "./pages/Wishes";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/wishes" element={<Wishes />} />
           <Route path="/detail/:id" element={<Detail />} />
           <Route path="/player/:id" element={<Player />} />
+          <Route path="/person/:personId" element={<Person />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

@@ -347,13 +347,17 @@ const Detail = () => {
                     : null;
                   
                   return (
-                    <div key={index} className="text-sm space-y-2">
-                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary">
+                    <div 
+                      key={index} 
+                      onClick={() => person.Id && navigate(`/person/${person.Id}`)}
+                      className="text-sm space-y-2 cursor-pointer group"
+                    >
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary smooth-transition group-hover:ring-2 group-hover:ring-primary">
                         {personImageUrl ? (
                           <img
                             src={personImageUrl}
                             alt={person.Name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
                             onError={(e) => {
                               const parent = e.currentTarget.parentElement;
                               if (parent) {
@@ -368,7 +372,7 @@ const Detail = () => {
                         )}
                       </div>
                       <div>
-                        <p className="font-medium truncate">{person.Name}</p>
+                        <p className="font-medium truncate group-hover:text-primary smooth-transition">{person.Name}</p>
                         {person.Role && (
                           <p className="text-muted-foreground text-xs truncate">{person.Role}</p>
                         )}
