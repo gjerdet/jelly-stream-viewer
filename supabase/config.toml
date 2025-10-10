@@ -1,5 +1,9 @@
 project_id = "ypjihlfhxqyrpfjfmjdm"
 
+[functions.jellyfin-authenticate]
+verify_jwt = false
+# Note: Public authentication endpoint - no JWT required
+
 [functions.jellyfin-proxy]
 verify_jwt = true
 
