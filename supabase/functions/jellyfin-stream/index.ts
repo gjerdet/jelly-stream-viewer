@@ -91,6 +91,18 @@ serve(async (req) => {
       headers: requestHeaders,
     });
 
+    console.log('Jellyfin response status:', jellyfinResponse.status);
+    console.log('Jellyfin response headers:', Object.fromEntries(jellyfinResponse.headers.entries()));
+
+    if (!jellyfinResponse.ok) {
+      const errorText = await jellyfinResponse.text();
+      console.error('Jellyfin error:', errorText);
+      return new Response(`Jellyfin error: ${jellyfinResponse.status} - ${errorText}`, {
+        status: jellyfinResponse.status,
+        headers: corsHeaders,
+      });
+    }
+
     // Forward the response with CORS headers
     const responseHeaders = new Headers(corsHeaders);
     

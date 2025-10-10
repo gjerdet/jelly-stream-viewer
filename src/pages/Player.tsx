@@ -100,7 +100,7 @@ const Player = () => {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const url = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
       setStreamUrl(url);
-      console.log('Stream URL configured via edge function');
+      console.log('Stream URL configured:', url);
     };
 
     setupStream();
