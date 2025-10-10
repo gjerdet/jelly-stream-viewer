@@ -120,6 +120,7 @@ const Header = () => {
     { name: "Serier", path: "/series" },
     { name: "Oppdag filmer", path: "/discover-movies" },
     { name: "Oppdag serier", path: "/discover-series" },
+    { name: "Ønsker", path: "/wishes" },
     { name: "Søk", path: "/requests" },
     { name: "Historikk", path: "/history" },
   ];
