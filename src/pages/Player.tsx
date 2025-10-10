@@ -85,29 +85,26 @@ const Player = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState<string>("");
   const [showEpisodes, setShowEpisodes] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
 
-  // Fetch API key
+  // Set stream URL using edge function
   useEffect(() => {
-    const fetchApiKey = async () => {
-      const { data } = await supabase
-        .from("server_settings")
-        .select("setting_value")
-        .eq("setting_key", "jellyfin_api_key")
-        .single();
+    const setupStream = async () => {
+      if (!user || !id) return;
       
-      if (data?.setting_value) {
-        setApiKey(data.setting_value);
-        console.log('API key loaded');
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      // Use Supabase edge function for streaming
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const url = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
+      setStreamUrl(url);
+      console.log('Stream URL configured via edge function');
     };
-    
-    if (user) {
-      fetchApiKey();
-    }
-  }, [user]);
+
+    setupStream();
+  }, [user, id]);
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -141,14 +138,17 @@ const Player = () => {
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
 
-  // Set stream URL when we have all needed data
-  useEffect(() => {
-    if (serverUrl && userId && id && apiKey) {
-      const url = `${serverUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&PlaySessionId=${Date.now()}&api_key=${apiKey}`;
-      setStreamUrl(url);
-      console.log('Stream URL configured');
-    }
-  }, [serverUrl, userId, id, apiKey]);
+  // Get subtitle URL using edge function
+  const getSubtitleUrl = (subtitleIndex: number) => {
+    if (!serverUrl || !id || !user) return '';
+    
+    return supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return '';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      return `${supabaseUrl}/functions/v1/jellyfin-subtitle?videoId=${id}&subtitleIndex=${subtitleIndex}&token=${session.access_token}`;
+    });
+  };
+
 
   const handleMouseMove = () => {
     setShowControls(true);
@@ -229,7 +229,7 @@ const Player = () => {
     return () => clearInterval(interval);
   }, [watchHistoryId]);
 
-  if (!serverUrl || !userId || !id || !streamUrl || !apiKey) {
+  if (!serverUrl || !userId || !id || !streamUrl) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         Laster...
@@ -248,17 +248,10 @@ const Player = () => {
         className="w-full h-full"
         controls
         autoPlay
+        crossOrigin="anonymous"
       >
         <source src={streamUrl} type="video/mp4" />
-        {subtitles.map((subtitle) => (
-          <track
-            key={subtitle.Index}
-            kind="subtitles"
-            src={`${serverUrl.replace(/\/$/, '')}/Videos/${id}/${id}/Subtitles/${subtitle.Index}/Stream.vtt?api_key=${apiKey}`}
-            label={subtitle.DisplayTitle || subtitle.Language || `Subtitle ${subtitle.Index}`}
-            default={subtitle.IsDefault}
-          />
-        ))}
+        {/* Subtitles are handled through subtitle selection UI */}
         Din nettleser støtter ikke videoavspilling.
       </video>
 
