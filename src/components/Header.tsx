@@ -13,17 +13,26 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { toast } from "sonner";
+import { useState } from "react";
 
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: userRole } = useUserRole(user?.id);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     toast.success("Logget ut");
     navigate("/");
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
   };
 
   const navItems = [
@@ -63,13 +72,15 @@ const Header = () => {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="relative hidden sm:block">
+            <form onSubmit={handleSearch} className="relative hidden sm:block">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Søk..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 w-64 bg-secondary/50 border-border/50"
               />
-            </div>
+            </form>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
