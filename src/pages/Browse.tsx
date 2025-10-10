@@ -32,22 +32,37 @@ const Browse = () => {
     }
   }, [user, loading, navigate]);
 
-  // Fetch latest items
-  const { data: latestItems, error: latestError } = useJellyfinApi<JellyfinResponse>(
-    ["latest-items"],
+  // First fetch users to get a valid user ID
+  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
+    ["jellyfin-users"],
     {
-      endpoint: `/Items/Latest?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`,
+      endpoint: `/Users`,
     },
     !!user
   );
 
-  // Fetch resume items
-  const { data: resumeItems, error: resumeError } = useJellyfinApi<JellyfinResponse>(
-    ["resume-items"],
+  const userId = usersData?.[0]?.Id;
+
+  // Fetch latest items with user ID
+  const { data: latestItems, error: latestError } = useJellyfinApi<JellyfinResponse>(
+    ["latest-items", userId || ""],
     {
-      endpoint: `/Items/Resume?Limit=10&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`,
+      endpoint: userId 
+        ? `/Users/${userId}/Items/Latest?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        : "",
     },
-    !!user
+    !!user && !!userId
+  );
+
+  // Fetch resume items with user ID
+  const { data: resumeItems, error: resumeError } = useJellyfinApi<JellyfinResponse>(
+    ["resume-items", userId || ""],
+    {
+      endpoint: userId
+        ? `/Users/${userId}/Items/Resume?Limit=10&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        : "",
+    },
+    !!user && !!userId
   );
 
   const hasApiError = latestError || resumeError;

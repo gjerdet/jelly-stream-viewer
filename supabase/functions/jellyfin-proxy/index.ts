@@ -81,12 +81,12 @@ serve(async (req) => {
 
     console.log(`Proxying request to Jellyfin: ${method} ${jellyfinServerUrl}${endpoint}`);
 
-    // Make request to Jellyfin API with authentication
+    // Make request to Jellyfin API with authentication using the new format
     const jellyfinResponse = await fetch(`${jellyfinServerUrl}${endpoint}`, {
       method,
       headers: {
         'Content-Type': 'application/json',
-        'X-Emby-Token': apiKey,
+        'Authorization': `MediaBrowser Token="${apiKey}"`,
       },
       body: body ? JSON.stringify(body) : undefined,
     });
