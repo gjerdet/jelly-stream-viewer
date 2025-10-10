@@ -53,20 +53,29 @@ serve(async (req) => {
     const jellyfinApiKey = apiKeyData.setting_value;
 
     console.log('Authenticating with Jellyfin:', jellyfinUrl);
+    console.log('Request body:', JSON.stringify({ username, Pw: '***' }));
 
     // Authenticate with Jellyfin
     const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
+    const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`;
+    
+    console.log('Auth header:', authHeader);
+    console.log('Full URL:', authUrl);
+    
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`,
+        'Authorization': authHeader,
       },
       body: JSON.stringify({
         username: username,
         Pw: password,
       }),
     });
+
+    console.log('Response status:', jellyfinResponse.status);
+    console.log('Response headers:', Object.fromEntries(jellyfinResponse.headers.entries()));
 
     if (!jellyfinResponse.ok) {
       const errorText = await jellyfinResponse.text();
