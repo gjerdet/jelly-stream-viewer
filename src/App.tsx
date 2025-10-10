@@ -7,6 +7,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import Header from "./components/Header";
 import Login from "./pages/Login";
+import Setup from "./pages/Setup";
 import Browse from "./pages/Browse";
 import Search from "./pages/Search";
 import History from "./pages/History";
@@ -24,12 +25,13 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
-  const isLoginPage = location.pathname === "/";
+  const isLoginOrSetupPage = location.pathname === "/" || location.pathname === "/setup";
 
-  if (isLoginPage) {
+  if (isLoginOrSetupPage) {
     return (
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/setup" element={<Setup />} />
       </Routes>
     );
   }
