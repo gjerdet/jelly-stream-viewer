@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Film, Search, User, LogOut, Settings, X } from "lucide-react";
+import { Film, Search, User, LogOut, Settings, X, Menu } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 
@@ -37,6 +38,7 @@ const Header = () => {
   const { data: userRole } = useUserRole(user?.id);
   const { serverUrl } = useServerSettings();
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
+  const { toggleSidebar } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [debouncedQuery, setDebouncedQuery] = useState("");
@@ -120,7 +122,6 @@ const Header = () => {
     { name: "Hjem", path: "/browse" },
     { name: "Filmer", path: "/movies" },
     { name: "Serier", path: "/series" },
-    { name: "Min side", path: "/menu" },
   ];
 
   return (
@@ -128,6 +129,15 @@ const Header = () => {
       <div className="container mx-auto px-4 py-4">
         <div className="flex items-center justify-between gap-8">
           <div className="flex items-center gap-8">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              className="md:flex"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+            
             <Link to="/browse" className="flex items-center gap-2 group">
               {logoUrl ? (
                 <img 
