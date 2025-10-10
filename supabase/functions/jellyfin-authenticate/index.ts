@@ -60,10 +60,10 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`,
+        'X-Emby-Authorization': `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`,
       },
       body: JSON.stringify({
-        username: username,
+        Username: username,
         Pw: password,
       }),
     });
