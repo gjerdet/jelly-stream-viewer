@@ -71,6 +71,7 @@ serve(async (req) => {
     if (!jellyfinResponse.ok) {
       const errorText = await jellyfinResponse.text();
       console.error('Jellyfin authentication failed:', jellyfinResponse.status, errorText);
+      console.error('Request details:', { authUrl, username, headers: jellyfinResponse.headers });
       return new Response(
         JSON.stringify({ error: 'Invalid credentials' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
