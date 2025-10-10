@@ -109,6 +109,7 @@ const Detail = () => {
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
   const [showSubtitleDialog, setShowSubtitleDialog] = useState(false);
+  const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -517,9 +518,21 @@ const Detail = () => {
               </div>
 
               {item.Overview && (
-                <p className="max-w-2xl text-white/90 text-lg leading-relaxed line-clamp-4">
-                  {item.Overview}
-                </p>
+                <div className="max-w-2xl">
+                  <p className={`text-white/90 text-lg leading-relaxed ${!isOverviewExpanded ? 'line-clamp-4' : ''}`}>
+                    {item.Overview}
+                  </p>
+                  {item.Overview.length > 200 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsOverviewExpanded(!isOverviewExpanded)}
+                      className="mt-2 text-white/70 hover:text-white"
+                    >
+                      {isOverviewExpanded ? 'Vis mindre' : 'Les mer'}
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>
