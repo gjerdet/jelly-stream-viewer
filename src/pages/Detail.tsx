@@ -149,7 +149,11 @@ const Detail = () => {
           </div>
 
           <div className="flex flex-wrap gap-3 mb-6">
-            <Button size="lg" className="gap-2">
+            <Button 
+              size="lg" 
+              className="gap-2"
+              onClick={() => navigate(`/player/${id}`)}
+            >
               <Play className="h-5 w-5" />
               Spill av
             </Button>
