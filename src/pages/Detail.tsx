@@ -100,6 +100,9 @@ const Detail = () => {
     ? `${serverUrl}/Items/${item.Id}/Images/Primary?maxHeight=1080`
     : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=1080&fit=crop";
 
+  // Check if we're using the primary image as backdrop (needs blur effect)
+  const isUsingPrimaryAsBackdrop = !item.BackdropImageTags?.[0] && item.ImageTags?.Primary;
+
   const runtime = item.RunTimeTicks ? Math.round(item.RunTimeTicks / 600000000) : null;
 
   // Filter subtitle streams
@@ -116,7 +119,11 @@ const Detail = () => {
           <img
             src={backdropUrl}
             alt={item.Name}
-            className="w-full h-full object-cover scale-110 animate-fade-in"
+            className={`w-full h-full object-cover animate-fade-in ${
+              isUsingPrimaryAsBackdrop 
+                ? 'scale-150 blur-2xl brightness-75' 
+                : 'scale-110'
+            }`}
           />
           {/* Multiple gradient layers for depth */}
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/50 to-transparent" />
@@ -124,6 +131,10 @@ const Detail = () => {
           <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-background/60" />
           {/* Vignette effect */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.3)_100%)]" />
+          {/* Stronger overlay when using primary as backdrop */}
+          {isUsingPrimaryAsBackdrop && (
+            <div className="absolute inset-0 bg-background/40" />
+          )}
           {/* Subtle noise texture */}
           <div className="absolute inset-0 opacity-[0.02] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMzAwdjMwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')]" />
         </div>
