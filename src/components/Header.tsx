@@ -125,35 +125,35 @@ const Header = () => {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50">
+    <header className="sticky top-0 z-50 bg-background/95 backdrop-blur-lg border-b border-border/50 w-full">
       <div className="container mx-auto px-4 py-4">
-        <div className="flex items-center justify-between gap-8">
-          <div className="flex items-center gap-8">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleSidebar}
-              className="md:flex"
+              className="flex-shrink-0"
             >
               <Menu className="h-5 w-5" />
             </Button>
             
-            <Link to="/browse" className="flex items-center gap-2 group">
+            <Link to="/browse" className="flex items-center gap-2 group flex-shrink-0">
               {logoUrl ? (
                 <img 
                   src={logoUrl} 
                   alt={siteName}
-                  className="h-10 w-auto object-contain"
+                  className="h-8 w-auto object-contain"
                 />
               ) : (
                 <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 smooth-transition">
-                  <Film className="h-6 w-6 text-primary" />
+                  <Film className="h-5 w-5 text-primary" />
                 </div>
               )}
-              <span className="text-xl font-bold hidden sm:block">{headerTitle}</span>
+              <span className="text-lg font-bold hidden lg:block">{headerTitle}</span>
             </Link>
 
-            <nav className="hidden md:flex items-center gap-6">
+            <nav className="hidden lg:flex items-center gap-4">
               {navItems.map((item) => (
                 <Link
                   key={item.path}
@@ -170,8 +170,8 @@ const Header = () => {
             </nav>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div ref={searchRef} className="relative hidden sm:block">
+          <div className="flex items-center gap-4 flex-shrink-0">
+            <div ref={searchRef} className="relative hidden md:block">
               <form onSubmit={handleSearch}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <Input
@@ -179,7 +179,7 @@ const Header = () => {
                   value={searchQuery}
                   onChange={handleInputChange}
                   onFocus={() => searchQuery.trim() && setShowSuggestions(true)}
-                  className="pl-10 pr-10 w-64 bg-secondary/50 border-border/50"
+                  className="pl-10 pr-10 w-48 lg:w-64 bg-secondary/50 border-border/50"
                 />
                 {searchQuery && (
                   <button
