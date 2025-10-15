@@ -54,9 +54,9 @@ serve(async (req) => {
     
     console.log('Authenticating with Jellyfin:', serverUrl);
 
-    // Authenticate with Jellyfin - try with both Authorization headers
+    // Authenticate with Jellyfin
     const authUrl = `${serverUrl}/Users/AuthenticateByName`;
-    const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0"`;
+    const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0", Token="${jellyfinApiKey}"`;
     
     console.log('Auth header:', authHeader);
     console.log('Full URL:', authUrl);
