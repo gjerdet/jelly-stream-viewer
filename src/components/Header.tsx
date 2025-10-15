@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Film, Search, User, LogOut, Settings, X, Menu } from "lucide-react";
+import { Film, Search, User, LogOut, Settings, X, Menu, RefreshCw, Activity, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -125,6 +125,41 @@ const Header = () => {
   const handleClearSearch = () => {
     setSearchQuery("");
     setShowSuggestions(false);
+  };
+
+  const handleSync = async () => {
+    toast.loading("Synkroniserer med Jellyfin...");
+    // Trigger a library scan on Jellyfin
+    try {
+      await supabase.functions.invoke("jellyfin-proxy", {
+        body: {
+          endpoint: "/Library/Refresh",
+          method: "POST",
+        },
+      });
+      toast.success("Synkronisering startet");
+    } catch (error) {
+      toast.error("Kunne ikke synkronisere");
+    }
+  };
+
+  const handleRefresh = () => {
+    window.location.reload();
+    toast.success("Laster inn på nytt");
+  };
+
+  const handleStatus = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
+        body: {
+          endpoint: "/System/Info",
+        },
+      });
+      if (error) throw error;
+      toast.success(`Server kjører: ${data.ServerName || "Jellyfin"}`);
+    } catch (error) {
+      toast.error("Kunne ikke hente server-status");
+    }
   };
 
   const navItems = [
@@ -341,6 +376,48 @@ const Header = () => {
                 </nav>
               </SheetContent>
             </Sheet>
+
+            {/* Action Buttons */}
+            <div className="hidden sm:flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSync}
+                title="Synkroniser med Jellyfin"
+                className="h-9 w-9"
+              >
+                <Zap className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRefresh}
+                title="Last inn på nytt"
+                className="h-9 w-9"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              {userRole === "admin" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => navigate("/admin")}
+                  title="Innstillinger"
+                  className="h-9 w-9"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleStatus}
+                title="Server-status"
+                className="h-9 w-9"
+              >
+                <Activity className="h-4 w-4" />
+              </Button>
+            </div>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
