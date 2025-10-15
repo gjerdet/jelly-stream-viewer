@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_versions: {
+        Row: {
+          changelog: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          is_current: boolean | null
+          release_date: string
+          version_number: string
+        }
+        Insert: {
+          changelog?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_current?: boolean | null
+          release_date?: string
+          version_number: string
+        }
+        Update: {
+          changelog?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_current?: boolean | null
+          release_date?: string
+          version_number?: string
+        }
+        Relationships: []
+      }
       news_posts: {
         Row: {
           content: string

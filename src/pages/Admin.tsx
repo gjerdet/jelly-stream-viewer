@@ -12,6 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Settings, Newspaper, Trash2, Pin } from "lucide-react";
+import { VersionManager } from "@/components/VersionManager";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -353,10 +354,11 @@ const Admin = () => {
           </div>
 
           <Tabs defaultValue="servers" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="servers">Servere</TabsTrigger>
               <TabsTrigger value="site">Side-innstillinger</TabsTrigger>
               <TabsTrigger value="news">Nyheter</TabsTrigger>
+              <TabsTrigger value="versions">Versjoner</TabsTrigger>
             </TabsList>
 
             <TabsContent value="servers" className="space-y-6">
@@ -662,6 +664,10 @@ const Admin = () => {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="versions">
+              <VersionManager />
             </TabsContent>
           </Tabs>
         </div>
