@@ -7,9 +7,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useVersions } from "@/hooks/useVersions";
-import { GitBranch, Plus, CheckCircle, Clock } from "lucide-react";
+import { GitBranch, Plus, CheckCircle, Clock, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
+
+const compareVersions = (v1: string, v2: string): number => {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const part1 = parts1[i] || 0;
+    const part2 = parts2[i] || 0;
+    
+    if (part1 > part2) return 1;
+    if (part1 < part2) return -1;
+  }
+  
+  return 0;
+};
 
 export const VersionManager = () => {
   const { versions, currentVersion, setCurrentVersion, addVersion } = useVersions();
@@ -121,50 +136,58 @@ export const VersionManager = () => {
               <Clock className="h-4 w-4" />
               Tilgjengelige versjoner
             </h3>
-            {versions?.filter((v) => !v.is_current).map((version) => (
-              <div key={version.id} className="p-4 border rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">v{version.version_number}</span>
+            {versions?.filter((v) => !v.is_current).map((version) => {
+              const isNewer = currentVersion && compareVersions(version.version_number, currentVersion.version_number) > 0;
+              const actionText = isNewer ? "Oppgrader til" : "Tilbakerull til";
+              const ActionIcon = isNewer ? ArrowUp : ArrowDown;
+              
+              return (
+                <div key={version.id} className="p-4 border rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">v{version.version_number}</span>
+                      {isNewer && <Badge variant="secondary">Nyere</Badge>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">
+                        {format(new Date(version.release_date), "d. MMM yyyy", { locale: nb })}
+                      </span>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <ActionIcon className="h-4 w-4 mr-2" />
+                            {actionText} V{version.version_number}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{actionText} V{version.version_number}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Er du sikker på at du vil {isNewer ? 'oppgradere' : 'tilbakerulles'} til versjon {version.version_number}?
+                              Dette vil kreve at du laster siden på nytt.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => setCurrentVersion(version.id)}>
+                              Bekreft
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(version.release_date), "d. MMM yyyy", { locale: nb })}
-                    </span>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline">
-                          Aktiver
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Bekreft versjonsskifte</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Er du sikker på at du vil bytte til versjon {version.version_number}?
-                            Dette vil kreve at du laster siden på nytt.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Avbryt</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => setCurrentVersion(version.id)}>
-                            Bekreft
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  {version.description && (
+                    <p className="text-sm text-muted-foreground mb-2">{version.description}</p>
+                  )}
+                  {version.changelog && (
+                    <div className="mt-2 p-2 bg-secondary/50 rounded text-sm">
+                      <pre className="whitespace-pre-wrap text-muted-foreground">{version.changelog}</pre>
+                    </div>
+                  )}
                 </div>
-                {version.description && (
-                  <p className="text-sm text-muted-foreground mb-2">{version.description}</p>
-                )}
-                {version.changelog && (
-                  <div className="mt-2 p-2 bg-secondary/50 rounded text-sm">
-                    <pre className="whitespace-pre-wrap text-muted-foreground">{version.changelog}</pre>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </CardContent>
