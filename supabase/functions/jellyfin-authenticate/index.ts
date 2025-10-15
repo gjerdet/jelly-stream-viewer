@@ -49,11 +49,8 @@ serve(async (req) => {
       );
     }
 
-    const jellyfinUrl = serverUrlData.setting_value.replace(/\/$/, ''); // Remove trailing slash
+    const serverUrl = serverUrlData.setting_value.replace(/\/$/, ''); // Remove trailing slash
     const jellyfinApiKey = apiKeyData.setting_value;
-
-    // TEMPORARY FIX: Add port 8096 if not present
-    const serverUrl = jellyfinUrl.includes(':8096') ? jellyfinUrl : `${jellyfinUrl}:8096`;
     
     console.log('Authenticating with Jellyfin:', serverUrl);
 
