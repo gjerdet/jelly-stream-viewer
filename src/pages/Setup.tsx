@@ -27,7 +27,7 @@ const Setup = () => {
       if (error) throw error;
 
       toast.success("Innstillinger lagret! Du kan nå logge inn.");
-      navigate("/login");
+      navigate("/");
     } catch (error) {
       console.error('Setup error:', error);
       toast.error("Kunne ikke lagre innstillingene");
