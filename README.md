@@ -1,8 +1,60 @@
 # Jelly Stream Viewer
 
-En moderne webapplikasjon for streaming fra Jellyfin media server, bygget med React, TypeScript, Tailwind CSS og Supabase.
+En moderne webapplikasjon for streaming fra Jellyfin media server.
 
-## Funksjoner
+## 🚀 Rask installasjon (Ubuntu)
+
+### Copy-paste disse 4 kommandoene:
+
+```bash
+git clone <DIN_GITHUB_URL> jelly-stream-viewer && cd jelly-stream-viewer
+```
+
+```bash
+chmod +x setup.sh && sudo ./setup.sh
+```
+
+Det er alt! Skriptet installerer alt du trenger automatisk.
+
+---
+
+## 📋 Hva trenger du?
+
+- Ubuntu Server 20.04+
+- En Jellyfin media server (må være tilgjengelig)
+- En Supabase-konto (gratis på supabase.com)
+
+---
+
+## ⚙️ Oppsett etter installasjon
+
+### 1. Første gangs pålogging
+```
+http://din-server-ip
+```
+
+### 2. Opprett brukerkonto
+Registrer en ny bruker via nettsiden.
+
+### 3. Gjør deg selv til admin
+Logg inn på [Supabase Dashboard](https://supabase.com/dashboard) og kjør:
+
+```sql
+UPDATE user_roles 
+SET role = 'admin' 
+WHERE user_id = (SELECT id FROM auth.users WHERE email = 'din@epost.no');
+```
+
+### 4. Konfigurer servere
+Gå til Admin-siden og fyll inn:
+- **Jellyfin Server URL**: `http://din-jellyfin-server:8096`
+- **Jellyfin API Key**: Fra Jellyfin Dashboard → API Keys
+- **Jellyseerr URL**: (valgfritt) `http://din-jellyseerr-server:5055`
+- **Jellyseerr API Key**: (valgfritt) Fra Jellyseerr Settings
+
+---
+
+## 🔧 Funksjoner
 
 - 🎬 Stream filmer og serier fra Jellyfin
 - 📱 Mobilvennlig design
@@ -10,45 +62,7 @@ En moderne webapplikasjon for streaming fra Jellyfin media server, bygget med Re
 - ⭐ Favoritter og visningshistorikk
 - 📺 Chromecast-støtte
 - 🌐 Undertekststøtte
-- 🎯 Integrasjon med Jellyseerr for forespørsler (under jobb enda)
-
-## Forutsetninger
-
-- Ubuntu Server 20.04+ (eller annen Linux-distribusjon)
-- Node.js 18+ og npm
-- En Jellyfin media server (kjørende og tilgjengelig)
-- En Supabase-konto (eller selvhostet Supabase)
-- (Valgfritt) Jellyseerr-instans for medieforespørsler
-
-## Rask installasjon på Ubuntu
-
-### Automatisk installasjon
-
-Kjør installasjonsskriptet for automatisk oppsett:
-
-```bash
-# Last ned prosjektet fra GitHub
-git clone <DIN_GITHUB_URL>
-cd jelly-stream-viewer
-
-# Gjør skriptet kjørbart
-chmod +x setup.sh
-
-# Kjør installasjonsskriptet
-sudo ./setup.sh
-```
-
-Skriptet vil:
-1. Installere Node.js og npm hvis de mangler
-2. Installere alle nødvendige avhengigheter
-3. Sette opp miljøvariabler
-4. Bygge produksjonsversjonen
-5. Installere og konfigurere Nginx som reverse proxy
-6. Sette opp systemd-tjeneste for automatisk start
-
-### Manuell installasjon
-
-Hvis du foretrekker manuell installasjon, se [DEPLOYMENT.md](DEPLOYMENT.md) for detaljerte instruksjoner.
+- 🎯 Jellyseerr-integrasjon med admin-godkjenning
 
 ## Konfigurasjon
 
