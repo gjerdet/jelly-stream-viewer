@@ -78,10 +78,18 @@ const Requests = () => {
   };
 
   const handleRequest = (result: SearchResult) => {
+    const title = getTitle(result);
+    const posterUrl = result.posterPath
+      ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
+      : undefined;
+
     jellyseerrRequest.mutate({
       mediaType: result.mediaType,
       mediaId: result.id,
       seasons: result.mediaType === 'tv' ? 'all' : undefined,
+      mediaTitle: title,
+      mediaPoster: posterUrl,
+      mediaOverview: result.overview,
     });
   };
 

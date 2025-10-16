@@ -126,10 +126,18 @@ const Wishes = () => {
   };
 
   const handleRequest = (result: DiscoverResult, mediaType: 'movie' | 'tv') => {
+    const title = mediaType === 'movie' ? result.title : result.name;
+    const posterUrl = result.posterPath
+      ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
+      : undefined;
+
     jellyseerrRequest.mutate({
       mediaType,
       mediaId: result.id,
       ...(mediaType === 'tv' && { seasons: 'all' }),
+      mediaTitle: title || 'Ukjent',
+      mediaPoster: posterUrl,
+      mediaOverview: result.overview,
     });
   };
 

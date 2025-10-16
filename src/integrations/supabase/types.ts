@@ -44,6 +44,54 @@ export type Database = {
         }
         Relationships: []
       }
+      jellyseerr_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          media_id: number
+          media_overview: string | null
+          media_poster: string | null
+          media_title: string
+          media_type: string
+          rejection_reason: string | null
+          seasons: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          media_id: number
+          media_overview?: string | null
+          media_poster?: string | null
+          media_title: string
+          media_type: string
+          rejection_reason?: string | null
+          seasons?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          media_id?: number
+          media_overview?: string | null
+          media_poster?: string | null
+          media_title?: string
+          media_type?: string
+          rejection_reason?: string | null
+          seasons?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       news_posts: {
         Row: {
           content: string

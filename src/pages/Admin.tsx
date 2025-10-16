@@ -343,14 +343,24 @@ const Admin = () => {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-2xl mx-auto space-y-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-primary/10">
-              <Settings className="h-8 w-8 text-primary" />
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <Settings className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold">Admin-innstillinger</h1>
+                <p className="text-muted-foreground">Administrer server-tilkoblinger og innhold</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold">Admin-innstillinger</h1>
-              <p className="text-muted-foreground">Administrer server-tilkoblinger og innhold</p>
-            </div>
+            <Button 
+              onClick={() => navigate("/requests-admin")}
+              variant="outline"
+              className="gap-2"
+            >
+              <Newspaper className="h-4 w-4" />
+              Forespørsler
+            </Button>
           </div>
 
           <Tabs defaultValue="servers" className="w-full">

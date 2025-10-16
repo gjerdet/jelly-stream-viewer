@@ -16,6 +16,7 @@ import Player from "./pages/Player";
 import Person from "./pages/Person";
 import Admin from "./pages/Admin";
 import Requests from "./pages/Requests";
+import RequestsAdmin from "./pages/RequestsAdmin";
 import Wishes from "./pages/Wishes";
 import MyList from "./pages/MyList";
 import News from "./pages/News";
@@ -50,6 +51,7 @@ const AppContent = () => {
               <Route path="/search" element={<Search />} />
               <Route path="/history" element={<History />} />
               <Route path="/requests" element={<Requests />} />
+              <Route path="/requests-admin" element={<RequestsAdmin />} />
               <Route path="/wishes" element={<Wishes />} />
               <Route path="/my-list" element={<MyList />} />
               <Route path="/news" element={<News />} />
