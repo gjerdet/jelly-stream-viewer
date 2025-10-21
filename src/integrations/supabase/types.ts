@@ -329,6 +329,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      setup_server_settings: {
+        Args: { p_api_key: string; p_server_url: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"
