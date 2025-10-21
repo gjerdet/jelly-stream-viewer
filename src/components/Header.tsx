@@ -43,7 +43,7 @@ const Header = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: userRole } = useUserRole(user?.id);
-  const { serverUrl } = useServerSettings();
+  const { serverUrl, apiKey } = useServerSettings();
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
   const { toggleSidebar } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
@@ -128,17 +128,28 @@ const Header = () => {
   };
 
   const handleSync = async () => {
+    if (!serverUrl || !apiKey) {
+      toast.error("Server ikke konfigurert");
+      return;
+    }
+    
     toast.loading("Synkroniserer med Jellyfin...");
-    // Trigger a library scan on Jellyfin
     try {
-      await supabase.functions.invoke("jellyfin-proxy", {
-        body: {
-          endpoint: "/Library/Refresh",
-          method: "POST",
+      const response = await fetch(`${serverUrl.replace(/\/$/, '')}/Library/Refresh`, {
+        method: "POST",
+        headers: {
+          "X-Emby-Token": apiKey,
+          "Content-Type": "application/json",
         },
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       toast.success("Synkronisering startet");
     } catch (error) {
+      console.error("Sync error:", error);
       toast.error("Kunne ikke synkronisere");
     }
   };
@@ -149,15 +160,28 @@ const Header = () => {
   };
 
   const handleStatus = async () => {
+    if (!serverUrl || !apiKey) {
+      toast.error("Server ikke konfigurert");
+      return;
+    }
+    
     try {
-      const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
-        body: {
-          endpoint: "/System/Info",
+      const response = await fetch(`${serverUrl.replace(/\/$/, '')}/System/Info`, {
+        method: "GET",
+        headers: {
+          "X-Emby-Token": apiKey,
+          "Content-Type": "application/json",
         },
       });
-      if (error) throw error;
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
       toast.success(`Server kjører: ${data.ServerName || "Jellyfin"}`);
     } catch (error) {
+      console.error("Status error:", error);
       toast.error("Kunne ikke hente server-status");
     }
   };

@@ -19,12 +19,35 @@ const Setup = () => {
     setLoading(true);
 
     try {
-      // Call the setup edge function which bypasses RLS
-      const { data, error } = await supabase.functions.invoke('jellyfin-setup', {
-        body: { serverUrl: serverUrl.trim(), apiKey: apiKey.trim() }
-      });
+      // Directly upsert to database - no edge function needed
+      const serverUrlTrimmed = serverUrl.trim();
+      const apiKeyTrimmed = apiKey.trim();
 
-      if (error) throw error;
+      // Upsert server URL
+      const { error: urlError } = await supabase
+        .from("server_settings")
+        .upsert({
+          setting_key: "jellyfin_server_url",
+          setting_value: serverUrlTrimmed,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "setting_key",
+        });
+
+      if (urlError) throw urlError;
+
+      // Upsert API key
+      const { error: keyError } = await supabase
+        .from("server_settings")
+        .upsert({
+          setting_key: "jellyfin_api_key",
+          setting_value: apiKeyTrimmed,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: "setting_key",
+        });
+
+      if (keyError) throw keyError;
 
       toast.success("Innstillinger lagret! Du kan nå logge inn.");
       navigate("/");

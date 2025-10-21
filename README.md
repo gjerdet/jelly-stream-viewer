@@ -1,6 +1,15 @@
 # Jelly Stream Viewer
 
-En moderne webapplikasjon for streaming fra Jellyfin media server.
+En moderne webapplikasjon for streaming fra Jellyfin media server - **optimalisert for lokal deployment**.
+
+## 🏗️ Arkitektur
+
+**Lokal deployment med cloud-basert autentisering:**
+- Frontend snakker **direkte** med Jellyfin server (ingen proxy)
+- Supabase Cloud håndterer autentisering og database
+- Alt kjører på lokalt nettverk for beste ytelse
+
+Se [ARCHITECTURE.md](ARCHITECTURE.md) for detaljert oversikt.
 
 ## 🚀 Rask installasjon (Ubuntu)
 
@@ -20,9 +29,11 @@ Det er alt! Skriptet installerer alt du trenger automatisk.
 
 ## 📋 Hva trenger du?
 
-- Ubuntu Server 20.04+
-- En Jellyfin media server (må være tilgjengelig)
-- En Supabase-konto (gratis på supabase.com)
+- **Ubuntu Server 20.04+** (eller annen Linux-distro)
+- **Jellyfin media server** på samme nettverk (lokal IP)
+- **Supabase-konto** (gratis på supabase.com) - kun for autentisering/database
+
+**Viktig:** Frontend og Jellyfin må være på samme nettverk for at direktekommunikasjon skal fungere.
 
 ---
 
@@ -42,11 +53,13 @@ Registrer en ny bruker via nettsiden.
 Hvis du trenger å gjøre flere brukere til admin, kan du gjøre dette via backend-grensesnittet eller kontakte systemadministrator.
 
 ### 4. Konfigurer servere
-Gå til Admin-siden og fyll inn:
-- **Jellyfin Server URL**: `http://din-jellyfin-server:8096`
+Gå til `/setup` ved første besøk og fyll inn:
+- **Jellyfin Server URL**: `http://192.168.1.100:8096` (din lokale Jellyfin-server)
 - **Jellyfin API Key**: Fra Jellyfin Dashboard → API Keys
-- **Jellyseerr URL**: (valgfritt) `http://din-jellyseerr-server:5055`
-- **Jellyseerr API Key**: (valgfritt) Fra Jellyseerr Settings
+
+**OBS:** Bruk lokal IP-adresse for Jellyfin-serveren, ikke `localhost` hvis frontend kjører på en annen maskin.
+
+*Jellyseerr-konfigurasjon (valgfritt) gjøres via Admin-siden.*
 
 ---
 

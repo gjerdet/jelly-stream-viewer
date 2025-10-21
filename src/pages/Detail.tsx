@@ -103,7 +103,7 @@ const Detail = () => {
   const episodeId = searchParams.get('episodeId');
   const seasonIdFromUrl = searchParams.get('seasonId');
   const { user, loading } = useAuth();
-  const { serverUrl } = useServerSettings();
+  const { serverUrl, apiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
@@ -230,14 +230,12 @@ const Detail = () => {
   // Search for subtitles mutation
   const searchSubtitles = useMutation({
     mutationFn: async () => {
-      if (!id) return;
+      if (!id || !serverUrl || !apiKey) {
+        throw new Error("Missing configuration");
+      }
 
-      const { data, error } = await supabase.functions.invoke("jellyfin-search-subtitles", {
-        body: { itemId: id },
-      });
-
-      if (error) throw error;
-      return data;
+      const { searchSubtitles: searchFn } = await import("@/lib/jellyfinApi");
+      return searchFn(serverUrl, apiKey, id);
     },
     onSuccess: (data) => {
       if (data?.success && data?.results?.length > 0) {
@@ -257,14 +255,12 @@ const Detail = () => {
   // Download selected subtitle mutation
   const downloadSubtitle = useMutation({
     mutationFn: async (subtitleId: string) => {
-      if (!id) return;
+      if (!id || !serverUrl || !apiKey) {
+        throw new Error("Missing configuration");
+      }
 
-      const { data, error } = await supabase.functions.invoke("jellyfin-download-subtitle", {
-        body: { itemId: id, subtitleId },
-      });
-
-      if (error) throw error;
-      return data;
+      const { downloadSubtitle: downloadFn } = await import("@/lib/jellyfinApi");
+      return downloadFn(serverUrl, apiKey, id, subtitleId);
     },
     onSuccess: (data) => {
       toast.success(data?.message || "Undertekst lastet ned");

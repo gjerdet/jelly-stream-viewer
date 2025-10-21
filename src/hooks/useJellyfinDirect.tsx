@@ -8,10 +8,10 @@ interface JellyfinRequest {
 }
 
 /**
- * @deprecated Use useJellyfinDirect instead for local network deployments
- * This hook uses edge function proxy which won't work with local Jellyfin
+ * Direct connection to Jellyfin server - for local network deployments
+ * No proxy, no edge functions, just straight HTTP to Jellyfin
  */
-export const useJellyfinApi = <T,>(
+export const useJellyfinDirect = <T,>(
   queryKey: string[],
   request: JellyfinRequest,
   enabled: boolean = true
