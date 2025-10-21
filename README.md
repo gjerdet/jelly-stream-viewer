@@ -36,14 +36,10 @@ http://din-server-ip
 ### 2. Opprett brukerkonto
 Registrer en ny bruker via nettsiden.
 
-### 3. Gjør deg selv til admin
-Logg inn på [Supabase Dashboard](https://supabase.com/dashboard) og kjør:
+### 3. Første bruker blir automatisk admin
+**Første bruker som registrerer seg blir automatisk admin** - ingen manuell konfigurasjon nødvendig!
 
-```sql
-UPDATE user_roles 
-SET role = 'admin' 
-WHERE user_id = (SELECT id FROM auth.users WHERE email = 'din@epost.no');
-```
+Hvis du trenger å gjøre flere brukere til admin, kan du gjøre dette via backend-grensesnittet eller kontakte systemadministrator.
 
 ### 4. Konfigurer servere
 Gå til Admin-siden og fyll inn:
@@ -127,12 +123,41 @@ Dette prosjektet er bygget med:
 
 ## Sikkerhet
 
-Applikasjonen har følgende sikkerhetstiltak:
-- API-nøkler lagres sikret i database (kun tilgjengelig via edge functions)
-- JWT-basert autentisering for streaming
-- Input-validering på alle endpoints
-- Row Level Security (RLS) i Supabase
-- HTTPS støtte via Nginx + Certbot
+Applikasjonen implementerer flere lag med sikkerhet:
+
+### Autentisering
+- **JWT-basert autentisering**: Alle API-kall krever gyldig JWT-token fra Supabase
+- **Automatisk token-refresh**: Håndteres av Supabase-klienten
+- **Session management**: Sikker lagring i localStorage med automatisk utlogging
+
+### Database-sikkerhet (RLS)
+Row Level Security (RLS) er aktivert på alle tabeller:
+```sql
+-- Eksempel: Brukere ser kun sine egne favoritter
+CREATE POLICY "Users can view own favorites"
+ON user_favorites FOR SELECT
+USING (auth.uid() = user_id);
+
+-- Admins har full tilgang
+CREATE POLICY "Admins have full access"
+ON user_roles FOR ALL
+USING (has_role(auth.uid(), 'admin'));
+```
+
+### API-sikkerhet
+- **API-nøkler i database**: Jellyfin/Jellyseerr-nøkler lagres kryptert, kun tilgjengelig via edge functions
+- **Input-validering**: Zod-schemas validerer alle brukerinput
+- **CORS**: Konfigurert for sikker cross-origin kommunikasjon
+
+### Edge Functions
+- **JWT-verifisering**: Aktivert på alle sensitive endepunkter (se `supabase/config.toml`)
+- **Rate limiting**: Implementert via Supabase
+- **Logging**: Alle API-kall logges for revisjon
+
+### HTTPS og transport
+- **HTTPS via Nginx + Certbot**: Anbefalt for produksjon
+- **Secure cookies**: HttpOnly og Secure flags på sessions
+- **HSTS**: HTTP Strict Transport Security aktivert
 
 ## Support
 
@@ -149,6 +174,21 @@ Dette prosjektet kan også redigeres via Lovable:
 
 Endringer gjort i Lovable vil automatisk committes til dette repoet, og endringer pushet til GitHub vil reflekteres i Lovable.
 
+## Bidra
+
+Bidrag er velkomne! Vennligst:
+1. Fork prosjektet
+2. Opprett en feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit endringer (`git commit -m 'Add some AmazingFeature'`)
+4. Push til branch (`git push origin feature/AmazingFeature`)
+5. Åpne en Pull Request
+
+### Utviklingsoppsett
+```bash
+npm install
+npm run dev
+```
+
 ## Lisens
 
-Dette prosjektet er åpen kildekode.
+Dette prosjektet er lisensiert under MIT License - se [LICENSE](LICENSE) filen for detaljer.

@@ -72,22 +72,18 @@ print_success "Avhengigheter installert"
 print_header "Konfigurasjon av miljøvariabler"
 
 if [ ! -f .env ]; then
-    print_info "Oppretter .env fil..."
-    
-    read -p "Supabase URL (https://xxxx.supabase.co): " SUPABASE_URL
-    read -p "Supabase Publishable Key: " SUPABASE_KEY
-    read -p "Supabase Project ID: " SUPABASE_PROJECT_ID
-    
-    cat > .env << EOF
-VITE_SUPABASE_URL=$SUPABASE_URL
-VITE_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_KEY
-VITE_SUPABASE_PROJECT_ID=$SUPABASE_PROJECT_ID
-VITE_NODE_ENV=production
-EOF
-    
-    print_success ".env fil opprettet"
+    print_error ".env fil mangler!"
+    print_info "Kopier .env.example til .env og fyll inn verdiene:"
+    print_info "  cp .env.example .env"
+    print_info "  nano .env"
+    print_info ""
+    print_info "Du trenger følgende verdier fra Supabase Dashboard:"
+    print_info "  - VITE_SUPABASE_URL"
+    print_info "  - VITE_SUPABASE_PUBLISHABLE_KEY"
+    print_info "  - VITE_SUPABASE_PROJECT_ID"
+    exit 1
 else
-    print_info ".env fil eksisterer allerede"
+    print_success ".env fil funnet"
 fi
 
 # 4. Bygg applikasjonen
@@ -220,15 +216,9 @@ echo "  Installasjonskatalog: $INSTALL_DIR"
 echo ""
 echo "Neste steg:"
 echo "  1. Besøk http://$SERVER_NAME i nettleseren"
-echo "  2. Registrer en brukerkonto"
-echo "  3. Logg inn på Supabase Dashboard og kjør følgende SQL:"
-echo ""
-echo "     -- Gjør første bruker til admin (erstatt <USER_ID>)"
-echo "     INSERT INTO public.user_roles (user_id, role)"
-echo "     VALUES ('<USER_ID>', 'admin');"
-echo ""
-echo "  4. Logg inn og gå til Admin-siden"
-echo "  5. Konfigurer Jellyfin server URL og API-nøkkel"
+echo "  2. Registrer en brukerkonto (første bruker blir automatisk admin)"
+echo "  3. Logg inn og gå til Admin-siden"
+echo "  4. Konfigurer Jellyfin server URL og API-nøkkel"
 echo ""
 echo "Nyttige kommandoer:"
 echo "  Restart Nginx:    sudo systemctl restart nginx"
