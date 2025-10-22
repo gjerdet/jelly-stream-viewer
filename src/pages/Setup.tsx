@@ -19,9 +19,15 @@ const Setup = () => {
     setLoading(true);
 
     try {
+      // Normaliser server URL - legg til http:// hvis det mangler
+      let normalizedUrl = serverUrl.trim();
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
       // Use security definer function to bypass RLS for initial setup
       const { error } = await supabase.rpc('setup_server_settings', {
-        p_server_url: serverUrl.trim(),
+        p_server_url: normalizedUrl,
         p_api_key: apiKey.trim(),
       });
 

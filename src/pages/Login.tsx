@@ -61,7 +61,13 @@ const Login = () => {
 
     try {
       // Autentiser direkte mot Jellyfin (lokal server)
-      const jellyfinUrl = serverUrl.replace(/\/$/, '');
+      let jellyfinUrl = serverUrl.replace(/\/$/, '');
+      
+      // Legg til http:// hvis protokoll mangler
+      if (!jellyfinUrl.startsWith('http://') && !jellyfinUrl.startsWith('https://')) {
+        jellyfinUrl = `http://${jellyfinUrl}`;
+      }
+      
       const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
       
       const response = await fetch(authUrl, {
