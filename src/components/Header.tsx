@@ -42,8 +42,10 @@ const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: userRole } = useUserRole(user?.id);
+  const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, apiKey } = useServerSettings();
+  
+  console.log('User role:', userRole, 'Loading:', roleLoading);
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
   const { toggleSidebar } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");
