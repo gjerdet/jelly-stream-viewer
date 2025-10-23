@@ -230,12 +230,12 @@ const Detail = () => {
   // Search for subtitles mutation
   const searchSubtitles = useMutation({
     mutationFn: async () => {
-      if (!id || !serverUrl || !apiKey) {
+      if (!id || !serverUrl) {
         throw new Error("Missing configuration");
       }
 
       const { searchSubtitles: searchFn } = await import("@/lib/jellyfinApi");
-      return searchFn(serverUrl, apiKey, id);
+      return searchFn(serverUrl, id);
     },
     onSuccess: (data) => {
       if (data?.success && data?.results?.length > 0) {
@@ -255,12 +255,12 @@ const Detail = () => {
   // Download selected subtitle mutation
   const downloadSubtitle = useMutation({
     mutationFn: async (subtitleId: string) => {
-      if (!id || !serverUrl || !apiKey) {
+      if (!id || !serverUrl) {
         throw new Error("Missing configuration");
       }
 
       const { downloadSubtitle: downloadFn } = await import("@/lib/jellyfinApi");
-      return downloadFn(serverUrl, apiKey, id, subtitleId);
+      return downloadFn(serverUrl, id, subtitleId);
     },
     onSuccess: (data) => {
       toast.success(data?.message || "Undertekst lastet ned");

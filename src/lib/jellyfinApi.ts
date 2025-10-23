@@ -20,15 +20,27 @@ export interface SubtitleSearchResult {
  */
 export async function searchSubtitles(
   serverUrl: string,
-  apiKey: string,
   itemId: string
 ): Promise<{ success: boolean; results: SubtitleSearchResult[] }> {
-  const url = `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/RemoteSearch/Subtitles`;
+  // Hent AccessToken fra localStorage
+  const jellyfinSession = localStorage.getItem('jellyfin_session');
+  const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+
+  if (!accessToken) {
+    throw new Error('Ikke logget inn');
+  }
+
+  let normalizedUrl = serverUrl;
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = `http://${normalizedUrl}`;
+  }
+
+  const url = `${normalizedUrl.replace(/\/$/, '')}/Items/${itemId}/RemoteSearch/Subtitles`;
   
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      "X-Emby-Token": apiKey,
+      "X-Emby-Token": accessToken,
       "Content-Type": "application/json",
     },
   });
@@ -49,16 +61,28 @@ export async function searchSubtitles(
  */
 export async function downloadSubtitle(
   serverUrl: string,
-  apiKey: string,
   itemId: string,
   subtitleId: string
 ): Promise<{ success: boolean; message: string }> {
-  const url = `${serverUrl.replace(/\/$/, '')}/Items/${itemId}/RemoteSearch/Subtitles/${subtitleId}`;
+  // Hent AccessToken fra localStorage
+  const jellyfinSession = localStorage.getItem('jellyfin_session');
+  const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+
+  if (!accessToken) {
+    throw new Error('Ikke logget inn');
+  }
+
+  let normalizedUrl = serverUrl;
+  if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+    normalizedUrl = `http://${normalizedUrl}`;
+  }
+
+  const url = `${normalizedUrl.replace(/\/$/, '')}/Items/${itemId}/RemoteSearch/Subtitles/${subtitleId}`;
   
   const response = await fetch(url, {
     method: "POST",
     headers: {
-      "X-Emby-Token": apiKey,
+      "X-Emby-Token": accessToken,
       "Content-Type": "application/json",
     },
   });

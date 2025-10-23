@@ -16,20 +16,29 @@ export const useJellyfinDirect = <T,>(
   request: JellyfinRequest,
   enabled: boolean = true
 ) => {
-  const { serverUrl, apiKey } = useServerSettings();
+  const { serverUrl } = useServerSettings();
 
   return useQuery<T>({
     queryKey,
     queryFn: async () => {
-      if (!serverUrl || !apiKey) {
-        throw new Error("Jellyfin server URL or API key not configured");
+      // Hent AccessToken fra localStorage (satt ved innlogging)
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+
+      if (!serverUrl || !accessToken) {
+        throw new Error("Jellyfin server URL eller access token mangler");
       }
 
-      const url = `${serverUrl.replace(/\/$/, '')}${request.endpoint}`;
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      const url = `${normalizedUrl.replace(/\/$/, '')}${request.endpoint}`;
       const method = request.method || "GET";
 
       const headers: Record<string, string> = {
-        "X-Emby-Token": apiKey,
+        "X-Emby-Token": accessToken,
         "Content-Type": "application/json",
       };
 
@@ -50,6 +59,6 @@ export const useJellyfinDirect = <T,>(
 
       return response.json() as T;
     },
-    enabled: enabled && !!serverUrl && !!apiKey,
+    enabled: enabled && !!serverUrl,
   });
 };
