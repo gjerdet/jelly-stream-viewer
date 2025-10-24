@@ -38,6 +38,10 @@ const Admin = () => {
   const [newPostTitle, setNewPostTitle] = useState("");
   const [newPostContent, setNewPostContent] = useState("");
   const [editingPost, setEditingPost] = useState<string | null>(null);
+  
+  // Connection test state
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
 
   // Fetch API key
   const { data: currentApiKey } = useQuery({
@@ -239,6 +243,106 @@ const Admin = () => {
     }
   };
 
+  // Test Jellyfin connection
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus(null);
+    
+    try {
+      // Get access token from localStorage
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+
+      if (!newServerUrl || !apiKey) {
+        setConnectionStatus("❌ Server URL og API-nøkkel må være satt");
+        setTestingConnection(false);
+        return;
+      }
+
+      let normalizedUrl = newServerUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      // Test connection to Jellyfin
+      const response = await fetch(`${normalizedUrl.replace(/\/$/, '')}/System/Info`, {
+        headers: {
+          "X-Emby-Token": apiKey || accessToken || "",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        setConnectionStatus(`❌ Tilkobling feilet: ${response.status} ${response.statusText}`);
+        setTestingConnection(false);
+        return;
+      }
+
+      const systemInfo = await response.json();
+      setConnectionStatus(`✅ Tilkobling vellykket! Server: ${systemInfo.ServerName} (${systemInfo.Version})`);
+      toast.success("Jellyfin-tilkobling OK!");
+      
+    } catch (error) {
+      console.error('Connection test error:', error);
+      setConnectionStatus(`❌ Kunne ikke koble til serveren: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      toast.error("Tilkobling feilet");
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  // Refresh configuration from Jellyfin
+  const handleRefreshConfig = async () => {
+    setTestingConnection(true);
+    
+    try {
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+
+      if (!newServerUrl || !apiKey) {
+        toast.error("Server URL og API-nøkkel må være satt");
+        setTestingConnection(false);
+        return;
+      }
+
+      let normalizedUrl = newServerUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      // Fetch fresh system info
+      const response = await fetch(`${normalizedUrl.replace(/\/$/, '')}/System/Info`, {
+        headers: {
+          "X-Emby-Token": apiKey || accessToken || "",
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const systemInfo = await response.json();
+      
+      // Update settings in database
+      await updateServerUrl.mutateAsync(normalizedUrl);
+      await updateApiKey.mutateAsync(apiKey);
+      
+      toast.success(`Konfigurasjon oppdatert fra ${systemInfo.ServerName}!`);
+      setConnectionStatus(`✅ Konfigurasjon hentet fra: ${systemInfo.ServerName} (${systemInfo.Version})`);
+      
+      // Invalidate all queries to refresh data
+      queryClient.invalidateQueries();
+      
+    } catch (error) {
+      console.error('Refresh config error:', error);
+      toast.error("Kunne ikke hente ny konfigurasjon");
+      setConnectionStatus(`❌ Feil ved henting: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
   // News posts query
   const { data: newsPosts } = useQuery({
     queryKey: ["admin-news-posts"],
@@ -391,12 +495,41 @@ const Admin = () => {
                       className="bg-secondary/50 border-border/50"
                     />
                   </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleUpdateUrl}
+                      disabled={updateServerUrl.isPending || newServerUrl === serverUrl}
+                      className="cinema-glow flex-1"
+                    >
+                      {updateServerUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+                    </Button>
+                    <Button 
+                      onClick={handleTestConnection}
+                      disabled={testingConnection}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {testingConnection ? "Tester..." : "Test tilkobling"}
+                    </Button>
+                  </div>
+                  
+                  {connectionStatus && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      connectionStatus.startsWith('✅') 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {connectionStatus}
+                    </div>
+                  )}
+                  
                   <Button 
-                    onClick={handleUpdateUrl}
-                    disabled={updateServerUrl.isPending || newServerUrl === serverUrl}
-                    className="cinema-glow"
+                    onClick={handleRefreshConfig}
+                    disabled={testingConnection || !apiKey || !newServerUrl}
+                    variant="secondary"
+                    className="w-full"
                   >
-                    {updateServerUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+                    {testingConnection ? "Henter..." : "🔄 Hent ny konfigurasjon fra Jellyfin"}
                   </Button>
                 </CardContent>
               </Card>
