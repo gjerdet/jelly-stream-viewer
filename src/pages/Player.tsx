@@ -113,10 +113,11 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      // Jellyfin requires api_key parameter for streaming
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
+      // Jellyfin streaming requires container parameter and api_key for authentication
+      // Using container=ts for maximum compatibility with HTML5 video element
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&Container=ts&api_key=${accessToken}`;
       setStreamUrl(url);
-      console.log('Direct stream URL configured');
+      console.log('Direct stream URL configured:', url.replace(accessToken, '***'));
     };
 
     setupStream();
