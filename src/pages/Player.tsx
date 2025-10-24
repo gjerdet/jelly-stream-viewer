@@ -113,9 +113,10 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
+      // Jellyfin requires api_key parameter for streaming
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
       setStreamUrl(url);
-      console.log('Direct stream URL configured:', url.replace(accessToken, '***'));
+      console.log('Direct stream URL configured');
     };
 
     setupStream();
