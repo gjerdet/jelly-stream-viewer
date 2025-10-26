@@ -113,11 +113,12 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      // Jellyfin streaming requires container parameter and api_key for authentication
-      // Using container=ts for maximum compatibility with HTML5 video element
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&Container=ts&api_key=${accessToken}`;
+      // Direct stream URL - let Jellyfin decide best format
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
       setStreamUrl(url);
-      console.log('Direct stream URL configured:', url.replace(accessToken, '***'));
+      console.log('Direct stream URL configured');
+      console.log('Server:', normalizedUrl);
+      console.log('Video ID:', id);
     };
 
     setupStream();
@@ -431,8 +432,15 @@ const Player = () => {
         autoPlay
         crossOrigin="anonymous"
         onError={(e) => {
-          console.error('Video playback error:', e);
-          console.log('Stream URL:', streamUrl);
+          const video = e.currentTarget;
+          console.error('Video playback error:', {
+            error: e,
+            networkState: video.networkState,
+            readyState: video.readyState,
+            errorCode: video.error?.code,
+            errorMessage: video.error?.message,
+            streamUrl: streamUrl
+          });
         }}
       >
         Din nettleser støtter ikke videoavspilling.
