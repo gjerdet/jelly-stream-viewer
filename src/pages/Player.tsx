@@ -93,26 +93,32 @@ const Player = () => {
   const castRemotePlayerRef = useRef<any>(null);
   const castContextRef = useRef<any>(null);
 
-  // Set stream URL using edge function proxy
+  // Direct streaming from Jellyfin - let Jellyfin handle transcoding
   useEffect(() => {
     const setupStream = async () => {
-      if (!user || !id) return;
+      if (!serverUrl || !id) return;
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.error('No session token found');
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (!accessToken) {
+        console.error('No Jellyfin access token found');
         return;
       }
 
-      // Use edge function as proxy for streaming
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const url = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
+      // Direct stream - Jellyfin will auto-transcode if needed
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?MediaSourceId=${id}&api_key=${accessToken}`;
       setStreamUrl(url);
-      console.log('Stream URL configured via edge function');
+      console.log('Direct stream URL:', url.replace(accessToken, '***'));
     };
 
     setupStream();
-  }, [user, id]);
+  }, [serverUrl, id]);
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
