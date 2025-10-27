@@ -123,6 +123,13 @@ server {
     root $INSTALL_DIR/dist;
     index index.html;
 
+    # CORS headers for direkte Jellyfin-streaming
+    # Disse er nødvendige for at nettleseren skal tillate direkte video-streaming fra Jellyfin
+    add_header 'Access-Control-Allow-Origin' '*' always;
+    add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD' always;
+    add_header 'Access-Control-Allow-Headers' 'Range, Origin, X-Requested-With, Content-Type, Accept, Authorization' always;
+    add_header 'Access-Control-Expose-Headers' 'Content-Length, Content-Range, Accept-Ranges' always;
+
     # Komprimering
     gzip on;
     gzip_vary on;

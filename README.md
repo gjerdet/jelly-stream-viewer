@@ -5,7 +5,9 @@ En moderne webapplikasjon for streaming fra Jellyfin media server - **optimalise
 ## 🏗️ Arkitektur
 
 **Lokal deployment med cloud-basert autentisering:**
-- Frontend snakker **direkte** med Jellyfin server (ingen proxy)
+- Frontend snakker **direkte** med Jellyfin server for optimal kvalitet
+- Jellyfin håndterer all video-transkoding
+- Nginx konfigureres automatisk med CORS for direkte streaming
 - Supabase Cloud håndterer autentisering og database
 - Alt kjører på lokalt nettverk for beste ytelse
 

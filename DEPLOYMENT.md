@@ -41,7 +41,7 @@ Skriptet vil automatisk:
 - Installere npm-avhengigheter
 - Sette opp miljøvariabler
 - Bygge applikasjonen
-- Konfigurere Nginx
+- Konfigurere Nginx med CORS-støtte for direkte Jellyfin-streaming
 - (Valgfritt) Sette opp systemd service
 
 ```bash
@@ -51,6 +51,9 @@ chmod +x setup.sh
 # Kjør installasjonsskriptet med sudo
 sudo ./setup.sh
 ```
+
+**Viktig om video-streaming:**
+Installasjonsskriptet konfigurerer automatisk CORS-headere i Nginx som tillater direkte video-streaming fra Jellyfin-serveren. Dette gir best mulig kvalitet da Jellyfin håndterer all transkoding direkte uten mellomliggende proxyer.
 
 Under installasjonen vil du bli spurt om:
 1. **Supabase URL**: Finn dette i Supabase Dashboard → Project Settings → API
@@ -249,6 +252,27 @@ sudo journalctl -u jelly-stream -f
 2. Verifiser API-nøkkelen i Admin-panelet
 3. Sjekk at server URL er riktig (inkludert http:// eller https://)
 4. Se Edge Function logs i Supabase Dashboard
+
+### Problem: Video spiller ikke eller dårlig kvalitet
+
+**Løsning**:
+1. Verifiser at CORS-headere er konfigurert i Nginx:
+   ```bash
+   sudo cat /etc/nginx/sites-available/jelly-stream | grep "Access-Control"
+   ```
+2. Hvis CORS-headere mangler, legg til følgende i Nginx-konfigurasjonen under `server` blokken:
+   ```nginx
+   # CORS headers for direkte Jellyfin-streaming
+   add_header 'Access-Control-Allow-Origin' '*' always;
+   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD' always;
+   add_header 'Access-Control-Allow-Headers' 'Range, Origin, X-Requested-With, Content-Type, Accept, Authorization' always;
+   add_header 'Access-Control-Expose-Headers' 'Content-Length, Content-Range, Accept-Ranges' always;
+   ```
+3. Test og restart Nginx:
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
 
 ### Problem: 502 Bad Gateway
 
