@@ -424,9 +424,10 @@ const Player = () => {
         ref={videoRef}
         key={streamUrl}
         src={streamUrl}
-        className="w-full h-full"
-        controls
+        className="w-full h-full object-contain"
         autoPlay
+        playsInline
+        preload="metadata"
         crossOrigin="anonymous"
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
