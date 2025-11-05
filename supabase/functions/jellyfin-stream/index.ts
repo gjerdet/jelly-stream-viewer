@@ -114,21 +114,8 @@ serve(async (req) => {
         headers: corsHeaders 
       });
     }
-    
-    // Let Jellyfin decide streaming method automatically (with transcoding if needed)
-    const itemInfo = await infoResponse.json();
-    
-    console.log(`Streaming video ${videoId} for user ${user.id}`);
-    
-    // Let Jellyfin transcode if needed for browser compatibility
-    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-      + `UserId=${userId}`
-      + `&MediaSourceId=${videoId}`
-      + `&api_key=${apiKey}`;
-    
-    console.log('Using Jellyfin automatic streaming (with transcoding if needed)');
 
-    // Forward range header for seeking support
+    // Prepare headers for requests
     const requestHeaders: Record<string, string> = {
       'Authorization': `MediaBrowser Token="${apiKey}"`,
     };
@@ -136,6 +123,151 @@ serve(async (req) => {
     const rangeHeader = req.headers.get('range');
     if (rangeHeader) {
       requestHeaders['Range'] = rangeHeader;
+    }
+
+    const headersToForward = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'last-modified',
+      'etag',
+    ];
+
+    // Use PlaybackInfo to let Jellyfin choose optimal streaming method
+    console.log(`Getting playback info for video ${videoId}`);
+    
+    const playbackInfoUrl = `${jellyfinServerUrl}/Items/${videoId}/PlaybackInfo?UserId=${userId}&api_key=${apiKey}`;
+    const playbackResponse = await fetch(playbackInfoUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Emby-Token': apiKey
+      },
+      body: JSON.stringify({
+        DeviceProfile: {
+          MaxStreamingBitrate: 120000000,
+          MusicStreamingTranscodingBitrate: 192000,
+          DirectPlayProfiles: [
+            {
+              Container: 'mp4,m4v',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac,mp3,ac3,eac3'
+            },
+            {
+              Container: 'mkv',
+              Type: 'Video', 
+              VideoCodec: 'h264',
+              AudioCodec: 'aac,mp3,ac3,eac3,opus,flac'
+            }
+          ],
+          TranscodingProfiles: [
+            {
+              Container: 'ts',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac',
+              Protocol: 'hls',
+              EstimateContentLength: false,
+              EnableMpegtsM2TsMode: false,
+              TranscodeSeekInfo: 'Auto',
+              CopyTimestamps: false,
+              Context: 'Streaming',
+              EnableSubtitlesInManifest: false,
+              MaxAudioChannels: '2',
+              MinSegments: 1,
+              SegmentLength: 3,
+              BreakOnNonKeyFrames: true
+            },
+            {
+              Container: 'mp4',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac',
+              Protocol: 'http',
+              EstimateContentLength: false,
+              EnableMpegtsM2TsMode: false,
+              TranscodeSeekInfo: 'Auto',
+              CopyTimestamps: false,
+              Context: 'Streaming',
+              EnableSubtitlesInManifest: false,
+              MaxAudioChannels: '2'
+            }
+          ],
+          ContainerProfiles: [],
+          CodecProfiles: [
+            {
+              Type: 'Video',
+              Codec: 'h264',
+              Conditions: [
+                {
+                  Condition: 'LessThanEqual',
+                  Property: 'Width',
+                  Value: '1920'
+                },
+                {
+                  Condition: 'LessThanEqual',
+                  Property: 'Height',
+                  Value: '1080'
+                }
+              ]
+            }
+          ],
+          ResponseProfiles: [],
+          SubtitleProfiles: [
+            {
+              Format: 'vtt',
+              Method: 'External'
+            }
+          ]
+        }
+      })
+    });
+    
+    if (!playbackResponse.ok) {
+      console.error('Failed to get playback info:', playbackResponse.status);
+      // Fallback to simple stream
+      const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?UserId=${userId}&MediaSourceId=${videoId}&api_key=${apiKey}`;
+      
+      const jellyfinResponse = await fetch(streamUrl, {
+        headers: requestHeaders,
+      });
+      
+      const responseHeaders = new Headers(corsHeaders);
+      for (const header of headersToForward) {
+        const value = jellyfinResponse.headers.get(header);
+        if (value) responseHeaders.set(header, value);
+      }
+      
+      return new Response(jellyfinResponse.body, {
+        status: jellyfinResponse.status,
+        headers: responseHeaders,
+      });
+    }
+    
+    const playbackInfo = await playbackResponse.json();
+    const mediaSource = playbackInfo.MediaSources?.[0];
+    
+    if (!mediaSource) {
+      console.error('No media source found in playback info');
+      return new Response('No playback source available', { 
+        status: 500,
+        headers: corsHeaders 
+      });
+    }
+    
+    // Use the TranscodingUrl if transcoding, otherwise DirectStreamUrl or construct URL
+    let streamUrl;
+    if (mediaSource.TranscodingUrl) {
+      streamUrl = `${jellyfinServerUrl}${mediaSource.TranscodingUrl}`;
+      console.log('Using transcoding stream');
+    } else if (mediaSource.SupportsDirectStream && mediaSource.DirectStreamUrl) {
+      streamUrl = `${jellyfinServerUrl}${mediaSource.DirectStreamUrl}`;
+      console.log('Using direct stream');
+    } else {
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?UserId=${userId}&MediaSourceId=${videoId}&api_key=${apiKey}`;
+      console.log('Using fallback stream');
     }
 
     // Fetch the video stream from Jellyfin
@@ -155,15 +287,6 @@ serve(async (req) => {
     const responseHeaders = new Headers(corsHeaders);
     
     // Copy important headers from Jellyfin response
-    const headersToForward = [
-      'content-type',
-      'content-length',
-      'content-range',
-      'accept-ranges',
-      'last-modified',
-      'etag',
-    ];
-    
     for (const header of headersToForward) {
       const value = jellyfinResponse.headers.get(header);
       if (value) {
