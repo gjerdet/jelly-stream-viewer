@@ -101,35 +101,112 @@ const Player = () => {
   );
   const userId = usersData?.[0]?.Id;
 
-  // Direct streaming from Jellyfin with codec detection
+  // Smart streaming with automatic transcoding for incompatible codecs
   useEffect(() => {
-    if (!serverUrl || !id || !userId) return;
-    
-    const jellyfinSession = localStorage.getItem('jellyfin_session');
-    const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-    
-    if (!accessToken) {
-      console.error('No Jellyfin access token found');
-      return;
-    }
+    const setupStream = async () => {
+      if (!serverUrl || !id || !userId) return;
+      
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (!accessToken) {
+        console.error('No Jellyfin access token found');
+        return;
+      }
 
-    let normalizedUrl = serverUrl;
-    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-      normalizedUrl = `http://${normalizedUrl}`;
-    }
-    
-    // First try direct stream, but if video error occurs, we'll transcode
-    const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-      + `UserId=${userId}`
-      + `&Static=true`
-      + `&MediaSourceId=${id}`
-      + `&api_key=${accessToken}`;
-    
-    console.log('Stream URL:', streamingUrl.replace(accessToken, '***'));
-    setStreamUrl(streamingUrl);
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
+      try {
+        // Use PlaybackInfo to get the best streaming URL for browser compatibility
+        const playbackUrl = `${normalizedUrl.replace(/\/$/, '')}/Items/${id}/PlaybackInfo`;
+        const response = await fetch(playbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Emby-Token': accessToken
+          },
+          body: JSON.stringify({
+            UserId: userId,
+            DeviceProfile: {
+              MaxStreamingBitrate: 120000000,
+              DirectPlayProfiles: [
+                {
+                  Container: 'mp4,m4v',
+                  Type: 'Video',
+                  VideoCodec: 'h264,av1',
+                  AudioCodec: 'aac,mp3,ac3,eac3'
+                },
+                {
+                  Container: 'mkv,webm',
+                  Type: 'Video',
+                  VideoCodec: 'h264,vp9,av1',
+                  AudioCodec: 'aac,mp3,ac3,eac3,opus,vorbis'
+                }
+              ],
+              TranscodingProfiles: [
+                {
+                  Container: 'ts',
+                  Type: 'Video',
+                  VideoCodec: 'h264',
+                  AudioCodec: 'aac',
+                  Protocol: 'hls',
+                  MaxAudioChannels: '2'
+                }
+              ],
+              CodecProfiles: [],
+              SubtitleProfiles: [
+                {
+                  Format: 'vtt',
+                  Method: 'External'
+                }
+              ]
+            }
+          })
+        });
+        
+        const playbackInfo = await response.json();
+        const mediaSource = playbackInfo.MediaSources?.[0];
+        
+        let streamingUrl;
+        if (mediaSource?.SupportsDirectStream) {
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+            + `UserId=${userId}`
+            + `&Static=true`
+            + `&MediaSourceId=${id}`
+            + `&api_key=${accessToken}`;
+          console.log('Using Direct Stream');
+        } else {
+          // Transcode if direct stream not supported
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/master.m3u8?`
+            + `UserId=${userId}`
+            + `&MediaSourceId=${id}`
+            + `&VideoCodec=h264`
+            + `&AudioCodec=aac`
+            + `&api_key=${accessToken}`;
+          console.log('Using Transcoded Stream (HLS)');
+        }
+        
+        console.log('Stream URL:', streamingUrl.replace(accessToken, '***'));
+        setStreamUrl(streamingUrl);
+      } catch (error) {
+        console.error('Failed to get playback info, using direct stream:', error);
+        // Fallback to direct stream
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+          + `UserId=${userId}`
+          + `&Static=true`
+          + `&MediaSourceId=${id}`
+          + `&api_key=${accessToken}`;
+        setStreamUrl(streamingUrl);
+      }
+    };
+
+    setupStream();
   }, [serverUrl, id, userId]);
   
-  // Handle video errors - fallback to transcoding if codec not supported
+  // Handle video errors
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     console.error('Video playback error:', {
@@ -139,33 +216,6 @@ const Player = () => {
       errorCode: video.error?.code,
       errorMessage: video.error?.message,
     });
-    
-    // If codec not supported (error code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED)
-    if (video.error?.code === 4 && !streamUrl?.includes('VideoCodec=h264')) {
-      console.log('Codec not supported, switching to transcoded stream...');
-      
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-      
-      if (accessToken && serverUrl && id && userId) {
-        let normalizedUrl = serverUrl;
-        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-          normalizedUrl = `http://${normalizedUrl}`;
-        }
-        
-        // Transcode to H264/AAC for maximum compatibility
-        const transcodedUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-          + `UserId=${userId}`
-          + `&MediaSourceId=${id}`
-          + `&VideoCodec=h264`
-          + `&AudioCodec=aac`
-          + `&MaxAudioChannels=2`
-          + `&api_key=${accessToken}`;
-        
-        console.log('Using transcoded URL:', transcodedUrl.replace(accessToken, '***'));
-        setStreamUrl(transcodedUrl);
-      }
-    }
   };
 
   // Fetch item details with media streams
@@ -475,35 +525,8 @@ const Player = () => {
             duration: video.duration,
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight,
-            src: streamUrl.substring(0, 50) + '...'
+            src: streamUrl?.substring(0, 50) + '...'
           });
-          
-          // If videoWidth/Height is 0, codec is not supported - transcode to H264
-          if (video.videoWidth === 0 && video.videoHeight === 0 && !streamUrl?.includes('VideoCodec=h264')) {
-            console.log('Codec not supported (width/height = 0), switching to transcoded H264...');
-            
-            const jellyfinSession = localStorage.getItem('jellyfin_session');
-            const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-            
-            if (accessToken && serverUrl && id && userId) {
-              let normalizedUrl = serverUrl;
-              if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-                normalizedUrl = `http://${normalizedUrl}`;
-              }
-              
-              // Transcode to H264/AAC for maximum compatibility
-              const transcodedUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-                + `UserId=${userId}`
-                + `&MediaSourceId=${id}`
-                + `&VideoCodec=h264`
-                + `&AudioCodec=aac`
-                + `&MaxAudioChannels=2`
-                + `&api_key=${accessToken}`;
-              
-              console.log('Using transcoded URL:', transcodedUrl.replace(accessToken, '***'));
-              setStreamUrl(transcodedUrl);
-            }
-          }
         }}
         onError={handleVideoError}
       >
