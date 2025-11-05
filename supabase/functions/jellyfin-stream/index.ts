@@ -115,38 +115,19 @@ serve(async (req) => {
       });
     }
     
-    // Check video codec to decide if transcoding is needed
+    // Let Jellyfin decide streaming method automatically
     const itemInfo = await infoResponse.json();
-    const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
-    const videoCodec = videoStream?.Codec?.toLowerCase();
     
-    // Browser-compatible codecs that don't need transcoding
-    const browserCompatible = ['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec || '');
+    console.log(`Streaming video ${videoId} for user ${user.id}`);
     
-    console.log(`Streaming video ${videoId} for user ${user.id}: codec=${videoCodec}, needsTranscode=${!browserCompatible}`);
+    // Use Jellyfin's automatic streaming endpoint - it will decide if transcoding is needed
+    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+      + `UserId=${userId}`
+      + `&MediaSourceId=${videoId}`
+      + `&Static=true`
+      + `&api_key=${apiKey}`;
     
-    let streamUrl;
-    if (browserCompatible) {
-      // Direct stream for browser-compatible codecs (no transcoding = best quality)
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-        + `UserId=${userId}`
-        + `&Static=true`
-        + `&MediaSourceId=${videoId}`
-        + `&api_key=${apiKey}`;
-      console.log('Using direct stream (no transcoding)');
-    } else {
-      // Transcode incompatible codecs (like HEVC/H265) to H264
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-        + `UserId=${userId}`
-        + `&MediaSourceId=${videoId}`
-        + `&VideoCodec=h264`
-        + `&AudioCodec=aac`
-        + `&MaxAudioChannels=2`
-        + `&MaxStreamingBitrate=120000000`
-        + `&VideoBitrate=20000000`
-        + `&api_key=${apiKey}`;
-      console.log(`Transcoding ${videoCodec} to H264`);
-    }
+    console.log('Using Jellyfin automatic streaming');
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
