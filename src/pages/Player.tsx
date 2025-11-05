@@ -101,77 +101,26 @@ const Player = () => {
   );
   const userId = usersData?.[0]?.Id;
 
-  // Check codec compatibility and setup stream
+  // Use edge function for reliable streaming
   useEffect(() => {
     const setupStream = async () => {
-      if (!serverUrl || !id || !userId) return;
+      if (!id || !user) return;
       
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-      
-      if (!accessToken) {
-        console.error('No Jellyfin access token found');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No session found');
         return;
       }
-
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
       
-      try {
-        // Get media info to check codec
-        const infoUrl = `${normalizedUrl.replace(/\/$/, '')}/Users/${userId}/Items/${id}?Fields=MediaStreams`;
-        const infoResponse = await fetch(infoUrl, {
-          headers: { 'X-Emby-Token': accessToken }
-        });
-        const mediaInfo = await infoResponse.json();
-        
-        // Check video codec
-        const videoStream = mediaInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
-        const videoCodec = videoStream?.Codec?.toLowerCase();
-        
-        // Browser-kompatible codecs (H264, VP8, VP9, AV1)
-        const browserCompatible = ['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec || '');
-        
-        let streamingUrl;
-        if (browserCompatible) {
-          // Direct stream for compatible codecs
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-            + `UserId=${userId}`
-            + `&Static=true`
-            + `&MediaSourceId=${id}`
-            + `&api_key=${accessToken}`;
-          console.log(`Direct stream (codec: ${videoCodec})`);
-        } else {
-          // Transcode to H264 for incompatible codecs (like HEVC/H265)
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-            + `UserId=${userId}`
-            + `&MediaSourceId=${id}`
-            + `&VideoCodec=h264`
-            + `&AudioCodec=aac`
-            + `&MaxAudioChannels=2`
-            + `&api_key=${accessToken}`;
-          console.log(`Transcoding to H264 (original codec: ${videoCodec})`);
-        }
-        
-        console.log('Stream URL:', streamingUrl.replace(accessToken, '***'));
-        setStreamUrl(streamingUrl);
-      } catch (error) {
-        console.error('Failed to check codec, using transcode:', error);
-        // Fallback to transcoding if we can't check codec
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-          + `UserId=${userId}`
-          + `&MediaSourceId=${id}`
-          + `&VideoCodec=h264`
-          + `&AudioCodec=aac`
-          + `&api_key=${accessToken}`;
-        setStreamUrl(streamingUrl);
-      }
+      // Use edge function that handles all streaming logic
+      const streamingUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
+      
+      console.log('Using edge function stream for:', id);
+      setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [serverUrl, id, userId]);
+  }, [id, user]);
   
   // Handle video errors
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
