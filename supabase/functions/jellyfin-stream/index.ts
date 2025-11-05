@@ -103,8 +103,8 @@ serve(async (req) => {
       });
     }
 
-    // Get video info
-    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}`;
+    // Get video info and check codec
+    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}&Fields=MediaStreams`;
     const infoResponse = await fetch(infoUrl);
     
     if (!infoResponse.ok) {
@@ -115,21 +115,35 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Streaming video ${videoId} for user ${user.id}`);
+    const itemInfo = await infoResponse.json();
+    const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
+    const videoCodec = videoStream?.Codec?.toLowerCase();
     
-    // Force H264 transcoding for maximum compatibility
-    // Use high bitrate to maintain quality (20 Mbps video)
-    const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-      + `UserId=${userId}`
-      + `&MediaSourceId=${videoId}`
-      + `&VideoCodec=h264`
-      + `&AudioCodec=aac`
-      + `&VideoBitrate=20000000`
-      + `&AudioBitrate=320000`
-      + `&MaxAudioChannels=2`
-      + `&api_key=${apiKey}`;
-    
-    console.log('Using H264 transcoding for compatibility');
+    console.log(`Video codec: ${videoCodec}`);
+
+    let streamUrl;
+    // Only transcode if codec is NOT browser-compatible
+    if (videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
+      // Transcode incompatible codecs (like HEVC) to H264
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+        + `UserId=${userId}`
+        + `&MediaSourceId=${videoId}`
+        + `&VideoCodec=h264`
+        + `&AudioCodec=aac`
+        + `&VideoBitrate=20000000`
+        + `&AudioBitrate=320000`
+        + `&MaxAudioChannels=2`
+        + `&api_key=${apiKey}`;
+      console.log(`Transcoding ${videoCodec} to H264`);
+    } else {
+      // Direct stream for compatible codecs
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+        + `UserId=${userId}`
+        + `&Static=true`
+        + `&MediaSourceId=${videoId}`
+        + `&api_key=${apiKey}`;
+      console.log(`Direct streaming (codec: ${videoCodec})`);
+    }
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
