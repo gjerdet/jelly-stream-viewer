@@ -93,7 +93,7 @@ const Player = () => {
   const castRemotePlayerRef = useRef<any>(null);
   const castContextRef = useRef<any>(null);
 
-  // Direct streaming from Jellyfin - let Jellyfin handle transcoding
+  // Direct streaming from Jellyfin - original quality, no transcoding
   useEffect(() => {
     const setupStream = async () => {
       if (!serverUrl || !id) return;
@@ -111,10 +111,11 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      // Direct stream - Jellyfin will auto-transcode if needed
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?MediaSourceId=${id}&api_key=${accessToken}`;
+      // Use static=true to get original quality without transcoding
+      // Container parameter ensures proper mime type detection
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}&Container=mp4,mkv,webm,avi`;
       setStreamUrl(url);
-      console.log('Direct stream URL:', url.replace(accessToken, '***'));
+      console.log('Direct stream URL (original quality):', url.replace(accessToken, '***'));
     };
 
     setupStream();
