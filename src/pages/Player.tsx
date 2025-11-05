@@ -477,6 +477,33 @@ const Player = () => {
             videoHeight: video.videoHeight,
             src: streamUrl.substring(0, 50) + '...'
           });
+          
+          // If videoWidth/Height is 0, codec is not supported - transcode to H264
+          if (video.videoWidth === 0 && video.videoHeight === 0 && !streamUrl?.includes('VideoCodec=h264')) {
+            console.log('Codec not supported (width/height = 0), switching to transcoded H264...');
+            
+            const jellyfinSession = localStorage.getItem('jellyfin_session');
+            const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+            
+            if (accessToken && serverUrl && id && userId) {
+              let normalizedUrl = serverUrl;
+              if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+                normalizedUrl = `http://${normalizedUrl}`;
+              }
+              
+              // Transcode to H264/AAC for maximum compatibility
+              const transcodedUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+                + `UserId=${userId}`
+                + `&MediaSourceId=${id}`
+                + `&VideoCodec=h264`
+                + `&AudioCodec=aac`
+                + `&MaxAudioChannels=2`
+                + `&api_key=${accessToken}`;
+              
+              console.log('Using transcoded URL:', transcodedUrl.replace(accessToken, '***'));
+              setStreamUrl(transcodedUrl);
+            }
+          }
         }}
         onError={handleVideoError}
       >
