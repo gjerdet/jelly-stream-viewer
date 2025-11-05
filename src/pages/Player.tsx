@@ -6,6 +6,7 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Subtitles, List, Cast, Play, Pause, Square } from "lucide-react";
+import Hls from "hls.js";
 import {
   Select,
   SelectContent,
@@ -93,7 +94,7 @@ const Player = () => {
   const castRemotePlayerRef = useRef<any>(null);
   const castContextRef = useRef<any>(null);
 
-  // Direct streaming from Jellyfin - original quality, no transcoding
+  // Direct streaming from Jellyfin - høyeste kvalitet
   useEffect(() => {
     const setupStream = async () => {
       if (!serverUrl || !id) return;
@@ -111,11 +112,10 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      // Use static=true to get original quality without transcoding
-      // Container parameter ensures proper mime type detection
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}&Container=mp4,mkv,webm,avi`;
+      // Bruk /master endpoint for HLS adaptive streaming - best kvalitet
+      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264,hevc,vp9,av1&AudioCodec=aac,mp3,ac3,eac3,flac&MaxStreamingBitrate=120000000&api_key=${accessToken}`;
       setStreamUrl(url);
-      console.log('Direct stream URL (original quality):', url.replace(accessToken, '***'));
+      console.log('HLS stream URL (adaptiv høy kvalitet):', url.replace(accessToken, '***'));
     };
 
     setupStream();
@@ -152,6 +152,62 @@ const Player = () => {
   const subtitles = item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
+
+  // Initialize HLS.js for adaptive streaming
+  useEffect(() => {
+    if (!streamUrl || !videoRef.current) return;
+
+    const video = videoRef.current;
+
+    // Check if HLS is natively supported (Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = streamUrl;
+      return;
+    }
+
+    // Use HLS.js for other browsers
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        maxBufferLength: 30,
+        maxMaxBufferLength: 600,
+        maxBufferSize: 60 * 1000 * 1000, // 60 MB
+      });
+
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('HLS manifest loaded, starting playback');
+        video.play().catch(e => console.log('Autoplay prevented:', e));
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS error:', data);
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error('Fatal error, cannot recover');
+              hls.destroy();
+              break;
+          }
+        }
+      });
+
+      return () => {
+        hls.destroy();
+      };
+    } else {
+      console.error('HLS is not supported in this browser');
+    }
+  }, [streamUrl]);
 
   // Get subtitle URL using edge function
   const getSubtitleUrl = (subtitleIndex: number) => {
@@ -422,8 +478,6 @@ const Player = () => {
     >
       <video
         ref={videoRef}
-        key={streamUrl}
-        src={streamUrl}
         className="w-full h-full"
         controls
         autoPlay
@@ -436,7 +490,6 @@ const Player = () => {
             readyState: video.readyState,
             errorCode: video.error?.code,
             errorMessage: video.error?.message,
-            streamUrl: streamUrl
           });
         }}
       >
