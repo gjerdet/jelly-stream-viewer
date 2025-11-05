@@ -6,7 +6,6 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Subtitles, List, Cast, Play, Pause, Square } from "lucide-react";
-import Hls from "hls.js";
 import {
   Select,
   SelectContent,
@@ -94,10 +93,18 @@ const Player = () => {
   const castRemotePlayerRef = useRef<any>(null);
   const castContextRef = useRef<any>(null);
 
-  // Direct streaming from Jellyfin - høyeste kvalitet
+  // Fetch users to get user ID
+  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
+    ["jellyfin-users"],
+    { endpoint: `/Users` },
+    !!user
+  );
+  const userId = usersData?.[0]?.Id;
+
+  // Direct streaming from Jellyfin - original kvalitet, ingen transkoding
   useEffect(() => {
     const setupStream = async () => {
-      if (!serverUrl || !id) return;
+      if (!serverUrl || !id || !userId) return;
       
       const jellyfinSession = localStorage.getItem('jellyfin_session');
       const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
@@ -112,22 +119,41 @@ const Player = () => {
         normalizedUrl = `http://${normalizedUrl}`;
       }
       
-      // Bruk /master endpoint for HLS adaptive streaming - best kvalitet
-      const url = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/master.m3u8?MediaSourceId=${id}&VideoCodec=h264,hevc,vp9,av1&AudioCodec=aac,mp3,ac3,eac3,flac&MaxStreamingBitrate=120000000&api_key=${accessToken}`;
-      setStreamUrl(url);
-      console.log('HLS stream URL (adaptiv høy kvalitet):', url.replace(accessToken, '***'));
+      // Stream direkte fra Jellyfin med PlaybackInfo for å få original fil
+      const playbackUrl = `${normalizedUrl.replace(/\/$/, '')}/Items/${id}/PlaybackInfo?UserId=${userId}&MaxStreamingBitrate=999999999&api_key=${accessToken}`;
+      
+      try {
+        const response = await fetch(playbackUrl, {
+          headers: { 'X-Emby-Token': accessToken }
+        });
+        const playbackInfo = await response.json();
+        
+        // Finn DirectStreamUrl eller bygg den
+        const mediaSource = playbackInfo.MediaSources?.[0];
+        let streamingUrl;
+        
+        if (mediaSource?.SupportsDirectStream && mediaSource?.DirectStreamUrl) {
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}${mediaSource.DirectStreamUrl}`;
+        } else {
+          // Fallback til direct play
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
+        }
+        
+        console.log('Stream URL (original kvalitet):', streamingUrl.replace(accessToken, '***'));
+        console.log('MediaSource info:', {
+          DirectPlay: mediaSource?.SupportsDirectPlay,
+          DirectStream: mediaSource?.SupportsDirectStream,
+          Transcode: mediaSource?.SupportsTranscoding
+        });
+        
+        setStreamUrl(streamingUrl);
+      } catch (error) {
+        console.error('Feil ved henting av playback info:', error);
+      }
     };
 
     setupStream();
-  }, [serverUrl, id]);
-
-  // Fetch users to get user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users"],
-    { endpoint: `/Users` },
-    !!user
-  );
-  const userId = usersData?.[0]?.Id;
+  }, [serverUrl, id, userId]);
 
   // Fetch item details with media streams
   const { data: item } = useJellyfinApi<JellyfinItemDetail>(
@@ -152,62 +178,6 @@ const Player = () => {
   const subtitles = item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
-
-  // Initialize HLS.js for adaptive streaming
-  useEffect(() => {
-    if (!streamUrl || !videoRef.current) return;
-
-    const video = videoRef.current;
-
-    // Check if HLS is natively supported (Safari)
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl;
-      return;
-    }
-
-    // Use HLS.js for other browsers
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        maxBufferLength: 30,
-        maxMaxBufferLength: 600,
-        maxBufferSize: 60 * 1000 * 1000, // 60 MB
-      });
-
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('HLS manifest loaded, starting playback');
-        video.play().catch(e => console.log('Autoplay prevented:', e));
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('HLS error:', data);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Network error, trying to recover...');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('Media error, trying to recover...');
-              hls.recoverMediaError();
-              break;
-            default:
-              console.error('Fatal error, cannot recover');
-              hls.destroy();
-              break;
-          }
-        }
-      });
-
-      return () => {
-        hls.destroy();
-      };
-    } else {
-      console.error('HLS is not supported in this browser');
-    }
-  }, [streamUrl]);
 
   // Get subtitle URL using edge function
   const getSubtitleUrl = (subtitleIndex: number) => {
@@ -478,10 +448,21 @@ const Player = () => {
     >
       <video
         ref={videoRef}
+        key={streamUrl}
+        src={streamUrl}
         className="w-full h-full"
         controls
         autoPlay
         crossOrigin="anonymous"
+        onLoadedMetadata={(e) => {
+          const video = e.currentTarget;
+          console.log('Video loaded:', {
+            duration: video.duration,
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            src: streamUrl.substring(0, 50) + '...'
+          });
+        }}
         onError={(e) => {
           const video = e.currentTarget;
           console.error('Video playback error:', {
