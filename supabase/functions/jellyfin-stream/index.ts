@@ -115,19 +115,18 @@ serve(async (req) => {
       });
     }
     
-    // Let Jellyfin decide streaming method automatically
+    // Let Jellyfin decide streaming method automatically (with transcoding if needed)
     const itemInfo = await infoResponse.json();
     
     console.log(`Streaming video ${videoId} for user ${user.id}`);
     
-    // Use Jellyfin's automatic streaming endpoint - it will decide if transcoding is needed
+    // Let Jellyfin transcode if needed for browser compatibility
     const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
       + `UserId=${userId}`
       + `&MediaSourceId=${videoId}`
-      + `&Static=true`
       + `&api_key=${apiKey}`;
     
-    console.log('Using Jellyfin automatic streaming');
+    console.log('Using Jellyfin automatic streaming (with transcoding if needed)');
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
