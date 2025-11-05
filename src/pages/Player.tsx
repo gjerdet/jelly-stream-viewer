@@ -101,7 +101,7 @@ const Player = () => {
   );
   const userId = usersData?.[0]?.Id;
 
-  // Direct streaming from Jellyfin with reasonable bitrate
+  // Direct streaming from Jellyfin with codec detection
   useEffect(() => {
     if (!serverUrl || !id || !userId) return;
     
@@ -118,7 +118,7 @@ const Player = () => {
       normalizedUrl = `http://${normalizedUrl}`;
     }
     
-    // Use direct stream with reasonable bitrate (40 Mbps = høy kvalitet uten buffering)
+    // First try direct stream, but if video error occurs, we'll transcode
     const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
       + `UserId=${userId}`
       + `&Static=true`
@@ -128,6 +128,45 @@ const Player = () => {
     console.log('Stream URL:', streamingUrl.replace(accessToken, '***'));
     setStreamUrl(streamingUrl);
   }, [serverUrl, id, userId]);
+  
+  // Handle video errors - fallback to transcoding if codec not supported
+  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    console.error('Video playback error:', {
+      error: e,
+      networkState: video.networkState,
+      readyState: video.readyState,
+      errorCode: video.error?.code,
+      errorMessage: video.error?.message,
+    });
+    
+    // If codec not supported (error code 4 = MEDIA_ERR_SRC_NOT_SUPPORTED)
+    if (video.error?.code === 4 && !streamUrl?.includes('VideoCodec=h264')) {
+      console.log('Codec not supported, switching to transcoded stream...');
+      
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (accessToken && serverUrl && id && userId) {
+        let normalizedUrl = serverUrl;
+        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+          normalizedUrl = `http://${normalizedUrl}`;
+        }
+        
+        // Transcode to H264/AAC for maximum compatibility
+        const transcodedUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+          + `UserId=${userId}`
+          + `&MediaSourceId=${id}`
+          + `&VideoCodec=h264`
+          + `&AudioCodec=aac`
+          + `&MaxAudioChannels=2`
+          + `&api_key=${accessToken}`;
+        
+        console.log('Using transcoded URL:', transcodedUrl.replace(accessToken, '***'));
+        setStreamUrl(transcodedUrl);
+      }
+    }
+  };
 
   // Fetch item details with media streams
   const { data: item } = useJellyfinApi<JellyfinItemDetail>(
@@ -425,6 +464,7 @@ const Player = () => {
         key={streamUrl}
         src={streamUrl}
         className="w-full h-full object-contain"
+        controls
         autoPlay
         playsInline
         preload="metadata"
@@ -438,16 +478,7 @@ const Player = () => {
             src: streamUrl.substring(0, 50) + '...'
           });
         }}
-        onError={(e) => {
-          const video = e.currentTarget;
-          console.error('Video playback error:', {
-            error: e,
-            networkState: video.networkState,
-            readyState: video.readyState,
-            errorCode: video.error?.code,
-            errorMessage: video.error?.message,
-          });
-        }}
+        onError={handleVideoError}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
