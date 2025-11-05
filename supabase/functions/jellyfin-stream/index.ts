@@ -117,11 +117,19 @@ serve(async (req) => {
 
     console.log(`Streaming video ${videoId} for user ${user.id}`);
     
-    // Simple streaming - let Jellyfin decide everything automatically
+    // Force H264 transcoding for maximum compatibility
+    // Use high bitrate to maintain quality (20 Mbps video)
     const streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
       + `UserId=${userId}`
       + `&MediaSourceId=${videoId}`
+      + `&VideoCodec=h264`
+      + `&AudioCodec=aac`
+      + `&VideoBitrate=20000000`
+      + `&AudioBitrate=320000`
+      + `&MaxAudioChannels=2`
       + `&api_key=${apiKey}`;
+    
+    console.log('Using H264 transcoding for compatibility');
 
     // Forward range header for seeking support
     const requestHeaders: Record<string, string> = {
