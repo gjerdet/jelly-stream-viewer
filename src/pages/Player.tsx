@@ -101,58 +101,32 @@ const Player = () => {
   );
   const userId = usersData?.[0]?.Id;
 
-  // Direct streaming from Jellyfin - original kvalitet, ingen transkoding
+  // Direct streaming from Jellyfin with reasonable bitrate
   useEffect(() => {
-    const setupStream = async () => {
-      if (!serverUrl || !id || !userId) return;
-      
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-      
-      if (!accessToken) {
-        console.error('No Jellyfin access token found');
-        return;
-      }
+    if (!serverUrl || !id || !userId) return;
+    
+    const jellyfinSession = localStorage.getItem('jellyfin_session');
+    const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+    
+    if (!accessToken) {
+      console.error('No Jellyfin access token found');
+      return;
+    }
 
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
-      
-      // Stream direkte fra Jellyfin med PlaybackInfo for å få original fil
-      const playbackUrl = `${normalizedUrl.replace(/\/$/, '')}/Items/${id}/PlaybackInfo?UserId=${userId}&MaxStreamingBitrate=999999999&api_key=${accessToken}`;
-      
-      try {
-        const response = await fetch(playbackUrl, {
-          headers: { 'X-Emby-Token': accessToken }
-        });
-        const playbackInfo = await response.json();
-        
-        // Finn DirectStreamUrl eller bygg den
-        const mediaSource = playbackInfo.MediaSources?.[0];
-        let streamingUrl;
-        
-        if (mediaSource?.SupportsDirectStream && mediaSource?.DirectStreamUrl) {
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}${mediaSource.DirectStreamUrl}`;
-        } else {
-          // Fallback til direct play
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?Static=true&MediaSourceId=${id}&api_key=${accessToken}`;
-        }
-        
-        console.log('Stream URL (original kvalitet):', streamingUrl.replace(accessToken, '***'));
-        console.log('MediaSource info:', {
-          DirectPlay: mediaSource?.SupportsDirectPlay,
-          DirectStream: mediaSource?.SupportsDirectStream,
-          Transcode: mediaSource?.SupportsTranscoding
-        });
-        
-        setStreamUrl(streamingUrl);
-      } catch (error) {
-        console.error('Feil ved henting av playback info:', error);
-      }
-    };
-
-    setupStream();
+    let normalizedUrl = serverUrl;
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `http://${normalizedUrl}`;
+    }
+    
+    // Use direct stream with reasonable bitrate (40 Mbps = høy kvalitet uten buffering)
+    const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+      + `UserId=${userId}`
+      + `&Static=true`
+      + `&MediaSourceId=${id}`
+      + `&api_key=${accessToken}`;
+    
+    console.log('Stream URL:', streamingUrl.replace(accessToken, '***'));
+    setStreamUrl(streamingUrl);
   }, [serverUrl, id, userId]);
 
   // Fetch item details with media streams
