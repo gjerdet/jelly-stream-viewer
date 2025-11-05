@@ -125,7 +125,7 @@ serve(async (req) => {
     
     let streamUrl;
     if (needsTranscoding) {
-      // Use Jellyfin's transcoding endpoint
+      // Use Jellyfin's transcoding endpoint with high bitrate for quality
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
@@ -133,6 +133,8 @@ serve(async (req) => {
         + `&VideoCodec=h264`
         + `&AudioCodec=aac`
         + `&MaxAudioChannels=2`
+        + `&MaxStreamingBitrate=120000000`
+        + `&VideoBitrate=20000000`
         + `&api_key=${apiKey}`;
     } else {
       // Direct stream for compatible formats
