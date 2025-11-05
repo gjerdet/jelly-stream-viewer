@@ -101,26 +101,73 @@ const Player = () => {
   );
   const userId = usersData?.[0]?.Id;
 
-  // Use edge function for reliable streaming
+  // Direct streaming from Jellyfin with smart codec handling
   useEffect(() => {
     const setupStream = async () => {
-      if (!id || !user) return;
+      if (!serverUrl || !id || !userId) return;
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No session found');
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (!accessToken) {
+        console.error('No Jellyfin access token found');
         return;
       }
+
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
       
-      // Use edge function that handles all streaming logic
-      const streamingUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
-      
-      console.log('Using edge function stream for:', id);
-      setStreamUrl(streamingUrl);
+      try {
+        // Get media info to check codec
+        const infoUrl = `${normalizedUrl.replace(/\/$/, '')}/Users/${userId}/Items/${id}?Fields=MediaStreams&api_key=${accessToken}`;
+        const infoResponse = await fetch(infoUrl);
+        const itemInfo = await infoResponse.json();
+        
+        const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
+        const videoCodec = videoStream?.Codec?.toLowerCase();
+        
+        console.log(`Video codec: ${videoCodec}`);
+        
+        let streamingUrl;
+        // Browser-compatible codecs: H264, VP8, VP9, AV1
+        if (videoCodec && ['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
+          // Direct stream for compatible codecs
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+            + `UserId=${userId}`
+            + `&Static=true`
+            + `&MediaSourceId=${id}`
+            + `&api_key=${accessToken}`;
+          console.log('Direct streaming (high quality)');
+        } else {
+          // Transcode incompatible codecs (HEVC, etc)
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+            + `UserId=${userId}`
+            + `&MediaSourceId=${id}`
+            + `&VideoCodec=h264`
+            + `&AudioCodec=aac`
+            + `&VideoBitrate=15000000`
+            + `&AudioBitrate=256000`
+            + `&MaxAudioChannels=2`
+            + `&api_key=${accessToken}`;
+          console.log(`Transcoding ${videoCodec} to H264`);
+        }
+        
+        setStreamUrl(streamingUrl);
+      } catch (error) {
+        console.error('Failed to get codec info:', error);
+        // Fallback to auto
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+          + `UserId=${userId}`
+          + `&MediaSourceId=${id}`
+          + `&api_key=${accessToken}`;
+        setStreamUrl(streamingUrl);
+      }
     };
 
     setupStream();
-  }, [id, user]);
+  }, [serverUrl, id, userId]);
   
   // Handle video errors
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
