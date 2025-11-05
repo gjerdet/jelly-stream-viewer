@@ -103,8 +103,8 @@ serve(async (req) => {
       });
     }
 
-    // Check the video format
-    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}`;
+    // Get video info including codec information
+    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}&Fields=MediaStreams`;
     const infoResponse = await fetch(infoUrl);
     
     if (!infoResponse.ok) {
@@ -115,34 +115,37 @@ serve(async (req) => {
       });
     }
     
+    // Check video codec to decide if transcoding is needed
     const itemInfo = await infoResponse.json();
+    const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
+    const videoCodec = videoStream?.Codec?.toLowerCase();
     
-    // Check if we need transcoding based on container format
-    const container = itemInfo.Container?.toLowerCase() || '';
-    const needsTranscoding = !['mp4', 'webm'].includes(container);
+    // Browser-compatible codecs that don't need transcoding
+    const browserCompatible = ['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec || '');
     
-    console.log(`Streaming video ${videoId} for user ${user.id}: container=${container}, transcoding=${needsTranscoding}`);
+    console.log(`Streaming video ${videoId} for user ${user.id}: codec=${videoCodec}, needsTranscode=${!browserCompatible}`);
     
     let streamUrl;
-    if (needsTranscoding) {
-      // Use Jellyfin's transcoding endpoint with high bitrate for quality
+    if (browserCompatible) {
+      // Direct stream for browser-compatible codecs (no transcoding = best quality)
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+        + `UserId=${userId}`
+        + `&Static=true`
+        + `&MediaSourceId=${videoId}`
+        + `&api_key=${apiKey}`;
+      console.log('Using direct stream (no transcoding)');
+    } else {
+      // Transcode incompatible codecs (like HEVC/H265) to H264
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
-        + `&Container=mp4`
         + `&VideoCodec=h264`
         + `&AudioCodec=aac`
         + `&MaxAudioChannels=2`
         + `&MaxStreamingBitrate=120000000`
         + `&VideoBitrate=20000000`
         + `&api_key=${apiKey}`;
-    } else {
-      // Direct stream for compatible formats
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-        + `UserId=${userId}`
-        + `&Static=true`
-        + `&MediaSourceId=${videoId}`
-        + `&api_key=${apiKey}`;
+      console.log(`Transcoding ${videoCodec} to H264`);
     }
 
     // Forward range header for seeking support
