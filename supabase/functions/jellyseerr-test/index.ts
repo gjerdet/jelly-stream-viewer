@@ -41,6 +41,7 @@ serve(async (req) => {
           'X-Api-Key': apiKey,
           'Content-Type': 'application/json',
         },
+        redirect: 'manual', // Don't follow redirects to avoid HTTP->HTTPS redirect
       });
     } catch (fetchError) {
       console.error('Connection error:', fetchError);
@@ -64,6 +65,24 @@ serve(async (req) => {
         }),
         { 
           status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Handle redirects (301, 302, 307, 308)
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      console.log('Redirect detected:', response.status, location);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Serveren prøver å omdirigere til HTTPS. Bruk direkte HTTP-URL uten omdirigering, eller fiks SSL-sertifikatet.',
+          details: `HTTP ${response.status} redirect til: ${location}`
+        }),
+        { 
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
