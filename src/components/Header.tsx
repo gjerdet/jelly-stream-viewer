@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Film, Search, User, LogOut, Settings, X, Menu, RefreshCw, Activity, Zap } from "lucide-react";
+import { Film, Search, User, LogOut, Settings, X, Menu, RefreshCw, Activity, Zap, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,8 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useSidebar } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
+import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
 
 interface JellyfinItem {
   Id: string;
@@ -54,6 +56,20 @@ const Header = () => {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Fetch pending requests count for admins
+  const { data: pendingCount } = useQuery({
+    queryKey: ['pending-requests-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('jellyseerr_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      return count || 0;
+    },
+    enabled: !!user && userRole === 'admin',
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   // Debounce search query
   useEffect(() => {
@@ -463,6 +479,17 @@ const Header = () => {
                     <DropdownMenuItem onClick={() => navigate("/admin")}>
                       <Settings className="mr-2 h-4 w-4" />
                       Admin
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate("/requests-admin")}>
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      <span className="flex items-center gap-2">
+                        Forespørsler
+                        {pendingCount && pendingCount > 0 && (
+                          <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
+                            {pendingCount}
+                          </Badge>
+                        )}
+                      </span>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
