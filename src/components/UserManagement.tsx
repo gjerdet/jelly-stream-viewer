@@ -12,6 +12,8 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 interface UserWithRoles {
   id: string;
   email: string;
+  jellyfin_username: string | null;
+  jellyfin_user_id: string | null;
   created_at: string;
   roles: AppRole[];
 }
@@ -22,10 +24,10 @@ export const UserManagement = () => {
   const { data: users, isLoading } = useQuery({
     queryKey: ["all-users"],
     queryFn: async () => {
-      // Get profiles with email
+      // Get profiles with Jellyfin info
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select("id, email, created_at");
+        .select("id, email, jellyfin_username, jellyfin_user_id, created_at");
 
       if (profilesError) throw profilesError;
 
@@ -43,6 +45,8 @@ export const UserManagement = () => {
         return {
           id: profile.id,
           email: profile.email,
+          jellyfin_username: profile.jellyfin_username,
+          jellyfin_user_id: profile.jellyfin_user_id,
           created_at: profile.created_at || new Date().toISOString(),
           roles: userRoles,
         };
@@ -105,7 +109,9 @@ export const UserManagement = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium truncate">{user.email}</p>
+                      <p className="font-medium truncate">
+                        {user.jellyfin_username || user.email}
+                      </p>
                       {user.roles.length === 0 && (
                         <Badge variant="outline" className="text-xs">Ingen rolle</Badge>
                       )}

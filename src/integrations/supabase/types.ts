@@ -130,18 +130,24 @@ export type Database = {
           created_at: string | null
           email: string
           id: string
+          jellyfin_user_id: string | null
+          jellyfin_username: string | null
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
           email: string
           id: string
+          jellyfin_user_id?: string | null
+          jellyfin_username?: string | null
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
           email?: string
           id?: string
+          jellyfin_user_id?: string | null
+          jellyfin_username?: string | null
           updated_at?: string | null
         }
         Relationships: []
