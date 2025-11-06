@@ -36,11 +36,14 @@ const RequestsAdmin = () => {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate("/");
-    }
-    if (!roleLoading && role !== "admin") {
-      navigate("/");
+    if (!authLoading && !roleLoading) {
+      if (!user) {
+        navigate("/browse");
+        return;
+      }
+      if (role && role !== "admin") {
+        navigate("/browse");
+      }
     }
   }, [user, role, authLoading, roleLoading, navigate]);
 
