@@ -39,5 +39,5 @@ verify_jwt = true
 [functions.jellyseerr-tv-details]
 verify_jwt = true
 
-[functions.jellyseerr-trending]
+[functions.jellyseerr-popular]
 verify_jwt = true

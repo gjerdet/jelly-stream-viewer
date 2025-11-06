@@ -36,16 +36,20 @@ const Wishes = () => {
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [movies, setMovies] = useState<DiscoverResult[]>([]);
   const [series, setSeries] = useState<DiscoverResult[]>([]);
-  const [trending, setTrending] = useState<DiscoverResult[]>([]);
+  const [popularMovies, setPopularMovies] = useState<DiscoverResult[]>([]);
+  const [popularSeries, setPopularSeries] = useState<DiscoverResult[]>([]);
   const [isLoadingMovies, setIsLoadingMovies] = useState(false);
   const [isLoadingSeries, setIsLoadingSeries] = useState(false);
-  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
+  const [isLoadingPopularMovies, setIsLoadingPopularMovies] = useState(false);
+  const [isLoadingPopularSeries, setIsLoadingPopularSeries] = useState(false);
   const [moviePage, setMoviePage] = useState(1);
   const [seriesPage, setSeriesPage] = useState(1);
-  const [trendingPage, setTrendingPage] = useState(1);
+  const [popularMoviePage, setPopularMoviePage] = useState(1);
+  const [popularSeriesPage, setPopularSeriesPage] = useState(1);
   const [hasMoreMovies, setHasMoreMovies] = useState(true);
   const [hasMoreSeries, setHasMoreSeries] = useState(true);
-  const [hasMoreTrending, setHasMoreTrending] = useState(true);
+  const [hasMorePopularMovies, setHasMorePopularMovies] = useState(true);
+  const [hasMorePopularSeries, setHasMorePopularSeries] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DiscoverResult[]>([]);
@@ -93,9 +97,15 @@ const Wishes = () => {
 
   useEffect(() => {
     if (user) {
-      loadTrending();
+      loadPopularMovies();
     }
-  }, [user, trendingPage]);
+  }, [user, popularMoviePage]);
+
+  useEffect(() => {
+    if (user) {
+      loadPopularSeries();
+    }
+  }, [user, popularSeriesPage]);
 
   const loadMovies = async () => {
     setIsLoadingMovies(true);
@@ -207,12 +217,12 @@ const Wishes = () => {
     }
   };
 
-  const loadTrending = async () => {
-    setIsLoadingTrending(true);
+  const loadPopularMovies = async () => {
+    setIsLoadingPopularMovies(true);
     setConnectionError(null);
     try {
-      const { data, error } = await supabase.functions.invoke("jellyseerr-trending", {
-        body: { page: trendingPage },
+      const { data, error } = await supabase.functions.invoke("jellyseerr-popular", {
+        body: { type: 'movie', page: popularMoviePage },
       });
 
       if (error) {
@@ -225,17 +235,49 @@ const Wishes = () => {
         return;
       }
 
-      if (trendingPage === 1) {
-        setTrending(data.results || []);
+      if (popularMoviePage === 1) {
+        setPopularMovies(data.results || []);
       } else {
-        setTrending(prev => [...prev, ...(data.results || [])]);
+        setPopularMovies(prev => [...prev, ...(data.results || [])]);
       }
       
-      setHasMoreTrending(trendingPage < data.totalPages);
+      setHasMorePopularMovies(popularMoviePage < data.totalPages);
     } catch (error: any) {
-      console.error('Trending error:', error);
+      console.error('Popular movies error:', error);
     } finally {
-      setIsLoadingTrending(false);
+      setIsLoadingPopularMovies(false);
+    }
+  };
+
+  const loadPopularSeries = async () => {
+    setIsLoadingPopularSeries(true);
+    setConnectionError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyseerr-popular", {
+        body: { type: 'tv', page: popularSeriesPage },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (data?.error || data?.details) {
+        console.error('Data contains error:', data);
+        return;
+      }
+
+      if (popularSeriesPage === 1) {
+        setPopularSeries(data.results || []);
+      } else {
+        setPopularSeries(prev => [...prev, ...(data.results || [])]);
+      }
+      
+      setHasMorePopularSeries(popularSeriesPage < data.totalPages);
+    } catch (error: any) {
+      console.error('Popular series error:', error);
+    } finally {
+      setIsLoadingPopularSeries(false);
     }
   };
 
@@ -324,7 +366,7 @@ const Wishes = () => {
   const handleSeasonConfirm = (selectedSeasons: number[]) => {
     if (!selectedTvShow) return;
 
-    const result = [...series, ...trending, ...searchResults].find(
+    const result = [...series, ...popularSeries, ...searchResults].find(
       r => r.id === selectedTvShow.id
     );
 
@@ -580,27 +622,54 @@ const Wishes = () => {
               {renderMediaGrid(searchResults, searchResults[0]?.mediaType || 'movie')}
             </div>
           ) : (
-            <Tabs defaultValue="trending" className="w-full">
-              <TabsList className="grid w-full max-w-3xl mx-auto mb-8 grid-cols-3">
-                <TabsTrigger value="trending">
+            <Tabs defaultValue="popular-movies" className="w-full">
+              <TabsList className="grid w-full max-w-4xl mx-auto mb-8 grid-cols-4">
+                <TabsTrigger value="popular-movies">
                   <TrendingUp className="h-4 w-4 mr-2" />
-                  Populært
+                  Populære filmer
                 </TabsTrigger>
-                <TabsTrigger value="movies">Filmer</TabsTrigger>
-                <TabsTrigger value="series">Serier</TabsTrigger>
+                <TabsTrigger value="popular-series">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Populære serier
+                </TabsTrigger>
+                <TabsTrigger value="movies">Alle filmer</TabsTrigger>
+                <TabsTrigger value="series">Alle serier</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="trending">
-                {renderMediaGrid(trending, 'movie')}
+              <TabsContent value="popular-movies">
+                {renderMediaGrid(popularMovies, 'movie')}
                 
-                {hasMoreTrending && (
+                {hasMorePopularMovies && (
                   <div className="mt-8 text-center">
                     <Button
-                      onClick={() => setTrendingPage(p => p + 1)}
-                      disabled={isLoadingTrending}
+                      onClick={() => setPopularMoviePage(p => p + 1)}
+                      disabled={isLoadingPopularMovies}
                       size="lg"
                     >
-                      {isLoadingTrending ? (
+                      {isLoadingPopularMovies ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Laster...
+                        </>
+                      ) : (
+                        'Last inn mer'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="popular-series">
+                {renderMediaGrid(popularSeries, 'tv')}
+                
+                {hasMorePopularSeries && (
+                  <div className="mt-8 text-center">
+                    <Button
+                      onClick={() => setPopularSeriesPage(p => p + 1)}
+                      disabled={isLoadingPopularSeries}
+                      size="lg"
+                    >
+                      {isLoadingPopularSeries ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           Laster...
