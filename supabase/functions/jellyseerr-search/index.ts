@@ -44,11 +44,8 @@ serve(async (req) => {
       .eq('setting_key', 'jellyseerr_api_key')
       .maybeSingle();
 
-    // Force HTTP to avoid SSL certificate issues
-    let jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, ''); // Remove trailing slash
-    if (jellyseerrUrl?.startsWith('https://')) {
-      jellyseerrUrl = jellyseerrUrl.replace('https://', 'http://');
-    }
+    // Keep user's protocol choice (HTTP or HTTPS)
+    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, ''); // Remove trailing slash
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
     if (!jellyseerrUrl || !jellyseerrApiKey) {

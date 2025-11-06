@@ -384,7 +384,14 @@ const Admin = () => {
     // Check for local/private IP addresses before calling edge function
     const localIpPattern = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?/i;
     if (localIpPattern.test(jellyseerrUrl.trim())) {
-      setJellyseerrStatus(`❌ Lokal IP-adresse oppdaget: Edge functions kan ikke nå lokale adresser (192.168.x.x, 10.x.x.x, 127.0.0.1, localhost).\n\nLøsninger:\n• Bruk en offentlig URL/domene\n• Sett opp tunnel (ngrok/Cloudflare Tunnel)\n• Kjør appen lokalt for utvikling`);
+      setJellyseerrStatus(`❌ Lokal IP-adresse oppdaget: Edge functions kan ikke nå lokale adresser (192.168.x.x, 10.x.x.x, 127.0.0.1, localhost).
+
+Løsninger:
+• Bruk en offentlig URL/domene
+• Sett opp tunnel (ngrok/Cloudflare Tunnel)
+• Kjør appen lokalt for utvikling
+
+Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// i stedet for https://`);
       return;
     }
 

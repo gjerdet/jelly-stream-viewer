@@ -58,15 +58,11 @@ serve(async (req) => {
       );
     }
 
-    // Force HTTP to avoid SSL certificate issues with self-signed certificates
-    const cleanDomain = rawUrl
-      .replace(/^https?:\/\//, '')  // Remove any protocol
-      .replace(/\/$/, '');            // Remove trailing slash
-    
-    const jellyseerrUrl = `http://${cleanDomain}`;
+    // Keep user's protocol choice (HTTP or HTTPS)
+    const jellyseerrUrl = rawUrl.replace(/\/$/, ''); // Remove trailing slash
     const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
     
-    console.log('Fetching from Jellyseerr (HTTP):', discoverUrl);
+    console.log('Fetching from Jellyseerr:', discoverUrl);
 
     let response;
     try {

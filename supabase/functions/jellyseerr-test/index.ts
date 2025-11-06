@@ -27,12 +27,8 @@ serve(async (req) => {
       );
     }
 
-    // Normalize URL - force HTTP to avoid SSL issues
-    const cleanDomain = url
-      .replace(/^https?:\/\//, '')
-      .replace(/\/$/, '');
-    
-    const jellyseerrUrl = `http://${cleanDomain}`;
+    // Normalize URL - keep user's protocol choice
+    const jellyseerrUrl = url.replace(/\/$/, '');
     const statusUrl = `${jellyseerrUrl}/api/v1/status`;
     
     console.log('Testing Jellyseerr connection:', statusUrl);
