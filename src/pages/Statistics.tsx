@@ -9,7 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Clock } from "lucide-react";
+import { Clock, ChevronDown, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
 type TimeFilter = '7' | '30' | '365' | 'all';
 
@@ -18,6 +20,7 @@ const Statistics = () => {
   const { user } = useAuth();
   const { data: role, isLoading: isLoadingRole } = useUserRole(user?.id);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30');
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const session = localStorage.getItem('jellyfin_session');
@@ -86,7 +89,7 @@ const Statistics = () => {
       const dateFilter = getDateFilter(timeFilter);
       let query = supabase
         .from('watch_history')
-        .select('user_id, jellyfin_item_name, jellyfin_item_type, watched_at, runtime_ticks, last_position_ticks');
+        .select('user_id, jellyfin_item_name, jellyfin_item_type, jellyfin_item_id, watched_at, runtime_ticks, last_position_ticks, jellyfin_series_name');
       
       if (dateFilter) {
         query = query.gte('watched_at', dateFilter);
@@ -111,7 +114,8 @@ const Statistics = () => {
           username: profile.jellyfin_username || 'Unknown',
           totalMinutes: 0,
           movies: 0,
-          episodes: 0
+          episodes: 0,
+          watchHistory: []
         };
         return acc;
       }, {});
@@ -128,6 +132,15 @@ const Statistics = () => {
           } else if (item.jellyfin_item_type === 'Episode') {
             userMap[item.user_id].episodes++;
           }
+
+          // Add to watch history
+          userMap[item.user_id].watchHistory.push({
+            itemId: item.jellyfin_item_id,
+            itemName: item.jellyfin_item_name,
+            itemType: item.jellyfin_item_type,
+            seriesName: item.jellyfin_series_name,
+            watchedAt: item.watched_at
+          });
         }
       });
 
@@ -136,7 +149,8 @@ const Statistics = () => {
         username: stats.username,
         totalHours: (stats.totalMinutes / 60).toFixed(1),
         movies: stats.movies,
-        episodes: stats.episodes
+        episodes: stats.episodes,
+        watchHistory: stats.watchHistory
       })).sort((a, b) => parseFloat(b.totalHours) - parseFloat(a.totalHours));
     },
     enabled: role === 'admin'
@@ -240,36 +254,99 @@ const Statistics = () => {
         </Select>
       </div>
       
-      <div className="grid gap-6 md:grid-cols-2">{/* User Watch Time */}
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* User Watch Time with Details */}
+        <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
               Visningstid per Bruker
             </CardTitle>
-            <CardDescription>Total sett tid i timer</CardDescription>
+            <CardDescription>Total sett tid i timer - Klikk for detaljer</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bruker</TableHead>
-                  <TableHead className="text-right">Timer</TableHead>
-                  <TableHead className="text-right">Filmer</TableHead>
-                  <TableHead className="text-right">Episoder</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {userStats?.map((stat) => (
-                  <TableRow key={stat.userId}>
-                    <TableCell className="font-medium">{stat.username}</TableCell>
-                    <TableCell className="text-right">{stat.totalHours}t</TableCell>
-                    <TableCell className="text-right">{stat.movies}</TableCell>
-                    <TableCell className="text-right">{stat.episodes}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="space-y-2">
+              {userStats?.map((stat) => (
+                <Collapsible 
+                  key={stat.userId}
+                  open={expandedUsers.has(stat.userId)}
+                  onOpenChange={(open) => {
+                    const newExpanded = new Set(expandedUsers);
+                    if (open) {
+                      newExpanded.add(stat.userId);
+                    } else {
+                      newExpanded.delete(stat.userId);
+                    }
+                    setExpandedUsers(newExpanded);
+                  }}
+                >
+                  <div className="border rounded-lg">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-between p-4 hover:bg-muted/50"
+                      >
+                        <div className="flex items-center gap-4 flex-1">
+                          <div className="flex items-center gap-2">
+                            {expandedUsers.has(stat.userId) ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                            <span className="font-medium">{stat.username}</span>
+                          </div>
+                          <div className="flex gap-6 text-sm text-muted-foreground">
+                            <span>{stat.totalHours}t</span>
+                            <span>{stat.movies} filmer</span>
+                            <span>{stat.episodes} episoder</span>
+                          </div>
+                        </div>
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="px-4 pb-4 pt-2 border-t">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Tittel</TableHead>
+                              <TableHead>Sett</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {stat.watchHistory.map((item: any, idx: number) => (
+                              <TableRow key={`${item.itemId}-${idx}`}>
+                                <TableCell className="font-medium">
+                                  {item.itemType === 'Movie' ? '🎬' : '📺'}
+                                </TableCell>
+                                <TableCell>
+                                  {item.itemType === 'Episode' && item.seriesName ? (
+                                    <div>
+                                      <div className="font-medium">{item.seriesName}</div>
+                                      <div className="text-sm text-muted-foreground">{item.itemName}</div>
+                                    </div>
+                                  ) : (
+                                    item.itemName
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {new Date(item.watchedAt).toLocaleString('nb-NO', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
