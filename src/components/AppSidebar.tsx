@@ -76,25 +76,6 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip={collapsed ? "Søk og be om" : undefined}>
-                  <NavLink
-                    to="/requests"
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 ${
-                        isActive
-                          ? "bg-primary/10 text-primary font-medium"
-                          : "hover:bg-accent"
-                      }`
-                    }
-                  >
-                    <Gift className="h-4 w-4 flex-shrink-0" />
-                    <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                      Søk og be om
-                    </span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
               {role === 'admin' && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip={collapsed ? "Forespørsler" : undefined}>
