@@ -141,8 +141,8 @@ const Player = () => {
             + `&api_key=${accessToken}`;
           console.log('Direct streaming (high quality)');
         } else {
-          // Use progressive MP4 with segments for transcoding with seeking support
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
+          // Transcode with standard stream endpoint for seeking support
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
             + `UserId=${userId}`
             + `&MediaSourceId=${id}`
             + `&VideoCodec=h264`
@@ -150,24 +150,21 @@ const Player = () => {
             + `&VideoBitrate=8000000`
             + `&AudioBitrate=192000`
             + `&MaxAudioChannels=2`
-            + `&SegmentLength=3`
-            + `&MinSegments=2`
-            + `&BreakOnNonKeyFrames=true`
+            + `&AllowVideoStreamCopy=false`
+            + `&AllowAudioStreamCopy=false`
             + `&api_key=${accessToken}`;
-          console.log(`Transcoding ${videoCodec} to H264 MP4 with seeking`);
+          console.log(`Transcoding ${videoCodec} to H264 with seeking`);
         }
         
         setStreamUrl(streamingUrl);
       } catch (error) {
         console.error('Failed to get codec info:', error);
-        // Fallback to progressive MP4 transcoding
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
+        // Fallback to transcoding
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
           + `UserId=${userId}`
           + `&MediaSourceId=${id}`
           + `&VideoCodec=h264`
           + `&AudioCodec=aac`
-          + `&VideoBitrate=8000000`
-          + `&SegmentLength=3`
           + `&api_key=${accessToken}`;
         setStreamUrl(streamingUrl);
       }
