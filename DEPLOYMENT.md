@@ -308,3 +308,117 @@ For problemer eller spørsmål:
 - Opprett en issue på GitHub
 - Sjekk eksisterende issues for løsninger
 - Se README.md for mer detaljert dokumentasjon
+
+---
+
+## Automatisk Oppdateringssystem
+
+Applikasjonen har innebygd støtte for automatiske oppdateringer via Admin-panelet.
+
+### Oversikt
+
+Systemet består av tre deler:
+1. **Admin UI** - "Sjekk etter oppdatering" og "Installer oppdatering" knapper
+2. **Edge Functions** - `check-updates` og `trigger-update` 
+3. **Update Server** - Lokal server som mottar webhook og utfører oppdatering
+
+### Oppsett av auto-update
+
+#### 1. Start Update Server
+
+Update serveren lytter på webhook requests og utfører oppdateringer:
+
+```bash
+# Gå til app-mappen
+cd /path/to/jelly-stream-viewer
+
+# Installer Express (hvis ikke allerede installert)
+npm install express
+
+# Opprett .env fil for update-server
+cat > .env.update << EOF
+PORT=3001
+UPDATE_SECRET=$(openssl rand -hex 32)
+APP_DIR=$(pwd)
+RESTART_COMMAND="sudo systemctl restart nginx"
+EOF
+
+# Start update-server med PM2 (anbefalt)
+npm install -g pm2
+pm2 start update-server.js --name "update-server" --env-file .env.update
+pm2 save
+pm2 startup  # Følg instruksjonene
+```
+
+#### 2. Konfigurer i Admin
+
+Logg inn på appen og gå til Admin → Versjoner:
+
+1. **Legg til GitHub Repository URL**:
+   - Nøkkel: `github_repo_url`
+   - Verdi: `https://github.com/DIN_BRUKER/DIN_REPO`
+
+2. **Legg til Update Webhook URL**:
+   - Nøkkel: `update_webhook_url`
+   - Verdi: `http://localhost:3001/update`
+
+3. **Legg til Update Secret**:
+   - Nøkkel: `update_webhook_secret`
+   - Verdi: Samme som `UPDATE_SECRET` fra `.env.update`
+
+4. **Sett installert commit SHA** (første gang):
+   ```bash
+   cd /path/to/jelly-stream-viewer
+   git rev-parse HEAD
+   ```
+   - Nøkkel: `installed_commit_sha`
+   - Verdi: Output fra kommandoen over
+
+### Bruk av auto-update
+
+#### Sjekke for oppdateringer
+
+1. Gå til Admin → Versjoner
+2. Klikk **"Sjekk etter oppdatering"**
+3. Systemet sammenligner installert versjon med GitHub
+
+#### Installere oppdatering
+
+1. Hvis ny versjon er tilgjengelig, klikk **"Installer oppdatering"**
+2. Bekreft i dialogen
+3. Serveren vil automatisk:
+   - Pulle ny kode fra GitHub
+   - Installere nye avhengigheter
+   - Bygge prosjektet
+   - Restarte appen
+4. Siden laster automatisk på nytt etter ~30-60 sekunder
+
+### Feilsøking auto-update
+
+#### Update Server kjører ikke
+
+```bash
+# Sjekk status
+pm2 status
+
+# Se logger
+pm2 logs update-server
+
+# Restart
+pm2 restart update-server
+```
+
+#### Oppdatering feiler
+
+1. Sjekk update-server logger: `pm2 logs update-server`
+2. Verifiser at appen har skrivetilgang til app-mappen
+3. Sjekk at git credentials er konfigurert riktig
+4. Verifiser at webhook URL er tilgjengelig
+
+### Sikkerhet for auto-update
+
+⚠️ **Viktig:**
+- Bruk sterk `UPDATE_SECRET` (generes automatisk med openssl)
+- Hold webhook URL intern (ikke offentlig tilgjengelig)
+- Vurder å bruke HTTPS med reverse proxy for webhook-endepunktet
+

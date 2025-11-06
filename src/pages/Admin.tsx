@@ -13,6 +13,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
+import { UpdateManager } from "@/components/UpdateManager";
 import { ServerMonitoring } from "@/components/ServerMonitoring";
 import { QBittorrentStatus } from "@/components/QBittorrentStatus";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1114,7 +1115,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </Card>
             </TabsContent>
 
-            <TabsContent value="versions">
+            <TabsContent value="versions" className="space-y-6">
+              <UpdateManager />
               <VersionManager />
             </TabsContent>
           </Tabs>
