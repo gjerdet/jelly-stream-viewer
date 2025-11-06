@@ -77,7 +77,7 @@ export function AppSidebar() {
                 );
               })}
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip={collapsed ? "Be om" : undefined}>
+                <SidebarMenuButton asChild tooltip={collapsed ? "Søk og be om" : undefined}>
                   <NavLink
                     to="/requests"
                     className={({ isActive }) =>
@@ -90,7 +90,7 @@ export function AppSidebar() {
                   >
                     <Gift className="h-4 w-4 flex-shrink-0" />
                     <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                      Be om
+                      Søk og be om
                     </span>
                   </NavLink>
                 </SidebarMenuButton>
