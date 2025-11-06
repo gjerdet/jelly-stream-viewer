@@ -378,7 +378,6 @@ const Admin = () => {
   const handleTestJellyseerr = async () => {
     if (!jellyseerrUrl.trim() || !jellyseerrApiKey.trim()) {
       setJellyseerrStatus("❌ Jellyseerr URL og API-nøkkel må være satt");
-      toast.error("Jellyseerr URL og API-nøkkel må være satt");
       return;
     }
 
@@ -395,8 +394,16 @@ const Admin = () => {
 
       if (error) {
         console.error('Jellyseerr test error:', error);
-        setJellyseerrStatus(`❌ Feil: ${error.message}`);
-        toast.error("Tilkoblingstest feilet");
+        const errorString = error.message || JSON.stringify(error);
+        
+        // Check for network/timeout errors
+        if (errorString.includes('Connection timed out') || 
+            errorString.includes('tcp connect error') ||
+            errorString.includes('serveren er utilgjengelig fra skyen')) {
+          setJellyseerrStatus(`❌ Nettverksfeil: Edge functions kan ikke nå lokale IP-adresser (192.168.x.x). Bruk en offentlig URL, sett opp en tunnel (ngrok/Cloudflare), eller kjør appen lokalt.`);
+        } else {
+          setJellyseerrStatus(`❌ Feil: ${error.message}`);
+        }
         return;
       }
 
@@ -404,13 +411,21 @@ const Admin = () => {
         setJellyseerrStatus(`✅ ${data.message}`);
         toast.success("Jellyseerr-tilkobling OK!");
       } else {
-        setJellyseerrStatus(`❌ ${data?.error || 'Tilkobling feilet'}`);
-        toast.error(data?.error || "Tilkobling feilet");
+        const errorMsg = data?.error || 'Tilkobling feilet';
+        const errorDetails = data?.details || '';
+        
+        // Check for network/timeout errors in response
+        if (errorDetails.includes('Connection timed out') || 
+            errorDetails.includes('tcp connect error') ||
+            errorMsg.includes('serveren er utilgjengelig fra skyen')) {
+          setJellyseerrStatus(`❌ Nettverksfeil: Edge functions kan ikke nå lokale IP-adresser (192.168.x.x). Bruk en offentlig URL, sett opp en tunnel (ngrok/Cloudflare), eller kjør appen lokalt.`);
+        } else {
+          setJellyseerrStatus(`❌ ${errorMsg}`);
+        }
       }
     } catch (error) {
       console.error('Jellyseerr test exception:', error);
       setJellyseerrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
-      toast.error("Tilkoblingstest feilet");
     } finally {
       setTestingJellyseerr(false);
     }
@@ -640,7 +655,11 @@ const Admin = () => {
                 <CardHeader>
                   <CardTitle>Jellyseerr Server</CardTitle>
                   <CardDescription>
-                    Konfigurer Jellyseerr for å be om innhold
+                    Konfigurer Jellyseerr for å be om innhold. 
+                    <span className="block mt-2 text-yellow-500/80">
+                      ⚠️ Merk: Edge functions kjører i skyen og kan ikke nå lokale IP-adresser (192.168.x.x). 
+                      Bruk en offentlig URL eller sett opp en tunnel (ngrok/Cloudflare).
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -715,7 +734,7 @@ const Admin = () => {
                         ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
                         : 'bg-red-500/10 text-red-400 border border-red-500/20'
                     }`}>
-                      {jellyseerrStatus}
+                      <div className="whitespace-pre-wrap">{jellyseerrStatus}</div>
                     </div>
                   )}
                 </CardContent>
