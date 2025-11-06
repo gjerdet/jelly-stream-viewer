@@ -14,6 +14,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
+import { UserManagement } from "@/components/UserManagement";
 import { ServerMonitoring } from "@/components/ServerMonitoring";
 import { QBittorrentStatus } from "@/components/QBittorrentStatus";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -598,7 +599,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="servers" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="servers">Servere</TabsTrigger>
               <TabsTrigger value="site">Side</TabsTrigger>
               <TabsTrigger value="monitoring">
@@ -609,6 +610,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 <Download className="h-4 w-4 mr-2" />
                 qBittorrent
               </TabsTrigger>
+              <TabsTrigger value="users">Brukere</TabsTrigger>
               <TabsTrigger value="news">Nyheter</TabsTrigger>
               <TabsTrigger value="versions">Versjoner</TabsTrigger>
             </TabsList>
@@ -1113,6 +1115,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="users">
+              <UserManagement />
             </TabsContent>
 
             <TabsContent value="versions" className="space-y-6">
