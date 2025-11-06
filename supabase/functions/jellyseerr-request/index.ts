@@ -79,6 +79,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
+      redirect: 'manual', // Don't follow redirects to HTTPS
     });
 
     const responseData = await response.json();

@@ -72,6 +72,7 @@ serve(async (req) => {
         'X-Api-Key': jellyseerrApiKey,
         'Content-Type': 'application/json',
       },
+      redirect: 'manual', // Don't follow redirects to HTTPS
     });
 
     if (!response.ok) {
