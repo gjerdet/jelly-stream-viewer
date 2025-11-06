@@ -28,7 +28,7 @@ export const useChromecast = () => {
     const initializeCast = () => {
       const cast = (window as any).chrome?.cast;
       if (!cast) {
-        console.log('Cast SDK not loaded yet');
+        console.log('Cast SDK not available yet');
         return;
       }
 
@@ -87,22 +87,30 @@ export const useChromecast = () => {
         );
 
         setCastState(prev => ({ ...prev, isAvailable: true }));
-        console.log('Chromecast initialized globally');
+        console.log('Chromecast initialized successfully');
       } catch (error) {
         console.error('Cast initialization error:', error);
       }
     };
 
-    // Wait for Cast SDK to load
-    if ((window as any)['__onGCastApiAvailable']) {
-      initializeCast();
-    } else {
-      (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
-        if (isAvailable) {
-          initializeCast();
-        }
-      };
-    }
+    // Wait for Cast SDK to load - check multiple times
+    const checkInterval = setInterval(() => {
+      if ((window as any).chrome?.cast?.framework) {
+        clearInterval(checkInterval);
+        initializeCast();
+      }
+    }, 100);
+
+    // Cleanup after 10 seconds
+    const timeout = setTimeout(() => {
+      clearInterval(checkInterval);
+      console.log('Cast SDK did not load within 10 seconds');
+    }, 10000);
+
+    return () => {
+      clearInterval(checkInterval);
+      clearTimeout(timeout);
+    };
   }, []);
 
   const requestSession = useCallback(() => {
