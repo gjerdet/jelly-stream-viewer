@@ -5,7 +5,7 @@ import { toast } from "sonner";
 interface JellyseerrRequestParams {
   mediaType: 'movie' | 'tv';
   mediaId: number;
-  seasons?: number[] | 'all';
+  seasons?: number[] | 'all' | { [seasonNumber: number]: number[] } | { fullSeasons: number[]; episodes: { [seasonNumber: number]: number[] } };
   mediaTitle: string;
   mediaPoster?: string;
   mediaOverview?: string;

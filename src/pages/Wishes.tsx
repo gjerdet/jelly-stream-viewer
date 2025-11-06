@@ -384,7 +384,7 @@ const Wishes = () => {
     }
   };
 
-  const handleSeasonConfirm = (selectedSeasons: number[]) => {
+  const handleSeasonConfirm = (selection: { seasons: number[]; episodes: { [seasonNumber: number]: number[] } }) => {
     if (!selectedTvShow) return;
 
     const result = [...series, ...popularSeries, ...searchResults].find(
@@ -397,10 +397,26 @@ const Wishes = () => {
       ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
       : undefined;
 
+    // Prepare seasons data - combine full seasons with episode selections
+    let seasonsData: any;
+    if (selection.seasons.length > 0 && Object.keys(selection.episodes).length === 0) {
+      // Only full seasons selected
+      seasonsData = selection.seasons;
+    } else if (selection.seasons.length === 0 && Object.keys(selection.episodes).length > 0) {
+      // Only specific episodes selected
+      seasonsData = selection.episodes;
+    } else {
+      // Mix of full seasons and specific episodes
+      seasonsData = {
+        fullSeasons: selection.seasons,
+        episodes: selection.episodes,
+      };
+    }
+
     jellyseerrRequest.mutate({
       mediaType: 'tv',
       mediaId: selectedTvShow.id,
-      seasons: selectedSeasons,
+      seasons: seasonsData,
       mediaTitle: selectedTvShow.title,
       mediaPoster: posterUrl,
       mediaOverview: result.overview,
