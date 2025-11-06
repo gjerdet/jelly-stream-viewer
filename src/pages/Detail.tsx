@@ -97,6 +97,11 @@ const Detail = () => {
     }
   }, [user, loading, navigate]);
 
+  // Scroll to top when opening a detail page
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
+
   // Check if item is in favorites
   const { data: isFavorite } = useQuery({
     queryKey: ["is-favorite", id, user?.id],
