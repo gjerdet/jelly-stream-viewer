@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { useEffect } from "react";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 import Header from "./components/Header";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
@@ -26,6 +28,12 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const location = useLocation();
+  const { siteName } = useSiteSettings();
+
+  // Update page title dynamically
+  useEffect(() => {
+    document.title = siteName;
+  }, [siteName]);
   const isLoginOrSetupPage = location.pathname === "/" || location.pathname === "/setup";
 
   if (isLoginOrSetupPage) {
