@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, Film, Tv, Star, Calendar, Download, Search } from "lucide-react";
+import { Loader2, AlertCircle, Film, Tv, Star, Calendar, Download, Search, TrendingUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
+import { SeasonSelectDialog } from "@/components/SeasonSelectDialog";
 
 interface DiscoverResult {
   id: number;
@@ -35,16 +36,22 @@ const Wishes = () => {
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [movies, setMovies] = useState<DiscoverResult[]>([]);
   const [series, setSeries] = useState<DiscoverResult[]>([]);
+  const [trending, setTrending] = useState<DiscoverResult[]>([]);
   const [isLoadingMovies, setIsLoadingMovies] = useState(false);
   const [isLoadingSeries, setIsLoadingSeries] = useState(false);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
   const [moviePage, setMoviePage] = useState(1);
   const [seriesPage, setSeriesPage] = useState(1);
+  const [trendingPage, setTrendingPage] = useState(1);
   const [hasMoreMovies, setHasMoreMovies] = useState(true);
   const [hasMoreSeries, setHasMoreSeries] = useState(true);
+  const [hasMoreTrending, setHasMoreTrending] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DiscoverResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
+  const [selectedTvShow, setSelectedTvShow] = useState<{ id: number; title: string } | null>(null);
   const jellyseerrRequest = useJellyseerrRequest();
 
   useEffect(() => {
@@ -83,6 +90,12 @@ const Wishes = () => {
       loadSeries();
     }
   }, [user, seriesPage]);
+
+  useEffect(() => {
+    if (user) {
+      loadTrending();
+    }
+  }, [user, trendingPage]);
 
   const loadMovies = async () => {
     setIsLoadingMovies(true);
@@ -194,6 +207,38 @@ const Wishes = () => {
     }
   };
 
+  const loadTrending = async () => {
+    setIsLoadingTrending(true);
+    setConnectionError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyseerr-trending", {
+        body: { page: trendingPage },
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (data?.error || data?.details) {
+        console.error('Data contains error:', data);
+        return;
+      }
+
+      if (trendingPage === 1) {
+        setTrending(data.results || []);
+      } else {
+        setTrending(prev => [...prev, ...(data.results || [])]);
+      }
+      
+      setHasMoreTrending(trendingPage < data.totalPages);
+    } catch (error: any) {
+      console.error('Trending error:', error);
+    } finally {
+      setIsLoadingTrending(false);
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -252,16 +297,48 @@ const Wishes = () => {
   };
 
   const handleRequest = (result: DiscoverResult, mediaType: 'movie' | 'tv') => {
-    const title = mediaType === 'movie' ? result.title : result.name;
+    if (mediaType === 'tv') {
+      // Open season selection dialog for TV shows
+      setSelectedTvShow({
+        id: result.id,
+        title: result.name || 'Ukjent',
+      });
+      setSeasonDialogOpen(true);
+    } else {
+      // For movies, request immediately
+      const title = result.title;
+      const posterUrl = result.posterPath
+        ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
+        : undefined;
+
+      jellyseerrRequest.mutate({
+        mediaType,
+        mediaId: result.id,
+        mediaTitle: title || 'Ukjent',
+        mediaPoster: posterUrl,
+        mediaOverview: result.overview,
+      });
+    }
+  };
+
+  const handleSeasonConfirm = (selectedSeasons: number[]) => {
+    if (!selectedTvShow) return;
+
+    const result = [...series, ...trending, ...searchResults].find(
+      r => r.id === selectedTvShow.id
+    );
+
+    if (!result) return;
+
     const posterUrl = result.posterPath
       ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
       : undefined;
 
     jellyseerrRequest.mutate({
-      mediaType,
-      mediaId: result.id,
-      ...(mediaType === 'tv' && { seasons: 'all' }),
-      mediaTitle: title || 'Ukjent',
+      mediaType: 'tv',
+      mediaId: selectedTvShow.id,
+      seasons: selectedSeasons,
+      mediaTitle: selectedTvShow.title,
       mediaPoster: posterUrl,
       mediaOverview: result.overview,
     });
@@ -503,11 +580,38 @@ const Wishes = () => {
               {renderMediaGrid(searchResults, searchResults[0]?.mediaType || 'movie')}
             </div>
           ) : (
-            <Tabs defaultValue="movies" className="w-full">
-              <TabsList className="grid w-full max-w-md mx-auto mb-8 grid-cols-2">
+            <Tabs defaultValue="trending" className="w-full">
+              <TabsList className="grid w-full max-w-3xl mx-auto mb-8 grid-cols-3">
+                <TabsTrigger value="trending">
+                  <TrendingUp className="h-4 w-4 mr-2" />
+                  Populært
+                </TabsTrigger>
                 <TabsTrigger value="movies">Filmer</TabsTrigger>
                 <TabsTrigger value="series">Serier</TabsTrigger>
               </TabsList>
+
+              <TabsContent value="trending">
+                {renderMediaGrid(trending, 'movie')}
+                
+                {hasMoreTrending && (
+                  <div className="mt-8 text-center">
+                    <Button
+                      onClick={() => setTrendingPage(p => p + 1)}
+                      disabled={isLoadingTrending}
+                      size="lg"
+                    >
+                      {isLoadingTrending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Laster...
+                        </>
+                      ) : (
+                        'Last inn mer'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
 
               <TabsContent value="movies">
                 {renderMediaGrid(movies, 'movie')}
@@ -555,6 +659,16 @@ const Wishes = () => {
                 )}
               </TabsContent>
             </Tabs>
+          )}
+
+          {selectedTvShow && (
+            <SeasonSelectDialog
+              open={seasonDialogOpen}
+              onOpenChange={setSeasonDialogOpen}
+              tvId={selectedTvShow.id}
+              tvTitle={selectedTvShow.title}
+              onConfirm={handleSeasonConfirm}
+            />
           )}
         </div>
       </div>
