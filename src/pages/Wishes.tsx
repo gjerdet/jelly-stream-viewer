@@ -93,10 +93,25 @@ const Wishes = () => {
       });
 
       if (error) {
-        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        console.error('Edge function error:', error);
+        const errorString = JSON.stringify(error);
+        const dataString = data ? JSON.stringify(data) : '';
+        
+        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+            dataString.includes('SSL') || dataString.includes('sertifikat') ||
+            dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         throw error;
+      }
+
+      if (data?.error || data?.details) {
+        console.error('Data contains error:', data);
+        const dataString = JSON.stringify(data);
+        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+          setConnectionError('ssl');
+        }
+        return;
       }
 
       if (moviePage === 1) {
@@ -108,9 +123,7 @@ const Wishes = () => {
       setHasMoreMovies(moviePage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
-      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
-        setConnectionError('ssl');
-      }
+      setConnectionError('ssl');
     } finally {
       setIsLoadingMovies(false);
     }
@@ -125,10 +138,25 @@ const Wishes = () => {
       });
 
       if (error) {
-        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        console.error('Edge function error:', error);
+        const errorString = JSON.stringify(error);
+        const dataString = data ? JSON.stringify(data) : '';
+        
+        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+            dataString.includes('SSL') || dataString.includes('sertifikat') ||
+            dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         throw error;
+      }
+
+      if (data?.error || data?.details) {
+        console.error('Data contains error:', data);
+        const dataString = JSON.stringify(data);
+        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+          setConnectionError('ssl');
+        }
+        return;
       }
 
       if (seriesPage === 1) {
@@ -140,9 +168,7 @@ const Wishes = () => {
       setHasMoreSeries(seriesPage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
-      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
-        setConnectionError('ssl');
-      }
+      setConnectionError('ssl');
     } finally {
       setIsLoadingSeries(false);
     }
@@ -160,18 +186,31 @@ const Wishes = () => {
       });
 
       if (error) {
-        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        console.error('Edge function error:', error);
+        const errorString = JSON.stringify(error);
+        const dataString = data ? JSON.stringify(data) : '';
+        
+        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+            dataString.includes('SSL') || dataString.includes('sertifikat') ||
+            dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         throw error;
       }
 
+      if (data?.error || data?.details) {
+        console.error('Data contains error:', data);
+        const dataString = JSON.stringify(data);
+        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+          setConnectionError('ssl');
+        }
+        return;
+      }
+
       setSearchResults(data.results || []);
     } catch (error: any) {
       console.error('Search error:', error);
-      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
-        setConnectionError('ssl');
-      }
+      setConnectionError('ssl');
     } finally {
       setIsSearching(false);
     }
