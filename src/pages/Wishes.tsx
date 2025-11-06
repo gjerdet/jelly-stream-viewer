@@ -40,6 +40,7 @@ const Wishes = () => {
   const [seriesPage, setSeriesPage] = useState(1);
   const [hasMoreMovies, setHasMoreMovies] = useState(true);
   const [hasMoreSeries, setHasMoreSeries] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const jellyseerrRequest = useJellyseerrRequest();
 
   useEffect(() => {
@@ -81,12 +82,18 @@ const Wishes = () => {
 
   const loadMovies = async () => {
     setIsLoadingMovies(true);
+    setConnectionError(null);
     try {
       const { data, error } = await supabase.functions.invoke("jellyseerr-discover", {
         body: { type: 'movie', page: moviePage },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+          setConnectionError('ssl');
+        }
+        throw error;
+      }
 
       if (moviePage === 1) {
         setMovies(data.results || []);
@@ -97,6 +104,9 @@ const Wishes = () => {
       setHasMoreMovies(moviePage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
+      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        setConnectionError('ssl');
+      }
     } finally {
       setIsLoadingMovies(false);
     }
@@ -104,12 +114,18 @@ const Wishes = () => {
 
   const loadSeries = async () => {
     setIsLoadingSeries(true);
+    setConnectionError(null);
     try {
       const { data, error } = await supabase.functions.invoke("jellyseerr-discover", {
         body: { type: 'tv', page: seriesPage },
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+          setConnectionError('ssl');
+        }
+        throw error;
+      }
 
       if (seriesPage === 1) {
         setSeries(data.results || []);
@@ -120,6 +136,9 @@ const Wishes = () => {
       setHasMoreSeries(seriesPage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
+      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        setConnectionError('ssl');
+      }
     } finally {
       setIsLoadingSeries(false);
     }
@@ -266,6 +285,31 @@ const Wishes = () => {
               Oppdag og be om nytt innhold
             </p>
           </div>
+
+          {connectionError === 'ssl' && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-semibold">SSL-sertifikatfeil oppdaget</p>
+                  <p>Jellyseerr-serveren din (<strong>{jellyseerrUrl}</strong>) omdirigerer HTTP til HTTPS med et ugyldig SSL-sertifikat.</p>
+                  <p className="font-medium">Løsninger:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li>Bruk lokal IP-adresse i stedet (f.eks. <code className="text-xs bg-muted px-1 py-0.5 rounded">http://192.168.1.100:5055</code>)</li>
+                    <li>Fiks SSL-sertifikatet på Jellyseerr-serveren</li>
+                    <li>Konfigurer Jellyseerr til å akseptere HTTP uten omdirigering til HTTPS</li>
+                  </ol>
+                  <Button
+                    onClick={() => navigate('/admin')}
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Gå til Admin for å endre URL
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           <Alert className="mb-6">
             <AlertCircle className="h-4 w-4" />
