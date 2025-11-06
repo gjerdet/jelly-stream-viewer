@@ -85,10 +85,10 @@ export const SeasonSelectDialog = ({
       }
 
       setTvDetails(data);
-      // Filter out season 0 (specials) by default
-      const regularSeasons = data.seasons?.filter((s: Season) => s.seasonNumber > 0) || [];
-      setSelectedSeasons(regularSeasons.map((s: Season) => s.seasonNumber));
-      setSelectAll(regularSeasons.length > 0);
+      // Start with no seasons selected - let user choose
+      setSelectedSeasons([]);
+      setSelectedEpisodes({});
+      setSelectAll(false);
     } catch (error) {
       console.error('Error fetching TV details:', error);
     } finally {
@@ -253,10 +253,13 @@ export const SeasonSelectDialog = ({
               />
               <label 
                 htmlFor="select-all"
-                className="text-sm font-medium cursor-pointer"
+                className="text-sm font-medium cursor-pointer flex-1"
               >
                 Velg alle sesonger ({regularSeasons.length})
               </label>
+              <span className="text-xs text-muted-foreground">
+                Eller velg spesifikke sesonger/episoder under
+              </span>
             </div>
 
             <ScrollArea className="max-h-[500px] pr-4">
