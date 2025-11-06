@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Download } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,13 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 interface MediaStream {
   Index: number;
@@ -84,18 +77,6 @@ interface EpisodesResponse {
   Items: Episode[];
 }
 
-interface SubtitleSearchResult {
-  Id: string;
-  ProviderName: string;
-  Name: string;
-  Format?: string;
-  Language?: string;
-  IsHashMatch?: boolean;
-  Author?: string;
-  Comment?: string;
-  DownloadCount?: number;
-}
-
 const Detail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -106,8 +87,6 @@ const Detail = () => {
   const { serverUrl, apiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
-  const [subtitleResults, setSubtitleResults] = useState<SubtitleSearchResult[]>([]);
-  const [showSubtitleDialog, setShowSubtitleDialog] = useState(false);
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
@@ -224,53 +203,6 @@ const Detail = () => {
     },
     onError: () => {
       toast.error("Noe gikk galt");
-    },
-  });
-
-  // Search for subtitles mutation
-  const searchSubtitles = useMutation({
-    mutationFn: async () => {
-      if (!id || !serverUrl) {
-        throw new Error("Missing configuration");
-      }
-
-      const { searchSubtitles: searchFn } = await import("@/lib/jellyfinApi");
-      return searchFn(serverUrl, id);
-    },
-    onSuccess: (data) => {
-      if (data?.success && data?.results?.length > 0) {
-        setSubtitleResults(data.results);
-        setShowSubtitleDialog(true);
-        toast.success(`Fant ${data.results.length} undertekster`);
-      } else {
-        toast.info("Ingen undertekster funnet");
-      }
-    },
-    onError: (error) => {
-      console.error("Search subtitles error:", error);
-      toast.error("Kunne ikke søke etter undertekster");
-    },
-  });
-
-  // Download selected subtitle mutation
-  const downloadSubtitle = useMutation({
-    mutationFn: async (subtitleId: string) => {
-      if (!id || !serverUrl) {
-        throw new Error("Missing configuration");
-      }
-
-      const { downloadSubtitle: downloadFn } = await import("@/lib/jellyfinApi");
-      return downloadFn(serverUrl, id, subtitleId);
-    },
-    onSuccess: (data) => {
-      toast.success(data?.message || "Undertekst lastet ned");
-      setShowSubtitleDialog(false);
-      // Refetch item to get updated subtitle list
-      queryClient.invalidateQueries({ queryKey: ["item-detail", id] });
-    },
-    onError: (error) => {
-      console.error("Download subtitle error:", error);
-      toast.error("Kunne ikke laste ned undertekst");
     },
   });
 
@@ -480,33 +412,6 @@ const Detail = () => {
                 >
                   <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
                 </Button>
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  className="gap-2"
-                  onClick={() => searchSubtitles.mutate()}
-                  disabled={searchSubtitles.isPending}
-                  title="Søk etter undertekster"
-                >
-                  <Download className="h-5 w-5" />
-                  {searchSubtitles.isPending ? "Søker..." : "Søk undertekster"}
-                </Button>
-                {subtitles.length > 0 && (
-                  <Select value={selectedSubtitle} onValueChange={setSelectedSubtitle}>
-                    <SelectTrigger className="w-[200px] bg-background/80 backdrop-blur-sm border-white/20 text-white">
-                      <Subtitles className="mr-2 h-4 w-4" />
-                      <SelectValue placeholder="Undertekster" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Ingen undertekster</SelectItem>
-                      {subtitles.map((subtitle) => (
-                        <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
-                          {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
               </div>
 
               {item.Overview && (
@@ -695,62 +600,6 @@ const Detail = () => {
           )}
         </div>
       )}
-
-      {/* Subtitle Search Dialog */}
-      <Dialog open={showSubtitleDialog} onOpenChange={setShowSubtitleDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Velg undertekst</DialogTitle>
-            <DialogDescription>
-              {subtitleResults.length} undertekster funnet. Velg ein for å laste ned.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2">
-            {subtitleResults.map((subtitle) => (
-              <div
-                key={subtitle.Id}
-                className="flex items-start justify-between p-4 border rounded-lg hover:bg-accent cursor-pointer transition-colors"
-                onClick={() => downloadSubtitle.mutate(subtitle.Id)}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold">{subtitle.Name}</span>
-                    {subtitle.IsHashMatch && (
-                      <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded">
-                        Perfekt match
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
-                    {subtitle.ProviderName && (
-                      <span>Kjelde: {subtitle.ProviderName}</span>
-                    )}
-                    {subtitle.Language && (
-                      <span>• Språk: {subtitle.Language}</span>
-                    )}
-                    {subtitle.Format && (
-                      <span>• Format: {subtitle.Format}</span>
-                    )}
-                    {subtitle.DownloadCount !== undefined && (
-                      <span>• {subtitle.DownloadCount} nedlastingar</span>
-                    )}
-                  </div>
-                  {subtitle.Comment && (
-                    <p className="text-sm text-muted-foreground mt-1">{subtitle.Comment}</p>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={downloadSubtitle.isPending}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
