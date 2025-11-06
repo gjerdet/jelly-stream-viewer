@@ -19,6 +19,7 @@ export const useChromecast = () => {
     deviceName: null,
     mediaInfo: null,
   });
+  const [isLoading, setIsLoading] = useState(true);
   const [castContext, setCastContext] = useState<any>(null);
   const [remotePlayer, setRemotePlayer] = useState<any>(null);
   const [remotePlayerController, setRemotePlayerController] = useState<any>(null);
@@ -97,6 +98,7 @@ export const useChromecast = () => {
     const checkInterval = setInterval(() => {
       if ((window as any).chrome?.cast?.framework) {
         clearInterval(checkInterval);
+        setIsLoading(false);
         initializeCast();
       }
     }, 100);
@@ -104,6 +106,7 @@ export const useChromecast = () => {
     // Cleanup after 10 seconds
     const timeout = setTimeout(() => {
       clearInterval(checkInterval);
+      setIsLoading(false);
       console.log('Cast SDK did not load within 10 seconds');
     }, 10000);
 
@@ -189,6 +192,7 @@ export const useChromecast = () => {
 
   return {
     castState,
+    isLoading,
     requestSession,
     endSession,
     playOrPause,

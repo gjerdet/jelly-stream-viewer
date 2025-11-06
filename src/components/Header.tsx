@@ -52,7 +52,7 @@ const Header = () => {
   const { user } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, apiKey } = useServerSettings();
-  const { castState, requestSession, endSession, playOrPause } = useChromecast();
+  const { castState, isLoading: castLoading, requestSession, endSession, playOrPause } = useChromecast();
   
   console.log('User role:', userRole, 'Loading:', roleLoading);
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
@@ -440,113 +440,132 @@ const Header = () => {
             {/* Action Buttons */}
             <div className="hidden sm:flex items-center gap-1">
               {/* Chromecast Button with Popover */}
-              {castState.isAvailable && (
+              {(castState.isAvailable || castLoading) && (
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''}`}
-                      title={castState.isConnected ? `Koblet til ${castState.deviceName}` : "Koble til Chromecast"}
+                      className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
+                      title={
+                        castLoading 
+                          ? "Laster Chromecast..." 
+                          : castState.isConnected 
+                            ? `Koblet til ${castState.deviceName}` 
+                            : "Koble til Chromecast"
+                      }
+                      disabled={castLoading}
                     >
                       <Cast className="h-4 w-4" />
-                      {castState.isConnected && (
+                      {castLoading && (
+                        <span className="absolute top-0 right-0 h-2 w-2 bg-yellow-500 rounded-full animate-ping" />
+                      )}
+                      {castState.isConnected && !castLoading && (
                         <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
                       )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-80" align="end">
-                    <div className="space-y-4">
+                    {castLoading ? (
                       <div className="space-y-2">
-                        <h4 className="font-semibold">Chromecast</h4>
-                        {castState.isConnected ? (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              Koblet til: <span className="text-foreground font-medium">{castState.deviceName}</span>
-                            </p>
-                            
-                            {castState.mediaInfo && (
-                              <div className="space-y-3 pt-2 border-t">
-                                <div>
-                                  <p className="text-sm font-medium">{castState.mediaInfo.title}</p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {formatCastTime(castState.mediaInfo.currentTime)} / {formatCastTime(castState.mediaInfo.duration)}
-                                  </p>
-                                </div>
-                                
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={playOrPause}
-                                    className="flex-1"
-                                  >
-                                    {castState.mediaInfo.isPaused ? (
-                                      <>
-                                        <Play className="h-4 w-4 mr-2" />
-                                        Spill av
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Pause className="h-4 w-4 mr-2" />
-                                        Pause
-                                      </>
-                                    )}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      endSession();
-                                      toast.success("Casting stoppet");
-                                    }}
-                                  >
-                                    <Square className="h-4 w-4 mr-2" />
-                                    Stopp
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                            
-                            {!castState.mediaInfo && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  endSession();
-                                  toast.success("Koblet fra Chromecast");
-                                }}
-                                className="w-full mt-2"
-                              >
-                                Koble fra
-                              </Button>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <p className="text-sm text-muted-foreground">
-                              Ikke koblet til
-                            </p>
-                            <Button
-                              onClick={() => {
-                                requestSession()
-                                  .then(() => toast.success("Chromecast tilkoblet!"))
-                                  .catch((error) => {
-                                    if (error !== 'cancel') {
-                                      toast.error("Kunne ikke koble til Chromecast");
-                                    }
-                                  });
-                              }}
-                              className="w-full"
-                              size="sm"
-                            >
-                              <Cast className="h-4 w-4 mr-2" />
-                              Koble til
-                            </Button>
-                          </>
-                        )}
+                        <h4 className="font-semibold">Laster Chromecast...</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Venter på at Cast SDK skal laste inn
+                        </p>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <h4 className="font-semibold">Chromecast</h4>
+                          {castState.isConnected ? (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Koblet til: <span className="text-foreground font-medium">{castState.deviceName}</span>
+                              </p>
+                              
+                              {castState.mediaInfo && (
+                                <div className="space-y-3 pt-2 border-t">
+                                  <div>
+                                    <p className="text-sm font-medium">{castState.mediaInfo.title}</p>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {formatCastTime(castState.mediaInfo.currentTime)} / {formatCastTime(castState.mediaInfo.duration)}
+                                    </p>
+                                  </div>
+                                  
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={playOrPause}
+                                      className="flex-1"
+                                    >
+                                      {castState.mediaInfo.isPaused ? (
+                                        <>
+                                          <Play className="h-4 w-4 mr-2" />
+                                          Spill av
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Pause className="h-4 w-4 mr-2" />
+                                          Pause
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        endSession();
+                                        toast.success("Casting stoppet");
+                                      }}
+                                    >
+                                      <Square className="h-4 w-4 mr-2" />
+                                      Stopp
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {!castState.mediaInfo && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    endSession();
+                                    toast.success("Koblet fra Chromecast");
+                                  }}
+                                  className="w-full mt-2"
+                                >
+                                  Koble fra
+                                </Button>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Ikke koblet til
+                              </p>
+                              <Button
+                                onClick={() => {
+                                  requestSession()
+                                    .then(() => toast.success("Chromecast tilkoblet!"))
+                                    .catch((error) => {
+                                      if (error !== 'cancel') {
+                                        toast.error("Kunne ikke koble til Chromecast");
+                                      }
+                                    });
+                                }}
+                                className="w-full"
+                                size="sm"
+                              >
+                                <Cast className="h-4 w-4 mr-2" />
+                                Koble til
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </PopoverContent>
                 </Popover>
               )}
