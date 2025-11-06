@@ -11,8 +11,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Settings, Newspaper, Trash2, Pin, Loader2 } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
+import { ServerMonitoring } from "@/components/ServerMonitoring";
+import { QBittorrentStatus } from "@/components/QBittorrentStatus";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,6 +30,10 @@ const Admin = () => {
   const [apiKey, setApiKey] = useState("");
   const [jellyseerrUrl, setJellyseerrUrl] = useState("");
   const [jellyseerrApiKey, setJellyseerrApiKey] = useState("");
+  const [monitoringUrl, setMonitoringUrl] = useState("");
+  const [qbittorrentUrl, setQbittorrentUrl] = useState("");
+  const [qbittorrentUsername, setQbittorrentUsername] = useState("");
+  const [qbittorrentPassword, setQbittorrentPassword] = useState("");
   
   // Site settings state
   const [newSiteName, setNewSiteName] = useState("");
@@ -191,6 +197,27 @@ const Admin = () => {
       setJellyseerrApiKey(currentJellyseerrApiKey);
     }
   }, [currentJellyseerrApiKey]);
+
+  // Load monitoring and qBittorrent settings
+  useEffect(() => {
+    const loadAdditionalSettings = async () => {
+      if (!user || userRole !== "admin") return;
+      
+      const { data } = await supabase
+        .from("server_settings")
+        .select("setting_key, setting_value")
+        .in("setting_key", ["monitoring_url", "qbittorrent_url", "qbittorrent_username", "qbittorrent_password"]);
+      
+      data?.forEach(setting => {
+        if (setting.setting_key === "monitoring_url") setMonitoringUrl(setting.setting_value || "");
+        if (setting.setting_key === "qbittorrent_url") setQbittorrentUrl(setting.setting_value || "");
+        if (setting.setting_key === "qbittorrent_username") setQbittorrentUsername(setting.setting_value || "");
+        if (setting.setting_key === "qbittorrent_password") setQbittorrentPassword(setting.setting_value || "");
+      });
+    };
+    
+    loadAdditionalSettings();
+  }, [user, userRole]);
 
   useEffect(() => {
     if (siteName && !newSiteName) setNewSiteName(siteName);
@@ -570,9 +597,17 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="servers" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="servers">Servere</TabsTrigger>
-              <TabsTrigger value="site">Side-innstillinger</TabsTrigger>
+              <TabsTrigger value="site">Side</TabsTrigger>
+              <TabsTrigger value="monitoring">
+                <Server className="h-4 w-4 mr-2" />
+                Status
+              </TabsTrigger>
+              <TabsTrigger value="qbittorrent">
+                <Download className="h-4 w-4 mr-2" />
+                qBittorrent
+              </TabsTrigger>
               <TabsTrigger value="news">Nyheter</TabsTrigger>
               <TabsTrigger value="versions">Versjoner</TabsTrigger>
             </TabsList>
@@ -867,6 +902,121 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </Button>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="monitoring" className="space-y-6">
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle>Server Overvåking</CardTitle>
+                  <CardDescription>
+                    Konfigurer monitoring URL for å vise server statistikk (CPU, RAM, disk, nettverk)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="monitoring-url">Monitoring URL (Netdata API)</Label>
+                    <Input
+                      id="monitoring-url"
+                      type="url"
+                      placeholder="http://localhost:19999"
+                      value={monitoringUrl}
+                      onChange={(e) => setMonitoringUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Installer Netdata på serveren din for live statistikk. Standard port er 19999.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      const { error } = await supabase
+                        .from("server_settings")
+                        .upsert({ setting_key: "monitoring_url", setting_value: monitoringUrl });
+                      
+                      if (error) {
+                        toast.error("Kunne ikke oppdatere monitoring URL");
+                      } else {
+                        toast.success("Monitoring URL oppdatert!");
+                      }
+                    }}
+                    className="cinema-glow"
+                  >
+                    Lagre Monitoring URL
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <ServerMonitoring />
+            </TabsContent>
+
+            <TabsContent value="qbittorrent" className="space-y-6">
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle>qBittorrent Integrasjon</CardTitle>
+                  <CardDescription>
+                    Konfigurer qBittorrent Web UI for å vise nedlastningsstatus
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="qbittorrent-url">qBittorrent Web UI URL</Label>
+                    <Input
+                      id="qbittorrent-url"
+                      type="url"
+                      placeholder="http://localhost:8080"
+                      value={qbittorrentUrl}
+                      onChange={(e) => setQbittorrentUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qbittorrent-username">Brukernavn</Label>
+                    <Input
+                      id="qbittorrent-username"
+                      type="text"
+                      placeholder="admin"
+                      value={qbittorrentUsername}
+                      onChange={(e) => setQbittorrentUsername(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qbittorrent-password">Passord</Label>
+                    <Input
+                      id="qbittorrent-password"
+                      type="password"
+                      placeholder="••••••••"
+                      value={qbittorrentPassword}
+                      onChange={(e) => setQbittorrentPassword(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <Button 
+                    onClick={async () => {
+                      const updates = [
+                        { setting_key: "qbittorrent_url", setting_value: qbittorrentUrl },
+                        { setting_key: "qbittorrent_username", setting_value: qbittorrentUsername },
+                        { setting_key: "qbittorrent_password", setting_value: qbittorrentPassword },
+                      ];
+                      
+                      const { error } = await supabase
+                        .from("server_settings")
+                        .upsert(updates);
+                      
+                      if (error) {
+                        toast.error("Kunne ikke oppdatere qBittorrent innstillinger");
+                      } else {
+                        toast.success("qBittorrent innstillinger oppdatert!");
+                      }
+                    }}
+                    className="cinema-glow"
+                  >
+                    Lagre qBittorrent Innstillinger
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <QBittorrentStatus />
             </TabsContent>
 
             <TabsContent value="news" className="space-y-6">
