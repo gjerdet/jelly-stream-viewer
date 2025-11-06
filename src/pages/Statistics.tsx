@@ -23,14 +23,14 @@ const Statistics = () => {
     const session = localStorage.getItem('jellyfin_session');
     if (!session) {
       navigate('/');
+      return;
     }
-  }, [navigate]);
 
-  useEffect(() => {
-    if (!isLoadingRole && role !== 'admin') {
+    // Only redirect if role is loaded AND user is not admin
+    if (!isLoadingRole && role && role !== 'admin') {
       navigate('/browse');
     }
-  }, [role, isLoadingRole, navigate]);
+  }, [navigate, role, isLoadingRole]);
 
   const getDateFilter = (filter: TimeFilter) => {
     if (filter === 'all') return null;
@@ -170,7 +170,8 @@ const Statistics = () => {
     enabled: role === 'admin'
   });
 
-  if (isLoadingRole || isLoadingMostWatched || isLoadingUserStats || isLoadingContentTypes) {
+  // Show loading only if we're still checking role or loading data
+  if (isLoadingRole) {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <h1 className="text-3xl font-bold">Statistikk</h1>
@@ -196,8 +197,28 @@ const Statistics = () => {
     );
   }
 
+  // If not admin, return null (redirect happens in useEffect)
   if (role !== 'admin') {
     return null;
+  }
+
+  // If admin but data is loading, show loading state
+  if (isLoadingMostWatched || isLoadingUserStats || isLoadingContentTypes) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <h1 className="text-3xl font-bold">Statistikk</h1>
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-48" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-64 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
   }
 
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))'];
