@@ -68,22 +68,21 @@ serve(async (req) => {
     
     console.log('Fetching from Jellyseerr (HTTP):', discoverUrl);
 
-    const response = await fetch(discoverUrl, {
-      method: 'GET',
-      headers: {
-        'X-Api-Key': jellyseerrApiKey,
-        'Content-Type': 'application/json',
-      },
-      redirect: 'manual', // Don't follow redirects to HTTPS
-    });
-
-    // Handle redirect responses (301, 302, etc.)
-    if (response.status >= 300 && response.status < 400) {
-      console.error('Jellyseerr redirect detected:', response.status);
+    let response;
+    try {
+      response = await fetch(discoverUrl, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': jellyseerrApiKey,
+          'Content-Type': 'application/json',
+        },
+      });
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
       return new Response(
         JSON.stringify({ 
-          error: 'Jellyseerr-serveren omdirigerer til HTTPS med ugyldig SSL-sertifikat. Vennligst konfigurer Jellyseerr til å akseptere HTTP-forespørsler eller fiks SSL-sertifikatet.',
-          details: 'HTTP forespørsel ble omdirigert til HTTPS, men SSL-sertifikatet er ugyldig for domenet.'
+          error: 'Kunne ikke koble til Jellyseerr. Dette kan skyldes et ugyldig SSL-sertifikat. Vennligst bruk lokal IP-adresse (f.eks. http://192.168.x.x:5055) i stedet for domenenavn, eller fiks SSL-sertifikatet.',
+          details: fetchError instanceof Error ? fetchError.message : 'Ukjent tilkoblingsfeil'
         }),
         { 
           status: 500, 
