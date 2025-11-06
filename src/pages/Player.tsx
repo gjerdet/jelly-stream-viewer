@@ -141,8 +141,8 @@ const Player = () => {
             + `&api_key=${accessToken}`;
           console.log('Direct streaming (high quality)');
         } else {
-          // Transcode directly via Jellyfin with seeking support
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+          // Transcode to MP4 with seeking support
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
             + `UserId=${userId}`
             + `&MediaSourceId=${id}`
             + `&VideoCodec=h264`
@@ -150,14 +150,15 @@ const Player = () => {
             + `&VideoBitrate=8000000`
             + `&AudioBitrate=192000`
             + `&MaxAudioChannels=2`
+            + `&SegmentContainer=mp4`
             + `&api_key=${accessToken}`;
-          console.log(`Transcoding ${videoCodec} to H264 via Jellyfin (supports seeking)`);
+          console.log(`Transcoding ${videoCodec} to MP4 with seeking support`);
         }
         
         setStreamUrl(streamingUrl);
       } catch (error) {
         console.error('Failed to get codec info:', error);
-        // Fallback to transcoding via Jellyfin
+        // Fallback to MP4 transcoding via Jellyfin
         let normalizedUrl = serverUrl;
         if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
           normalizedUrl = `http://${normalizedUrl}`;
@@ -165,7 +166,7 @@ const Player = () => {
         const jellyfinSession = localStorage.getItem('jellyfin_session');
         const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
         
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
           + `UserId=${userId}`
           + `&MediaSourceId=${id}`
           + `&VideoCodec=h264`
@@ -173,6 +174,7 @@ const Player = () => {
           + `&VideoBitrate=8000000`
           + `&AudioBitrate=192000`
           + `&MaxAudioChannels=2`
+          + `&SegmentContainer=mp4`
           + `&api_key=${accessToken}`;
         setStreamUrl(streamingUrl);
       }
