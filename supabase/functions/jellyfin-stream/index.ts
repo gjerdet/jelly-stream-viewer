@@ -124,8 +124,8 @@ serve(async (req) => {
     let streamUrl;
     // Only transcode if codec is NOT browser-compatible
     if (videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
-      // Use stream.mp4 for progressive download with seeking support
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?`
+      // Use progressive streaming with proper seeking support
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
         + `&VideoCodec=h264`
@@ -133,9 +133,11 @@ serve(async (req) => {
         + `&VideoBitrate=8000000`
         + `&AudioBitrate=192000`
         + `&MaxAudioChannels=2`
-        + `&SegmentContainer=mp4`
+        + `&TranscodingContainer=ts`
+        + `&TranscodingProtocol=http`
+        + `&BreakOnNonKeyFrames=true`
         + `&api_key=${apiKey}`;
-      console.log(`Transcoding ${videoCodec} to H264 MP4 with seeking`);
+      console.log(`Transcoding ${videoCodec} to H264 with seeking`);
     } else {
       // Direct stream for compatible codecs
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
@@ -187,6 +189,11 @@ serve(async (req) => {
       if (value) {
         responseHeaders.set(header, value);
       }
+    }
+    
+    // Always set accept-ranges for seeking support
+    if (!responseHeaders.has('accept-ranges')) {
+      responseHeaders.set('accept-ranges', 'bytes');
     }
 
     return new Response(jellyfinResponse.body, {
