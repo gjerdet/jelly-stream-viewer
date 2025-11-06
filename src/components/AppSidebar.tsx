@@ -1,4 +1,4 @@
-import { Heart, Gift, Newspaper, History, MessageSquare } from "lucide-react";
+import { Heart, Gift, Newspaper, History, MessageSquare, BarChart3 } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -77,30 +77,51 @@ export function AppSidebar() {
                 );
               })}
               {role === 'admin' && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip={collapsed ? "Forespørsler" : undefined}>
-                    <NavLink
-                      to="/requests-admin"
-                      className={({ isActive }) =>
-                        `flex items-center gap-3 ${
-                          isActive
-                            ? "bg-primary/10 text-primary font-medium"
-                            : "hover:bg-accent"
-                        }`
-                      }
-                    >
-                      <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                      <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center gap-2">
-                        Forespørsler
-                        {pendingCount && pendingCount > 0 && (
-                          <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
-                            {pendingCount}
-                          </Badge>
-                        )}
-                      </span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip={collapsed ? "Forespørsler" : undefined}>
+                      <NavLink
+                        to="/requests-admin"
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 ${
+                            isActive
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "hover:bg-accent"
+                          }`
+                        }
+                      >
+                        <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center gap-2">
+                          Forespørsler
+                          {pendingCount && pendingCount > 0 && (
+                            <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
+                              {pendingCount}
+                            </Badge>
+                          )}
+                        </span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild tooltip={collapsed ? "Statistikk" : undefined}>
+                      <NavLink
+                        to="/statistics"
+                        className={({ isActive }) =>
+                          `flex items-center gap-3 ${
+                            isActive
+                              ? "bg-primary/10 text-primary font-medium"
+                              : "hover:bg-accent"
+                          }`
+                        }
+                      >
+                        <BarChart3 className="h-4 w-4 flex-shrink-0" />
+                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                          Statistikk
+                        </span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
