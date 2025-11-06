@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, Film, Tv, Star, Calendar, Download } from "lucide-react";
+import { Loader2, AlertCircle, Film, Tv, Star, Calendar, Download, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
 
 interface DiscoverResult {
@@ -41,6 +42,9 @@ const Wishes = () => {
   const [hasMoreMovies, setHasMoreMovies] = useState(true);
   const [hasMoreSeries, setHasMoreSeries] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<DiscoverResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const jellyseerrRequest = useJellyseerrRequest();
 
   useEffect(() => {
@@ -142,6 +146,40 @@ const Wishes = () => {
     } finally {
       setIsLoadingSeries(false);
     }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setConnectionError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyseerr-search", {
+        body: { query: searchQuery },
+      });
+
+      if (error) {
+        if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+          setConnectionError('ssl');
+        }
+        throw error;
+      }
+
+      setSearchResults(data.results || []);
+    } catch (error: any) {
+      console.error('Search error:', error);
+      if (error.message?.includes('SSL') || error.message?.includes('sertifikat')) {
+        setConnectionError('ssl');
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
   };
 
   const handleRequest = (result: DiscoverResult, mediaType: 'movie' | 'tv') => {
@@ -282,9 +320,39 @@ const Wishes = () => {
           <div className="mb-8">
             <h1 className="text-4xl font-bold mb-2">Ønsker</h1>
             <p className="text-muted-foreground">
-              Oppdag og be om nytt innhold
+              Søk etter eller oppdag nytt innhold
             </p>
           </div>
+
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Søk etter filmer og serier..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button type="submit" disabled={isSearching || !searchQuery.trim()}>
+                {isSearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Søker...
+                  </>
+                ) : (
+                  'Søk'
+                )}
+              </Button>
+              {searchResults.length > 0 && (
+                <Button type="button" variant="outline" onClick={clearSearch}>
+                  Tøm søk
+                </Button>
+              )}
+            </div>
+          </form>
 
           {connectionError === 'ssl' && (
             <Alert variant="destructive" className="mb-6">
@@ -327,58 +395,70 @@ const Wishes = () => {
             </AlertDescription>
           </Alert>
 
-          <Tabs defaultValue="movies" className="w-full">
-            <TabsList className="grid w-full max-w-md mx-auto mb-8 grid-cols-2">
-              <TabsTrigger value="movies">Filmer</TabsTrigger>
-              <TabsTrigger value="series">Serier</TabsTrigger>
-            </TabsList>
+          {searchResults.length > 0 ? (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Søkeresultater ({searchResults.length})</h2>
+                <Button variant="outline" onClick={clearSearch}>
+                  Vis anbefalinger
+                </Button>
+              </div>
+              {renderMediaGrid(searchResults, searchResults[0]?.mediaType || 'movie')}
+            </div>
+          ) : (
+            <Tabs defaultValue="movies" className="w-full">
+              <TabsList className="grid w-full max-w-md mx-auto mb-8 grid-cols-2">
+                <TabsTrigger value="movies">Filmer</TabsTrigger>
+                <TabsTrigger value="series">Serier</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="movies">
-              {renderMediaGrid(movies, 'movie')}
-              
-              {hasMoreMovies && (
-                <div className="mt-8 text-center">
-                  <Button
-                    onClick={() => setMoviePage(p => p + 1)}
-                    disabled={isLoadingMovies}
-                    size="lg"
-                  >
-                    {isLoadingMovies ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Laster...
-                      </>
-                    ) : (
-                      'Last inn mer'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
+              <TabsContent value="movies">
+                {renderMediaGrid(movies, 'movie')}
+                
+                {hasMoreMovies && (
+                  <div className="mt-8 text-center">
+                    <Button
+                      onClick={() => setMoviePage(p => p + 1)}
+                      disabled={isLoadingMovies}
+                      size="lg"
+                    >
+                      {isLoadingMovies ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Laster...
+                        </>
+                      ) : (
+                        'Last inn mer'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
 
-            <TabsContent value="series">
-              {renderMediaGrid(series, 'tv')}
-              
-              {hasMoreSeries && (
-                <div className="mt-8 text-center">
-                  <Button
-                    onClick={() => setSeriesPage(p => p + 1)}
-                    disabled={isLoadingSeries}
-                    size="lg"
-                  >
-                    {isLoadingSeries ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Laster...
-                      </>
-                    ) : (
-                      'Last inn mer'
-                    )}
-                  </Button>
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="series">
+                {renderMediaGrid(series, 'tv')}
+                
+                {hasMoreSeries && (
+                  <div className="mt-8 text-center">
+                    <Button
+                      onClick={() => setSeriesPage(p => p + 1)}
+                      disabled={isLoadingSeries}
+                      size="lg"
+                    >
+                      {isLoadingSeries ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Laster...
+                        </>
+                      ) : (
+                        'Last inn mer'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
     </div>
