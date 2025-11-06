@@ -60,7 +60,9 @@ serve(async (req) => {
 
     // Keep user's protocol choice (HTTP or HTTPS)
     const jellyseerrUrl = rawUrl.replace(/\/$/, ''); // Remove trailing slash
-    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
+    // Jellyseerr uses plural 'movies' but singular 'tv'
+    const endpoint = type === 'movie' ? 'movies' : type;
+    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${endpoint}?page=${page}&language=no`;
     
     console.log('Fetching from Jellyseerr:', discoverUrl);
 
