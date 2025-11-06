@@ -58,83 +58,49 @@ serve(async (req) => {
       );
     }
 
-    // Try HTTPS first since most Jellyseerr instances use HTTPS
+    // Force HTTP to avoid SSL certificate issues with self-signed certificates
     const cleanDomain = rawUrl
       .replace(/^https?:\/\//, '')  // Remove any protocol
       .replace(/\/$/, '');            // Remove trailing slash
     
-    let jellyseerrUrl = `https://${cleanDomain}`;
-    let discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
+    const jellyseerrUrl = `http://${cleanDomain}`;
+    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
     
-    console.log('Trying HTTPS first:', discoverUrl);
+    console.log('Fetching from Jellyseerr (HTTP):', discoverUrl);
 
-    try {
-      const response = await fetch(discoverUrl, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': jellyseerrApiKey,
-          'Content-Type': 'application/json',
-        },
-      });
+    const response = await fetch(discoverUrl, {
+      method: 'GET',
+      headers: {
+        'X-Api-Key': jellyseerrApiKey,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Jellyseerr HTTPS error:', response.status, errorText);
-        throw new Error(`HTTPS request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Discover results count (HTTPS):', data.results?.length || 0);
-
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Jellyseerr error:', response.status, errorText);
       return new Response(
-        JSON.stringify(data),
+        JSON.stringify({ 
+          error: 'Kunne ikke koble til Jellyseerr. Sjekk at URL og API-nøkkel er riktig konfigurert i Admin.',
+          details: errorText
+        }),
         { 
-          status: 200, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    } catch (httpsError) {
-      console.log('HTTPS failed, trying HTTP fallback...', httpsError);
-      
-      // Fallback to HTTP if HTTPS fails (SSL issues)
-      jellyseerrUrl = `http://${cleanDomain}`;
-      discoverUrl = `${jellyseerrUrl}/api/v1/discover/${type}?page=${page}&language=no`;
-      console.log('Trying HTTP fallback:', discoverUrl);
-      
-      const response = await fetch(discoverUrl, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': jellyseerrApiKey,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Jellyseerr HTTP fallback error:', response.status, errorText);
-        return new Response(
-          JSON.stringify({ 
-            error: 'Kunne ikke koble til Jellyseerr via HTTPS eller HTTP. Sjekk at URL og API-nøkkel er riktig konfigurert i Admin.',
-            details: `HTTPS error: ${httpsError instanceof Error ? httpsError.message : 'Unknown'}. HTTP error: ${errorText}`
-          }),
-          { 
-            status: response.status, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-
-      const data = await response.json();
-      console.log('Discover results count (HTTP):', data.results?.length || 0);
-
-      return new Response(
-        JSON.stringify(data),
-        { 
-          status: 200, 
+          status: response.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
+
+    const data = await response.json();
+    console.log('Discover results count:', data.results?.length || 0);
+
+    return new Response(
+      JSON.stringify(data),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
 
   } catch (error) {
     console.error('Error in jellyseerr-discover:', error);
