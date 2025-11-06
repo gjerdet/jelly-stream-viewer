@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,9 @@ const Admin = () => {
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [testingJellyseerr, setTestingJellyseerr] = useState(false);
   const [jellyseerrStatus, setJellyseerrStatus] = useState<string | null>(null);
+  
+  // Debounce timer for auto-validation
+  const jellyseerrDebounceTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch API key
   const { data: currentApiKey } = useQuery({
@@ -205,6 +208,32 @@ const Admin = () => {
       navigate("/browse");
     }
   }, [user, userRole, authLoading, roleLoading, navigate]);
+
+  // Auto-validate Jellyseerr connection when URL or API key changes
+  useEffect(() => {
+    // Clear existing timer
+    if (jellyseerrDebounceTimer.current) {
+      clearTimeout(jellyseerrDebounceTimer.current);
+    }
+
+    // Only auto-test if both fields have values
+    if (jellyseerrUrl.trim() && jellyseerrApiKey.trim()) {
+      // Set new timer
+      jellyseerrDebounceTimer.current = setTimeout(() => {
+        handleTestJellyseerr();
+      }, 1500); // 1.5 second debounce
+    } else {
+      // Clear status if fields are empty
+      setJellyseerrStatus(null);
+    }
+
+    // Cleanup function
+    return () => {
+      if (jellyseerrDebounceTimer.current) {
+        clearTimeout(jellyseerrDebounceTimer.current);
+      }
+    };
+  }, [jellyseerrUrl, jellyseerrApiKey]);
 
   const handleUpdateUrl = () => {
     updateServerUrl.mutate(newServerUrl);
