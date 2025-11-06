@@ -1,64 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Users, Shield, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
-import type { Database } from "@/integrations/supabase/types";
-
-type AppRole = Database["public"]["Enums"]["app_role"];
-
-interface UserWithRoles {
-  id: string;
-  email: string;
-  jellyfin_username: string | null;
-  created_at: string;
-  roles: AppRole[];
-}
+import { useJellyfinUsers } from "@/hooks/useJellyfinUsers";
 
 export const UserManagement = () => {
-  // Fetch users from profiles with roles
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["app-users"],
-    queryFn: async () => {
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("id, email, jellyfin_username, created_at");
+  const { data: users, isLoading } = useJellyfinUsers();
 
-      if (profilesError) throw profilesError;
-
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-
-      if (rolesError) throw rolesError;
-
-      const usersWithRoles: UserWithRoles[] = profiles?.map(profile => {
-        const userRoles = rolesData?.filter(r => r.user_id === profile.id).map(r => r.role) || [];
-        
-        return {
-          id: profile.id,
-          email: profile.email,
-          jellyfin_username: profile.jellyfin_username,
-          created_at: profile.created_at || new Date().toISOString(),
-          roles: userRoles,
-        };
-      }) || [];
-
-      return usersWithRoles.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-    },
-  });
-
-  const getRoleBadgeVariant = (role: AppRole) => {
-    switch (role) {
-      case "admin":
-        return "default" as const;
-      default:
-        return "outline" as const;
-    }
+  const getRoleBadgeVariant = (isAdmin: boolean) => {
+    return isAdmin ? "default" as const : "outline" as const;
   };
 
   if (isLoading) {
@@ -85,7 +36,7 @@ export const UserManagement = () => {
           Brukerbehandling
         </CardTitle>
         <CardDescription>
-          Viser kun brukere som har logget inn på appen
+          Viser alle brukere registrert i Jellyfin
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -103,28 +54,34 @@ export const UserManagement = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium truncate">{user.jellyfin_username || user.email}</p>
-                      {user.roles.length === 0 && (
-                        <Badge variant="outline" className="text-xs">Ingen rolle</Badge>
+                      <p className="font-medium truncate">{user.name}</p>
+                      {user.isDisabled && (
+                        <Badge variant="destructive" className="text-xs">Deaktivert</Badge>
                       )}
                     </div>
                     
                     <div className="flex flex-wrap gap-2 mb-2">
-                      {user.roles.map((role) => (
-                        <Badge
-                          key={role}
-                          variant={getRoleBadgeVariant(role)}
-                          className="text-xs"
-                        >
+                      {user.isAdministrator && (
+                        <Badge variant={getRoleBadgeVariant(true)} className="text-xs">
                           <Shield className="h-3 w-3 mr-1" />
-                          {role === "admin" ? "Administrator" : "Bruker"}
+                          Administrator
                         </Badge>
-                      ))}
+                      )}
+                      {!user.isAdministrator && (
+                        <Badge variant={getRoleBadgeVariant(false)} className="text-xs">
+                          Bruker
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="text-xs text-muted-foreground space-y-1">
-                      <p>
-                        Registrert: {format(new Date(user.created_at), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
+                      {user.lastLogin && (
+                        <p>
+                          Sist innlogget: {format(new Date(user.lastLogin), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
+                        </p>
+                      )}
+                      <p className="font-mono text-[10px] text-muted-foreground/70">
+                        Jellyfin ID: {user.id}
                       </p>
                     </div>
                   </div>
