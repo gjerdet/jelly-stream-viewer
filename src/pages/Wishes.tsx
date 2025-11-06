@@ -97,7 +97,10 @@ const Wishes = () => {
         const errorString = JSON.stringify(error);
         const dataString = data ? JSON.stringify(data) : '';
         
-        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+        if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error') ||
+            dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
             dataString.includes('SSL') || dataString.includes('sertifikat') ||
             dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
@@ -108,7 +111,9 @@ const Wishes = () => {
       if (data?.error || data?.details) {
         console.error('Data contains error:', data);
         const dataString = JSON.stringify(data);
-        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+        if (dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         return;
@@ -123,7 +128,12 @@ const Wishes = () => {
       setHasMoreMovies(moviePage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
-      setConnectionError('ssl');
+      const errorString = JSON.stringify(error);
+      if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error')) {
+        setConnectionError('network');
+      } else {
+        setConnectionError('ssl');
+      }
     } finally {
       setIsLoadingMovies(false);
     }
@@ -142,7 +152,10 @@ const Wishes = () => {
         const errorString = JSON.stringify(error);
         const dataString = data ? JSON.stringify(data) : '';
         
-        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+        if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error') ||
+            dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
             dataString.includes('SSL') || dataString.includes('sertifikat') ||
             dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
@@ -153,7 +166,9 @@ const Wishes = () => {
       if (data?.error || data?.details) {
         console.error('Data contains error:', data);
         const dataString = JSON.stringify(data);
-        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+        if (dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         return;
@@ -168,7 +183,12 @@ const Wishes = () => {
       setHasMoreSeries(seriesPage < data.totalPages);
     } catch (error: any) {
       console.error('Discover error:', error);
-      setConnectionError('ssl');
+      const errorString = JSON.stringify(error);
+      if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error')) {
+        setConnectionError('network');
+      } else {
+        setConnectionError('ssl');
+      }
     } finally {
       setIsLoadingSeries(false);
     }
@@ -190,7 +210,10 @@ const Wishes = () => {
         const errorString = JSON.stringify(error);
         const dataString = data ? JSON.stringify(data) : '';
         
-        if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
+        if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error') ||
+            dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (errorString.includes('SSL') || errorString.includes('sertifikat') || 
             dataString.includes('SSL') || dataString.includes('sertifikat') ||
             dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
@@ -201,7 +224,9 @@ const Wishes = () => {
       if (data?.error || data?.details) {
         console.error('Data contains error:', data);
         const dataString = JSON.stringify(data);
-        if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
+        if (dataString.includes('Connection timed out') || dataString.includes('tcp connect error')) {
+          setConnectionError('network');
+        } else if (dataString.includes('SSL') || dataString.includes('sertifikat') || dataString.includes('invalid peer certificate')) {
           setConnectionError('ssl');
         }
         return;
@@ -210,7 +235,12 @@ const Wishes = () => {
       setSearchResults(data.results || []);
     } catch (error: any) {
       console.error('Search error:', error);
-      setConnectionError('ssl');
+      const errorString = JSON.stringify(error);
+      if (errorString.includes('Connection timed out') || errorString.includes('tcp connect error')) {
+        setConnectionError('network');
+      } else {
+        setConnectionError('ssl');
+      }
     } finally {
       setIsSearching(false);
     }
@@ -402,9 +432,37 @@ const Wishes = () => {
                   <p>Jellyseerr-serveren din (<strong>{jellyseerrUrl}</strong>) omdirigerer HTTP til HTTPS med et ugyldig SSL-sertifikat.</p>
                   <p className="font-medium">Løsninger:</p>
                   <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>Bruk lokal IP-adresse i stedet (f.eks. <code className="text-xs bg-muted px-1 py-0.5 rounded">http://192.168.1.100:5055</code>)</li>
                     <li>Fiks SSL-sertifikatet på Jellyseerr-serveren</li>
+                    <li>Bruk en offentlig tilgjengelig URL med gyldig SSL</li>
                     <li>Konfigurer Jellyseerr til å akseptere HTTP uten omdirigering til HTTPS</li>
+                  </ol>
+                  <Button
+                    onClick={() => navigate('/admin')}
+                    size="sm"
+                    className="mt-2"
+                  >
+                    Gå til Admin for å endre URL
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {connectionError === 'network' && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-semibold">Nettverksproblem - kan ikke nå lokal server</p>
+                  <p>Jellyseerr-serveren din (<strong>{jellyseerrUrl}</strong>) er en lokal IP-adresse som ikke kan nås fra skyen.</p>
+                  <div className="p-2 bg-muted rounded text-sm">
+                    <strong>Forklaring:</strong> Edge functions kjører på Lovable Cloud-servere som ikke har tilgang til ditt lokale nettverk.
+                  </div>
+                  <p className="font-medium">Løsninger:</p>
+                  <ol className="list-decimal list-inside space-y-1 ml-2">
+                    <li><strong>Anbefalt:</strong> Bruk en offentlig tilgjengelig URL (f.eks. via domenenavn med gyldig SSL)</li>
+                    <li>Sett opp en tunnel-tjeneste (f.eks. Cloudflare Tunnel, Tailscale, ngrok)</li>
+                    <li>Kjør applikasjonen lokalt i stedet for i skyen</li>
                   </ol>
                   <Button
                     onClick={() => navigate('/admin')}
