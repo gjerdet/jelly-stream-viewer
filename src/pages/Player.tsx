@@ -141,23 +141,33 @@ const Player = () => {
             + `&api_key=${accessToken}`;
           console.log('Direct streaming (high quality)');
         } else {
-          // Use edge function for transcoding HEVC and other incompatible codecs
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error('No auth token');
-          }
-          
-          streamingUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${id}&token=${session.access_token}`;
-          console.log(`Transcoding ${videoCodec} via edge function`);
+          // Use progressive MP4 with segments for transcoding with seeking support
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
+            + `UserId=${userId}`
+            + `&MediaSourceId=${id}`
+            + `&VideoCodec=h264`
+            + `&AudioCodec=aac`
+            + `&VideoBitrate=8000000`
+            + `&AudioBitrate=192000`
+            + `&MaxAudioChannels=2`
+            + `&SegmentLength=3`
+            + `&MinSegments=2`
+            + `&BreakOnNonKeyFrames=true`
+            + `&api_key=${accessToken}`;
+          console.log(`Transcoding ${videoCodec} to H264 MP4 with seeking`);
         }
         
         setStreamUrl(streamingUrl);
       } catch (error) {
         console.error('Failed to get codec info:', error);
-        // Fallback to direct stream
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+        // Fallback to progressive MP4 transcoding
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
           + `UserId=${userId}`
           + `&MediaSourceId=${id}`
+          + `&VideoCodec=h264`
+          + `&AudioCodec=aac`
+          + `&VideoBitrate=8000000`
+          + `&SegmentLength=3`
           + `&api_key=${accessToken}`;
         setStreamUrl(streamingUrl);
       }
