@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 
 interface CastState {
   isAvailable: boolean;
@@ -55,12 +56,25 @@ export const useChromecast = () => {
             const isConnected = event.castState === cast.framework.CastState.CONNECTED;
             const session = context.getCurrentSession();
             
-            setCastState(prev => ({
-              ...prev,
-              isAvailable: true,
-              isConnected,
-              deviceName: isConnected && session ? session.getCastDevice().friendlyName : null,
-            }));
+            if (isConnected && session) {
+              const deviceName = session.getCastDevice().friendlyName;
+              // Save last used device
+              localStorage.setItem('last_cast_device', deviceName);
+              
+              setCastState(prev => ({
+                ...prev,
+                isAvailable: true,
+                isConnected,
+                deviceName,
+              }));
+            } else {
+              setCastState(prev => ({
+                ...prev,
+                isAvailable: true,
+                isConnected: false,
+                deviceName: null,
+              }));
+            }
           }
         );
 
@@ -88,9 +102,19 @@ export const useChromecast = () => {
         );
 
         setCastState(prev => ({ ...prev, isAvailable: true }));
+        
+        // Show success toast with last used device
+        const lastDevice = localStorage.getItem('last_cast_device');
+        if (lastDevice) {
+          toast.success(`Chromecast klar! Sist brukt: ${lastDevice}`);
+        } else {
+          toast.success('Chromecast klar!');
+        }
+        
         console.log('Chromecast initialized successfully');
       } catch (error) {
         console.error('Cast initialization error:', error);
+        toast.error('Kunne ikke initialisere Chromecast');
       }
     };
 
@@ -107,7 +131,10 @@ export const useChromecast = () => {
     const timeout = setTimeout(() => {
       clearInterval(checkInterval);
       setIsLoading(false);
-      console.log('Cast SDK did not load within 10 seconds');
+      if (!(window as any).chrome?.cast?.framework) {
+        console.log('Cast SDK did not load within 10 seconds');
+        toast.error('Chromecast SDK kunne ikke lastes');
+      }
     }, 10000);
 
     return () => {
@@ -119,8 +146,23 @@ export const useChromecast = () => {
   const requestSession = useCallback(() => {
     if (!castContext) return Promise.reject('Cast context not initialized');
     
+    const lastDevice = localStorage.getItem('last_cast_device');
+    
     return castContext.requestSession().then(
       () => {
+        const session = castContext.getCurrentSession();
+        const deviceName = session?.getCastDevice().friendlyName;
+        
+        if (deviceName) {
+          if (lastDevice && lastDevice === deviceName) {
+            toast.success(`Koblet til ${deviceName} igjen!`);
+          } else {
+            toast.success(`Koblet til ${deviceName}`);
+          }
+        } else {
+          toast.success('Koblet til Chromecast');
+        }
+        
         console.log('Cast session started');
       },
       (error: any) => {
@@ -136,7 +178,9 @@ export const useChromecast = () => {
     if (!castContext) return;
     const session = castContext.getCurrentSession();
     if (session) {
+      const deviceName = session.getCastDevice().friendlyName;
       session.endSession(true);
+      toast.info(`Koblet fra ${deviceName}`);
     }
   }, [castContext]);
 

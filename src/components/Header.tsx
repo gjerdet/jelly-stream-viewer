@@ -516,7 +516,6 @@ const Header = () => {
                                       size="sm"
                                       onClick={() => {
                                         endSession();
-                                        toast.success("Casting stoppet");
                                       }}
                                     >
                                       <Square className="h-4 w-4 mr-2" />
@@ -532,7 +531,6 @@ const Header = () => {
                                   size="sm"
                                   onClick={() => {
                                     endSession();
-                                    toast.success("Koblet fra Chromecast");
                                   }}
                                   className="w-full mt-2"
                                 >
@@ -547,13 +545,7 @@ const Header = () => {
                               </p>
                               <Button
                                 onClick={() => {
-                                  requestSession()
-                                    .then(() => toast.success("Chromecast tilkoblet!"))
-                                    .catch((error) => {
-                                      if (error !== 'cancel') {
-                                        toast.error("Kunne ikke koble til Chromecast");
-                                      }
-                                    });
+                                  requestSession();
                                 }}
                                 className="w-full"
                                 size="sm"

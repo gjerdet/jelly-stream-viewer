@@ -100,13 +100,7 @@ const Detail = () => {
   }, [user, loading, navigate]);
 
   const handleCastClick = () => {
-    requestSession()
-      .then(() => toast.success('Chromecast tilkoblet!'))
-      .catch((error) => {
-        if (error !== 'cancel') {
-          toast.error('Kunne ikke koble til Chromecast');
-        }
-      });
+    requestSession();
   };
 
   // Scroll to top when opening a detail page
