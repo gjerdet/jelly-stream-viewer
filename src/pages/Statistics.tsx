@@ -314,7 +314,7 @@ const Statistics = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {stat.watchHistory.map((item: any, idx: number) => (
+                            {(stat.watchHistory || []).map((item: any, idx: number) => (
                               <TableRow key={`${item.itemId}-${idx}`}>
                                 <TableCell className="font-medium">
                                   {item.itemType === 'Movie' ? '🎬' : '📺'}
