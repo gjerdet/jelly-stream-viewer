@@ -82,6 +82,21 @@ serve(async (req) => {
       redirect: 'manual', // Don't follow redirects to HTTPS
     });
 
+    // Handle redirect responses
+    if (response.status >= 300 && response.status < 400) {
+      console.error('Jellyseerr redirect detected:', response.status);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Jellyseerr-serveren omdirigerer til HTTPS med ugyldig SSL-sertifikat. Vennligst konfigurer Jellyseerr til å akseptere HTTP-forespørsler eller fiks SSL-sertifikatet.',
+          details: 'HTTP forespørsel ble omdirigert til HTTPS'
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     const responseData = await response.json();
     console.log('Jellyseerr response:', responseData);
 
