@@ -141,31 +141,26 @@ const Player = () => {
             + `&api_key=${accessToken}`;
           console.log('Direct streaming (high quality)');
         } else {
-          // Transcode incompatible codecs (HEVC, etc) with optimized settings
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+          // Transcode incompatible codecs (HEVC, etc) using progressive streaming
+          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
             + `UserId=${userId}`
             + `&MediaSourceId=${id}`
             + `&VideoCodec=h264`
             + `&AudioCodec=aac`
-            + `&VideoBitrate=8000000`
-            + `&AudioBitrate=192000`
+            + `&VideoBitrate=5000000`
+            + `&AudioBitrate=128000`
             + `&MaxAudioChannels=2`
-            + `&TranscodingProtocol=hls`
-            + `&TranscodingContainer=ts`
-            + `&AudioSampleRate=48000`
-            + `&BreakOnNonKeyFrames=true`
             + `&api_key=${accessToken}`;
-          console.log(`Transcoding ${videoCodec} to H264 (HLS)`);
+          console.log(`Transcoding ${videoCodec} to H264 (progressive MP4)`);
         }
         
         setStreamUrl(streamingUrl);
       } catch (error) {
         console.error('Failed to get codec info:', error);
-        // Fallback to auto with HLS
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
+        // Fallback to auto
+        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
           + `UserId=${userId}`
           + `&MediaSourceId=${id}`
-          + `&TranscodingProtocol=hls`
           + `&api_key=${accessToken}`;
         setStreamUrl(streamingUrl);
       }
