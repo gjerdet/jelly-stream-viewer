@@ -683,18 +683,36 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="jellyseerr-url">Jellyseerr Server URL</Label>
-                    <Input
-                      id="jellyseerr-url"
-                      type="url"
-                      placeholder="http://jellyseerr.dittdomene.com"
-                      value={jellyseerrUrl}
-                      onChange={(e) => setJellyseerrUrl(e.target.value)}
-                      className="bg-secondary/50 border-border/50"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="jellyseerr-url"
+                        type="url"
+                        placeholder="http://jellyseerr.dittdomene.com"
+                        value={jellyseerrUrl}
+                        onChange={(e) => setJellyseerrUrl(e.target.value)}
+                        className="bg-secondary/50 border-border/50 flex-1"
+                      />
+                      {jellyseerrUrl.startsWith('https://') && (
+                        <Button 
+                          onClick={() => setJellyseerrUrl(jellyseerrUrl.replace('https://', 'http://'))}
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          title="Bytt til HTTP for å unngå SSL-problemer"
+                        >
+                          → HTTP
+                        </Button>
+                      )}
+                    </div>
+                    {currentJellyseerrUrl && currentJellyseerrUrl !== jellyseerrUrl && (
+                      <p className="text-xs text-yellow-500/80">
+                        ⚠️ Lagret URL: {currentJellyseerrUrl} (forskjellig fra det du har skrevet)
+                      </p>
+                    )}
                   </div>
                   <Button 
                     onClick={handleUpdateJellyseerrUrl}
-                    disabled={updateJellyseerrUrl.isPending}
+                    disabled={updateJellyseerrUrl.isPending || !jellyseerrUrl || jellyseerrUrl === currentJellyseerrUrl}
                     className="cinema-glow"
                   >
                     {updateJellyseerrUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
