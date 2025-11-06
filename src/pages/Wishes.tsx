@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
 import { SeasonSelectDialog } from "@/components/SeasonSelectDialog";
+import { MediaDetailDialog } from "@/components/MediaDetailDialog";
 
 interface DiscoverResult {
   id: number;
@@ -56,6 +57,8 @@ const Wishes = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [selectedTvShow, setSelectedTvShow] = useState<{ id: number; title: string } | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<{ id: number; mediaType: 'movie' | 'tv' } | null>(null);
   const jellyseerrRequest = useJellyseerrRequest();
 
   useEffect(() => {
@@ -338,8 +341,26 @@ const Wishes = () => {
     setSearchResults([]);
   };
 
-  const handleRequest = (result: DiscoverResult, mediaType: 'movie' | 'tv') => {
-    if (mediaType === 'tv') {
+  const handleMediaClick = (result: DiscoverResult) => {
+    setSelectedMedia({
+      id: result.id,
+      mediaType: result.mediaType,
+    });
+    setDetailDialogOpen(true);
+  };
+
+  const handleRequestFromDetail = () => {
+    if (!selectedMedia) return;
+
+    const result = [...movies, ...series, ...popularMovies, ...popularSeries, ...searchResults].find(
+      r => r.id === selectedMedia.id
+    );
+
+    if (!result) return;
+
+    setDetailDialogOpen(false);
+
+    if (selectedMedia.mediaType === 'tv') {
       // Open season selection dialog for TV shows
       setSelectedTvShow({
         id: result.id,
@@ -354,7 +375,7 @@ const Wishes = () => {
         : undefined;
 
       jellyseerrRequest.mutate({
-        mediaType,
+        mediaType: selectedMedia.mediaType,
         mediaId: result.id,
         mediaTitle: title || 'Ukjent',
         mediaPoster: posterUrl,
@@ -405,18 +426,22 @@ const Wishes = () => {
     return status === 3 || status === 4;
   };
 
-  const renderMediaGrid = (items: DiscoverResult[], mediaType: 'movie' | 'tv') => (
+  const renderMediaGrid = (items: DiscoverResult[]) => (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
       {items.map((result) => {
-        const title = mediaType === 'movie' ? result.title : result.name;
-        const date = mediaType === 'movie' ? result.releaseDate : result.firstAirDate;
+        const title = result.mediaType === 'movie' ? result.title : result.name;
+        const date = result.mediaType === 'movie' ? result.releaseDate : result.firstAirDate;
         const year = getYear(date);
         const posterUrl = result.posterPath
           ? `https://image.tmdb.org/t/p/w500${result.posterPath}`
           : null;
 
         return (
-          <Card key={result.id} className="overflow-hidden border-border/50 hover:border-primary smooth-transition group">
+          <Card 
+            key={result.id} 
+            className="overflow-hidden border-border/50 hover:border-primary smooth-transition group cursor-pointer"
+            onClick={() => handleMediaClick(result)}
+          >
             <div className="aspect-[2/3] relative bg-secondary">
               {posterUrl ? (
                 <img
@@ -426,7 +451,7 @@ const Wishes = () => {
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  {mediaType === 'movie' ? (
+                  {result.mediaType === 'movie' ? (
                     <Film className="h-16 w-16 text-muted-foreground" />
                   ) : (
                     <Tv className="h-16 w-16 text-muted-foreground" />
@@ -457,18 +482,6 @@ const Wishes = () => {
                   </span>
                 )}
               </div>
-
-              {!isAvailable(result) && !isRequested(result) && (
-                <Button
-                  onClick={() => handleRequest(result, mediaType)}
-                  disabled={jellyseerrRequest.isPending}
-                  size="sm"
-                  className="w-full gap-2"
-                >
-                  <Download className="h-3 w-3" />
-                  Be om
-                </Button>
-              )}
             </CardContent>
           </Card>
         );
@@ -619,7 +632,7 @@ const Wishes = () => {
                   Vis anbefalinger
                 </Button>
               </div>
-              {renderMediaGrid(searchResults, searchResults[0]?.mediaType || 'movie')}
+              {renderMediaGrid(searchResults)}
             </div>
           ) : (
             <Tabs defaultValue="popular-movies" className="w-full">
@@ -637,7 +650,7 @@ const Wishes = () => {
               </TabsList>
 
               <TabsContent value="popular-movies">
-                {renderMediaGrid(popularMovies, 'movie')}
+                {renderMediaGrid(popularMovies)}
                 
                 {hasMorePopularMovies && (
                   <div className="mt-8 text-center">
@@ -660,7 +673,7 @@ const Wishes = () => {
               </TabsContent>
 
               <TabsContent value="popular-series">
-                {renderMediaGrid(popularSeries, 'tv')}
+                {renderMediaGrid(popularSeries)}
                 
                 {hasMorePopularSeries && (
                   <div className="mt-8 text-center">
@@ -683,7 +696,7 @@ const Wishes = () => {
               </TabsContent>
 
               <TabsContent value="movies">
-                {renderMediaGrid(movies, 'movie')}
+                {renderMediaGrid(movies)}
                 
                 {hasMoreMovies && (
                   <div className="mt-8 text-center">
@@ -706,7 +719,7 @@ const Wishes = () => {
               </TabsContent>
 
               <TabsContent value="series">
-                {renderMediaGrid(series, 'tv')}
+                {renderMediaGrid(series)}
                 
                 {hasMoreSeries && (
                   <div className="mt-8 text-center">
@@ -728,6 +741,17 @@ const Wishes = () => {
                 )}
               </TabsContent>
             </Tabs>
+          )}
+
+          {selectedMedia && (
+            <MediaDetailDialog
+              open={detailDialogOpen}
+              onOpenChange={setDetailDialogOpen}
+              mediaId={selectedMedia.id}
+              mediaType={selectedMedia.mediaType}
+              onRequest={handleRequestFromDetail}
+              isRequesting={jellyseerrRequest.isPending}
+            />
           )}
 
           {selectedTvShow && (
