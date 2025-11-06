@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Settings, Newspaper, Trash2, Pin } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2 } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -702,7 +702,14 @@ const Admin = () => {
                     </Button>
                   </div>
                   
-                  {jellyseerrStatus && (
+                  {testingJellyseerr && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">Tester tilkobling...</span>
+                    </div>
+                  )}
+                  
+                  {!testingJellyseerr && jellyseerrStatus && (
                     <div className={`p-3 rounded-lg text-sm ${
                       jellyseerrStatus.startsWith('✅') 
                         ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
