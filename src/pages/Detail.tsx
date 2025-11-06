@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
 import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast } from "lucide-react";
 import { toast } from "sonner";
@@ -85,13 +86,12 @@ const Detail = () => {
   const seasonIdFromUrl = searchParams.get('seasonId');
   const { user, loading } = useAuth();
   const { serverUrl, apiKey } = useServerSettings();
+  const { castState, requestSession } = useChromecast();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
-  const [isCasting, setIsCasting] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
-  const castContextRef = useRef<any>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -99,68 +99,14 @@ const Detail = () => {
     }
   }, [user, loading, navigate]);
 
-  // Initialize Chromecast
-  useEffect(() => {
-    const initializeCast = () => {
-      const cast = (window as any).chrome?.cast;
-      if (!cast) {
-        console.log('Cast SDK not loaded yet');
-        return;
-      }
-
-      try {
-        castContextRef.current = cast.framework.CastContext.getInstance();
-        castContextRef.current.setOptions({
-          receiverApplicationId: cast.framework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: cast.framework.AutoJoinPolicy.ORIGIN_SCOPED,
-        });
-
-        // Listen for cast state changes
-        castContextRef.current.addEventListener(
-          cast.framework.CastContextEventType.CAST_STATE_CHANGED,
-          (event: any) => {
-            const isConnected = event.castState === cast.framework.CastState.CONNECTED;
-            setIsCasting(isConnected);
-            if (isConnected) {
-              console.log('Chromecast tilkoblet');
-            }
-          }
-        );
-
-        console.log('Cast initialized on detail page');
-      } catch (error) {
-        console.error('Cast initialization error:', error);
-      }
-    };
-
-    // Wait for Cast SDK to load
-    if ((window as any)['__onGCastApiAvailable']) {
-      initializeCast();
-    } else {
-      (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
-        if (isAvailable) {
-          initializeCast();
-        }
-      };
-    }
-  }, []);
-
   const handleCastClick = () => {
-    if (!castContextRef.current) return;
-    
-    const cast = (window as any).chrome.cast;
-    castContextRef.current.requestSession().then(
-      () => {
-        console.log('Cast session started from detail page');
-        toast.success('Chromecast tilkoblet!');
-      },
-      (error: any) => {
+    requestSession()
+      .then(() => toast.success('Chromecast tilkoblet!'))
+      .catch((error) => {
         if (error !== 'cancel') {
-          console.error('Cast session error:', error);
           toast.error('Kunne ikke koble til Chromecast');
         }
-      }
-    );
+      });
   };
 
   // Scroll to top when opening a detail page
@@ -468,14 +414,14 @@ const Detail = () => {
 
                 {/* Chromecast Button */}
                 <Button
-                  variant={isCasting ? "default" : "secondary"}
+                  variant={castState.isConnected ? "default" : "secondary"}
                   size="lg"
                   onClick={handleCastClick}
                   className="gap-2"
-                  title={isCasting ? "Koblet til Chromecast" : "Koble til Chromecast"}
+                  title={castState.isConnected ? "Koblet til Chromecast" : "Koble til Chromecast"}
                 >
                   <Cast className="h-5 w-5" />
-                  {isCasting ? "Koblet til" : "Cast"}
+                  {castState.isConnected ? "Koblet til" : "Cast"}
                 </Button>
                 <Button 
                   size="lg" 

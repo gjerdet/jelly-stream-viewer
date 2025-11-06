@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Subtitles, List, Cast, Play, Pause, Square } from "lucide-react";
@@ -80,18 +81,14 @@ const Player = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { serverUrl } = useServerSettings();
+  const { castState, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showEpisodes, setShowEpisodes] = useState(false);
-  const [isCasting, setIsCasting] = useState(false);
-  const [castPlayerState, setCastPlayerState] = useState<any>(null);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
-  const castPlayerRef = useRef<any>(null);
-  const castRemotePlayerRef = useRef<any>(null);
-  const castContextRef = useRef<any>(null);
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -249,166 +246,23 @@ const Player = () => {
     };
   }, []);
 
-  // Initialize Chromecast
+  // Load media to cast when connected and stream is ready
   useEffect(() => {
-    const initializeCast = () => {
-      const cast = (window as any).chrome?.cast;
-      if (!cast) {
-        console.log('Cast SDK not loaded yet');
-        return;
-      }
+    if (castState.isConnected && streamUrl && item && !castState.mediaInfo) {
+      const imageUrl = item.ImageTags?.Primary && serverUrl
+        ? `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        : undefined;
 
-      try {
-        castContextRef.current = cast.framework.CastContext.getInstance();
-        castContextRef.current.setOptions({
-          receiverApplicationId: cast.framework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: cast.framework.AutoJoinPolicy.ORIGIN_SCOPED,
-        });
-
-        const player = new cast.framework.RemotePlayer();
-        castRemotePlayerRef.current = player;
-        castPlayerRef.current = new cast.framework.RemotePlayerController(player);
-
-        // Track all player state changes
-        castPlayerRef.current.addEventListener(
-          cast.framework.RemotePlayerEventType.ANY_CHANGE,
-          () => {
-            setCastPlayerState({
-              isConnected: player.isConnected,
-              isPaused: player.isPaused,
-              currentTime: player.currentTime,
-              duration: player.duration,
-              canPause: player.canPause,
-              canSeek: player.canSeek,
-            });
-          }
-        );
-
-        castPlayerRef.current.addEventListener(
-          cast.framework.RemotePlayerEventType.IS_CONNECTED_CHANGED,
-          (event: any) => {
-            setIsCasting(event.value);
-            if (event.value && streamUrl && item) {
-              loadMediaToCast();
-            }
-          }
-        );
-
-        console.log('Cast initialized');
-      } catch (error) {
-        console.error('Cast initialization error:', error);
-      }
-    };
-
-    // Wait for Cast SDK to load
-    if ((window as any)['__onGCastApiAvailable']) {
-      initializeCast();
-    } else {
-      (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
-        if (isAvailable) {
-          initializeCast();
-        }
-      };
+      loadMedia(streamUrl, {
+        title: item.Name,
+        subtitle: item.SeriesName 
+          ? `${item.SeriesName}${item.IndexNumber ? ` - Episode ${item.IndexNumber}` : ''}`
+          : undefined,
+        imageUrl,
+        currentTime: item.UserData?.PlaybackPositionTicks ? item.UserData.PlaybackPositionTicks / 10000000 : undefined,
+      }).catch(error => console.error('Failed to load media to cast:', error));
     }
-  }, []);
-
-  const loadMediaToCast = () => {
-    if (!streamUrl || !item || !castContextRef.current) return;
-
-    const cast = (window as any).chrome.cast;
-    const session = castContextRef.current.getCurrentSession();
-    
-    if (!session) return;
-
-    const mediaInfo = new cast.media.MediaInfo(streamUrl, 'video/mp4');
-    mediaInfo.metadata = new cast.media.GenericMediaMetadata();
-    mediaInfo.metadata.title = item.Name;
-    
-    if (item.SeriesName) {
-      mediaInfo.metadata.subtitle = `${item.SeriesName}${item.IndexNumber ? ` - Episode ${item.IndexNumber}` : ''}`;
-    }
-
-    if (item.ImageTags?.Primary && serverUrl) {
-      const imageUrl = `${serverUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`;
-      mediaInfo.metadata.images = [new cast.Image(imageUrl)];
-    }
-
-    const request = new cast.media.LoadRequest(mediaInfo);
-    
-    // Resume from last position if available
-    if (item.UserData?.PlaybackPositionTicks) {
-      request.currentTime = item.UserData.PlaybackPositionTicks / 10000000;
-    }
-
-    session.loadMedia(request).then(
-      () => console.log('Media loaded to Cast'),
-      (error: any) => console.error('Cast load error:', error)
-    );
-  };
-
-  const handleCastClick = () => {
-    if (!castContextRef.current) return;
-    
-    const cast = (window as any).chrome.cast;
-    castContextRef.current.requestSession().then(
-      () => {
-        console.log('Cast session started');
-        if (streamUrl && item) {
-          loadMediaToCast();
-        }
-      },
-      (error: any) => console.error('Cast session error:', error)
-    );
-  };
-
-  const handleCastPlayPause = () => {
-    if (!castPlayerRef.current || !castRemotePlayerRef.current) return;
-    castPlayerRef.current.playOrPause();
-  };
-
-  const handleCastStop = () => {
-    if (!castContextRef.current) return;
-    const session = castContextRef.current.getCurrentSession();
-    if (session) {
-      session.endSession(true);
-    }
-  };
-
-  const handleCastSeek = (time: number) => {
-    if (!castPlayerRef.current || !castRemotePlayerRef.current) return;
-    castRemotePlayerRef.current.currentTime = time;
-    castPlayerRef.current.seek();
-  };
-
-  const handleCastSubtitleChange = async (subtitleIndex: string) => {
-    if (!castContextRef.current || subtitleIndex === 'none') return;
-    
-    const session = castContextRef.current.getCurrentSession();
-    if (!session) return;
-
-    const media = session.getMediaSession();
-    if (!media) return;
-
-    try {
-      const subtitleUrl = await getSubtitleUrl(parseInt(subtitleIndex));
-      if (!subtitleUrl) return;
-
-      const cast = (window as any).chrome.cast;
-      const track = new cast.media.Track(parseInt(subtitleIndex), cast.media.TrackType.TEXT);
-      track.trackContentId = subtitleUrl;
-      track.trackContentType = 'text/vtt';
-      track.subtype = cast.media.TextTrackType.SUBTITLES;
-      track.name = subtitles.find(s => s.Index === parseInt(subtitleIndex))?.DisplayTitle || 'Subtitle';
-
-      const tracksInfoRequest = new cast.media.EditTracksInfoRequest([parseInt(subtitleIndex)]);
-      media.editTracksInfo(tracksInfoRequest,
-        () => console.log('Subtitle changed'),
-        (error: any) => console.error('Subtitle change error:', error)
-      );
-    } catch (error) {
-      console.error('Error changing subtitle:', error);
-    }
-  };
+  }, [castState.isConnected, streamUrl, item, castState.mediaInfo, loadMedia, serverUrl]);
 
   // Register watch history when playback starts
   useEffect(() => {
@@ -540,9 +394,9 @@ const Player = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleCastClick}
-              className={`text-white hover:bg-white/20 ${isCasting ? 'bg-primary/20' : ''}`}
-              title="Cast til TV"
+              className={`text-white hover:bg-white/20 ${castState.isConnected ? 'bg-primary/20' : ''}`}
+              title={castState.isConnected ? "Koblet til Chromecast" : "Cast allerede tilkoblet i header"}
+              disabled
             >
               <Cast className="h-4 w-4" />
             </Button>
@@ -651,9 +505,6 @@ const Player = () => {
                 value={selectedSubtitle} 
                 onValueChange={(value) => {
                   setSelectedSubtitle(value);
-                  if (isCasting) {
-                    handleCastSubtitleChange(value);
-                  }
                 }}
               >
                 <SelectTrigger className="w-[180px] bg-black/50 backdrop-blur-sm border-white/20 text-white">
@@ -674,15 +525,15 @@ const Player = () => {
         </div>
 
         {/* Cast Controls */}
-        {isCasting && castPlayerState && (
+        {castState.isConnected && castState.mediaInfo && (
           <div className="absolute bottom-0 left-0 right-0 p-6 space-y-4 pointer-events-auto">
             <div className="bg-black/80 backdrop-blur-md rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between text-white">
-                <span className="text-sm">Caster til TV</span>
+                <span className="text-sm">Caster til {castState.deviceName}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleCastStop}
+                  onClick={() => endSession()}
                   className="text-white hover:bg-white/20"
                 >
                   <Square className="h-4 w-4 mr-2" />
@@ -691,40 +542,28 @@ const Player = () => {
               </div>
 
               {/* Progress bar */}
-              {castPlayerState.canSeek && (
-                <div className="space-y-2">
-                  <input
-                    type="range"
-                    min="0"
-                    max={castPlayerState.duration || 0}
-                    value={castPlayerState.currentTime || 0}
-                    onChange={(e) => handleCastSeek(parseFloat(e.target.value))}
-                    className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary"
-                  />
-                  <div className="flex justify-between text-xs text-white/70">
-                    <span>{formatTime(castPlayerState.currentTime || 0)}</span>
-                    <span>{formatTime(castPlayerState.duration || 0)}</span>
-                  </div>
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-white/70">
+                  <span>{formatTime(castState.mediaInfo.currentTime)}</span>
+                  <span>{formatTime(castState.mediaInfo.duration)}</span>
                 </div>
-              )}
+              </div>
 
               {/* Play/Pause button */}
-              {castPlayerState.canPause && (
-                <div className="flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="lg"
-                    onClick={handleCastPlayPause}
-                    className="text-white hover:bg-white/20 w-16 h-16"
-                  >
-                    {castPlayerState.isPaused ? (
-                      <Play className="h-8 w-8" />
-                    ) : (
-                      <Pause className="h-8 w-8" />
-                    )}
-                  </Button>
-                </div>
-              )}
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  onClick={playOrPause}
+                  className="text-white hover:bg-white/20 w-16 h-16"
+                >
+                  {castState.mediaInfo.isPaused ? (
+                    <Play className="h-8 w-8" />
+                  ) : (
+                    <Pause className="h-8 w-8" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         )}
