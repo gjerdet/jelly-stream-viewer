@@ -674,6 +674,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       ⚠️ Merk: Edge functions kjører i skyen og kan ikke nå lokale IP-adresser (192.168.x.x). 
                       Bruk en offentlig URL eller sett opp en tunnel (ngrok/Cloudflare).
                     </span>
+                    <span className="block mt-2 text-blue-500/80">
+                      💡 Tips: Hvis du får SSL-sertifikatfeil, bruk http:// i stedet for https:// 
+                      (f.eks. http://jellyseerr.dittdomene.com)
+                    </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -682,7 +686,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     <Input
                       id="jellyseerr-url"
                       type="url"
-                      placeholder="https://jellyseerr.dittdomene.com"
+                      placeholder="http://jellyseerr.dittdomene.com"
                       value={jellyseerrUrl}
                       onChange={(e) => setJellyseerrUrl(e.target.value)}
                       className="bg-secondary/50 border-border/50"
