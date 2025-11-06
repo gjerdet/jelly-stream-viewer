@@ -29,8 +29,8 @@ export const useChromecast = () => {
   useEffect(() => {
     const initializeCast = () => {
       const cast = (window as any).chrome?.cast;
-      if (!cast) {
-        console.log('Cast SDK not available yet');
+      if (!cast?.framework) {
+        console.error('Cast framework not available');
         return;
       }
 
@@ -102,6 +102,7 @@ export const useChromecast = () => {
         );
 
         setCastState(prev => ({ ...prev, isAvailable: true }));
+        setIsLoading(false);
         
         // Show success toast with last used device
         const lastDevice = localStorage.getItem('last_cast_device');
@@ -114,34 +115,37 @@ export const useChromecast = () => {
         console.log('Chromecast initialized successfully');
       } catch (error) {
         console.error('Cast initialization error:', error);
+        setIsLoading(false);
         toast.error('Kunne ikke initialisere Chromecast');
       }
     };
 
-    // Wait for Cast SDK to load - check multiple times
-    const checkInterval = setInterval(() => {
-      if ((window as any).chrome?.cast?.framework) {
-        clearInterval(checkInterval);
-        setIsLoading(false);
+    // Use the official Cast SDK callback
+    (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
+      if (isAvailable) {
+        console.log('Cast SDK loaded successfully');
         initializeCast();
+      } else {
+        console.error('Cast SDK not available');
+        setIsLoading(false);
+        toast.error('Chromecast SDK ikke tilgjengelig');
       }
-    }, 100);
+    };
 
-    // Cleanup after 10 seconds
+    // Fallback timeout after 15 seconds
     const timeout = setTimeout(() => {
-      clearInterval(checkInterval);
-      setIsLoading(false);
-      if (!(window as any).chrome?.cast?.framework) {
-        console.log('Cast SDK did not load within 10 seconds');
-        toast.error('Chromecast SDK kunne ikke lastes');
+      if (isLoading) {
+        console.error('Cast SDK load timeout');
+        setIsLoading(false);
+        toast.error('Chromecast SDK tok for lang tid å laste');
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
-      clearInterval(checkInterval);
       clearTimeout(timeout);
+      delete (window as any)['__onGCastApiAvailable'];
     };
-  }, []);
+  }, [isLoading]);
 
   const requestSession = useCallback(() => {
     if (!castContext) return Promise.reject('Cast context not initialized');
