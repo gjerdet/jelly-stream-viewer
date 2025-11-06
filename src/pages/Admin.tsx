@@ -42,6 +42,8 @@ const Admin = () => {
   // Connection test state
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [testingJellyseerr, setTestingJellyseerr] = useState(false);
+  const [jellyseerrStatus, setJellyseerrStatus] = useState<string | null>(null);
 
   // Fetch API key
   const { data: currentApiKey } = useQuery({
@@ -343,6 +345,48 @@ const Admin = () => {
     }
   };
 
+  // Test Jellyseerr connection
+  const handleTestJellyseerr = async () => {
+    if (!jellyseerrUrl.trim() || !jellyseerrApiKey.trim()) {
+      setJellyseerrStatus("❌ Jellyseerr URL og API-nøkkel må være satt");
+      toast.error("Jellyseerr URL og API-nøkkel må være satt");
+      return;
+    }
+
+    setTestingJellyseerr(true);
+    setJellyseerrStatus(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyseerr-test', {
+        body: { 
+          url: jellyseerrUrl.trim(), 
+          apiKey: jellyseerrApiKey.trim() 
+        }
+      });
+
+      if (error) {
+        console.error('Jellyseerr test error:', error);
+        setJellyseerrStatus(`❌ Feil: ${error.message}`);
+        toast.error("Tilkoblingstest feilet");
+        return;
+      }
+
+      if (data?.success) {
+        setJellyseerrStatus(`✅ ${data.message}`);
+        toast.success("Jellyseerr-tilkobling OK!");
+      } else {
+        setJellyseerrStatus(`❌ ${data?.error || 'Tilkobling feilet'}`);
+        toast.error(data?.error || "Tilkobling feilet");
+      }
+    } catch (error) {
+      console.error('Jellyseerr test exception:', error);
+      setJellyseerrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      toast.error("Tilkoblingstest feilet");
+    } finally {
+      setTestingJellyseerr(false);
+    }
+  };
+
   // News posts query
   const { data: newsPosts } = useQuery({
     queryKey: ["admin-news-posts"],
@@ -611,13 +655,33 @@ const Admin = () => {
                       className="bg-secondary/50 border-border/50"
                     />
                   </div>
-                  <Button 
-                    onClick={handleUpdateJellyseerrApiKey}
-                    disabled={updateJellyseerrApiKey.isPending}
-                    className="cinema-glow"
-                  >
-                    {updateJellyseerrApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={handleUpdateJellyseerrApiKey}
+                      disabled={updateJellyseerrApiKey.isPending}
+                      className="cinema-glow flex-1"
+                    >
+                      {updateJellyseerrApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
+                    </Button>
+                    <Button 
+                      onClick={handleTestJellyseerr}
+                      disabled={testingJellyseerr}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {testingJellyseerr ? "Tester..." : "Test tilkobling"}
+                    </Button>
+                  </div>
+                  
+                  {jellyseerrStatus && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      jellyseerrStatus.startsWith('✅') 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      {jellyseerrStatus}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
