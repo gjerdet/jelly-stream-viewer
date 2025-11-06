@@ -124,17 +124,18 @@ serve(async (req) => {
     let streamUrl;
     // Only transcode if codec is NOT browser-compatible
     if (videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
-      // Transcode incompatible codecs (like HEVC) to H264
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+      // Use stream.mp4 for progressive download with seeking support
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
         + `&VideoCodec=h264`
         + `&AudioCodec=aac`
-        + `&VideoBitrate=20000000`
-        + `&AudioBitrate=320000`
+        + `&VideoBitrate=8000000`
+        + `&AudioBitrate=192000`
         + `&MaxAudioChannels=2`
+        + `&SegmentContainer=mp4`
         + `&api_key=${apiKey}`;
-      console.log(`Transcoding ${videoCodec} to H264`);
+      console.log(`Transcoding ${videoCodec} to H264 MP4 with seeking`);
     } else {
       // Direct stream for compatible codecs
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
