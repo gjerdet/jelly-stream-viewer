@@ -1,20 +1,10 @@
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, Shield, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -27,8 +17,6 @@ interface UserWithRoles {
 }
 
 export const UserManagement = () => {
-  const queryClient = useQueryClient();
-  const [selectedRole, setSelectedRole] = useState<Record<string, string>>({});
 
   // Fetch all users with their roles
   const { data: users, isLoading } = useQuery({
@@ -65,54 +53,6 @@ export const UserManagement = () => {
       );
     },
   });
-
-  // Add role mutation
-  const addRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role });
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      toast.success("Rolle lagt til");
-    },
-    onError: (error: any) => {
-      console.error("Add role error:", error);
-      toast.error("Kunne ikke legge til rolle");
-    },
-  });
-
-  // Remove role mutation
-  const removeRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: AppRole }) => {
-      const { error } = await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", role);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      toast.success("Rolle fjernet");
-    },
-    onError: (error: any) => {
-      console.error("Remove role error:", error);
-      toast.error("Kunne ikke fjerne rolle");
-    },
-  });
-
-  const handleAddRole = (userId: string) => {
-    const role = selectedRole[userId] as AppRole;
-    if (!role) return;
-    
-    addRoleMutation.mutate({ userId, role });
-    setSelectedRole(prev => ({ ...prev, [userId]: "" }));
-  };
 
   const getRoleBadgeVariant = (role: AppRole) => {
     switch (role) {
@@ -180,13 +120,6 @@ export const UserManagement = () => {
                         >
                           <Shield className="h-3 w-3 mr-1" />
                           {role === "admin" ? "Administrator" : "Bruker"}
-                          <button
-                            onClick={() => removeRoleMutation.mutate({ userId: user.id, role })}
-                            className="ml-1.5 hover:text-destructive"
-                            disabled={removeRoleMutation.isPending}
-                          >
-                            ×
-                          </button>
                         </Badge>
                       ))}
                     </div>
@@ -198,33 +131,6 @@ export const UserManagement = () => {
                       <p className="font-mono text-[10px] text-muted-foreground/70">
                         ID: {user.id}
                       </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={selectedRole[user.id] || ""}
-                        onValueChange={(value) => 
-                          setSelectedRole(prev => ({ ...prev, [user.id]: value }))
-                        }
-                      >
-                        <SelectTrigger className="w-32 h-8 text-xs">
-                          <SelectValue placeholder="Velg rolle" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="user">Bruker</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        onClick={() => handleAddRole(user.id)}
-                        disabled={!selectedRole[user.id] || addRoleMutation.isPending}
-                        className="h-8 text-xs"
-                      >
-                        Legg til
-                      </Button>
                     </div>
                   </div>
                 </div>
