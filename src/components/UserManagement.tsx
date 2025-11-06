@@ -9,27 +9,46 @@ import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 
-interface JellyfinUser {
+interface UserWithRoles {
   id: string;
-  profile_id: string | null;
-  name: string;
-  last_activity: string | null;
-  last_login: string | null;
-  is_administrator: boolean;
-  is_disabled: boolean;
+  email: string;
+  jellyfin_username: string | null;
+  created_at: string;
   roles: AppRole[];
 }
 
 export const UserManagement = () => {
-  // Fetch users from Jellyfin
+  // Fetch users from profiles with roles
   const { data: users, isLoading } = useQuery({
-    queryKey: ["jellyfin-users"],
+    queryKey: ["app-users"],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('jellyfin-users');
-      
-      if (error) throw error;
-      
-      return data as JellyfinUser[];
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, email, jellyfin_username, created_at");
+
+      if (profilesError) throw profilesError;
+
+      const { data: rolesData, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      if (rolesError) throw rolesError;
+
+      const usersWithRoles: UserWithRoles[] = profiles?.map(profile => {
+        const userRoles = rolesData?.filter(r => r.user_id === profile.id).map(r => r.role) || [];
+        
+        return {
+          id: profile.id,
+          email: profile.email,
+          jellyfin_username: profile.jellyfin_username,
+          created_at: profile.created_at || new Date().toISOString(),
+          roles: userRoles,
+        };
+      }) || [];
+
+      return usersWithRoles.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     },
   });
 
@@ -66,7 +85,7 @@ export const UserManagement = () => {
           Brukerbehandling
         </CardTitle>
         <CardDescription>
-          Administrer brukere og deres roller i systemet
+          Viser kun brukere som har logget inn på appen
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -84,18 +103,9 @@ export const UserManagement = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium truncate">{user.name}</p>
-                      {!user.profile_id && (
-                        <Badge variant="outline" className="text-xs">Ikke logget inn</Badge>
-                      )}
-                      {user.is_disabled && (
-                        <Badge variant="destructive" className="text-xs">Deaktivert</Badge>
-                      )}
-                      {user.is_administrator && (
-                        <Badge variant="default" className="text-xs">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Jellyfin Admin
-                        </Badge>
+                      <p className="font-medium truncate">{user.jellyfin_username || user.email}</p>
+                      {user.roles.length === 0 && (
+                        <Badge variant="outline" className="text-xs">Ingen rolle</Badge>
                       )}
                     </div>
                     
@@ -107,19 +117,14 @@ export const UserManagement = () => {
                           className="text-xs"
                         >
                           <Shield className="h-3 w-3 mr-1" />
-                          {role === "admin" ? "App Admin" : "App Bruker"}
+                          {role === "admin" ? "Administrator" : "Bruker"}
                         </Badge>
                       ))}
                     </div>
 
                     <div className="text-xs text-muted-foreground space-y-1">
-                      {user.last_login && (
-                        <p>
-                          Sist innlogget: {format(new Date(user.last_login), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
-                        </p>
-                      )}
-                      <p className="font-mono text-[10px] text-muted-foreground/70">
-                        Jellyfin ID: {user.id}
+                      <p>
+                        Registrert: {format(new Date(user.created_at), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
                       </p>
                     </div>
                   </div>
