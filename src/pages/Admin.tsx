@@ -946,7 +946,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 </CardContent>
               </Card>
 
-              <ServerMonitoring />
+              <ServerMonitoring monitoringUrl={monitoringUrl} />
             </TabsContent>
 
             <TabsContent value="qbittorrent" className="space-y-6">
@@ -1016,7 +1016,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 </CardContent>
               </Card>
 
-              <QBittorrentStatus />
+              <QBittorrentStatus qbUrl={qbittorrentUrl} />
             </TabsContent>
 
             <TabsContent value="news" className="space-y-6">

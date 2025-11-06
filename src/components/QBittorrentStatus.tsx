@@ -29,16 +29,28 @@ interface QBData {
   transferInfo: TransferInfo;
 }
 
-export const QBittorrentStatus = () => {
+interface QBittorrentStatusProps {
+  qbUrl?: string;
+}
+
+export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
   const [data, setData] = useState<QBData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 3000); // Refresh every 3 seconds
-    return () => clearInterval(interval);
-  }, []);
+    // Check if qBittorrent is configured
+    if (qbUrl && qbUrl.trim() !== '') {
+      setIsConfigured(true);
+      fetchStatus();
+      const interval = setInterval(fetchStatus, 3000);
+      return () => clearInterval(interval);
+    } else {
+      setIsLoading(false);
+      setIsConfigured(false);
+    }
+  }, [qbUrl]);
 
   const fetchStatus = async () => {
     try {
@@ -132,7 +144,7 @@ export const QBittorrentStatus = () => {
     );
   }
 
-  if (error) {
+  if (!isConfigured || error) {
     return (
       <Card>
         <CardHeader>
@@ -145,7 +157,7 @@ export const QBittorrentStatus = () => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {error}
+              {error || 'qBittorrent er ikke konfigurert'}
             </AlertDescription>
           </Alert>
           <div className="mt-4 p-4 bg-muted rounded-lg">

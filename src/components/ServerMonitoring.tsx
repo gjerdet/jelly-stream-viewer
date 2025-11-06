@@ -13,16 +13,28 @@ interface ServerStats {
   network?: any;
 }
 
-export const ServerMonitoring = () => {
+interface ServerMonitoringProps {
+  monitoringUrl?: string;
+}
+
+export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
   const [stats, setStats] = useState<ServerStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000); // Refresh every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
+    // Check if monitoring is configured
+    if (monitoringUrl && monitoringUrl.trim() !== '') {
+      setIsConfigured(true);
+      fetchStats();
+      const interval = setInterval(fetchStats, 5000);
+      return () => clearInterval(interval);
+    } else {
+      setIsLoading(false);
+      setIsConfigured(false);
+    }
+  }, [monitoringUrl]);
 
   const fetchStats = async () => {
     try {
@@ -89,7 +101,7 @@ export const ServerMonitoring = () => {
     );
   }
 
-  if (error) {
+  if (!isConfigured || error) {
     return (
       <Card>
         <CardHeader>
@@ -102,7 +114,7 @@ export const ServerMonitoring = () => {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {error}
+              {error || 'Server overvåkning er ikke konfigurert'}
             </AlertDescription>
           </Alert>
           <div className="mt-4 p-4 bg-muted rounded-lg">
