@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useEffect, useState } from "react";
@@ -9,18 +9,38 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Clock, ChevronDown, ChevronRight } from "lucide-react";
+import { Clock, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 type TimeFilter = '7' | '30' | '365' | 'all';
 
 const Statistics = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: role, isLoading: isLoadingRole } = useUserRole(user?.id);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  const syncHistory = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('sync-jellyfin-history');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Synkronisert ${data.totalSynced} elementer fra Jellyfin`);
+      queryClient.invalidateQueries({ queryKey: ['most-watched'] });
+      queryClient.invalidateQueries({ queryKey: ['user-watch-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['content-types'] });
+    },
+    onError: (error) => {
+      console.error('Sync error:', error);
+      toast.error('Kunne ikke synkronisere historikk fra Jellyfin');
+    }
+  });
 
   useEffect(() => {
     const session = localStorage.getItem('jellyfin_session');
@@ -241,17 +261,28 @@ const Statistics = () => {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Statistikk</h1>
-        <Select value={timeFilter} onValueChange={(value: TimeFilter) => setTimeFilter(value)}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Siste 7 dager</SelectItem>
-            <SelectItem value="30">Siste 30 dager</SelectItem>
-            <SelectItem value="365">Siste år</SelectItem>
-            <SelectItem value="all">Alle</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => syncHistory.mutate()}
+            disabled={syncHistory.isPending}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncHistory.isPending ? 'animate-spin' : ''}`} />
+            Synkroniser fra Jellyfin
+          </Button>
+          <Select value={timeFilter} onValueChange={(value: TimeFilter) => setTimeFilter(value)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Siste 7 dager</SelectItem>
+              <SelectItem value="30">Siste 30 dager</SelectItem>
+              <SelectItem value="365">Siste år</SelectItem>
+              <SelectItem value="all">Alle</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2">

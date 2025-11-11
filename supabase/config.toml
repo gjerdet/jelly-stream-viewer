@@ -41,3 +41,6 @@ verify_jwt = true
 
 [functions.jellyseerr-popular]
 verify_jwt = true
+
+[functions.sync-jellyfin-history]
+verify_jwt = true
