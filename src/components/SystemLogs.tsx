@@ -50,6 +50,11 @@ export const SystemLogs = () => {
 
       if (error) throw error;
 
+      // Show message if provided
+      if (data?.message) {
+        toast.info(data.message);
+      }
+
       const logs = (data?.logs || []).map((log: any) => ({
         timestamp: log.timestamp || Date.now() * 1000,
         level: log.level || log.error_severity || 'info',
@@ -336,6 +341,13 @@ export const SystemLogs = () => {
               </p>
             </div>
             
+            <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <p className="text-sm text-yellow-400">
+                <strong>⚠️ Viktig:</strong> System-logger i produksjon er tilgjengelige via Supabase Dashboard under "Logs & Analytics".
+                Denne visningen er primært for utvikling og testing.
+              </p>
+            </div>
+            
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
               {filteredConsoleLogs.length > 0 ? (
                 <div className="space-y-2">
@@ -382,8 +394,16 @@ export const SystemLogs = () => {
                   Ingen logger matcher filtrene dine
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Ingen auth-logger tilgjengelig
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-muted-foreground">
+                    Auth-logger er tilgjengelige i Supabase Dashboard
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/auth-logs', '_blank')}
+                  >
+                    Åpne Supabase Dashboard
+                  </Button>
                 </div>
               )}
             </ScrollArea>
@@ -418,8 +438,16 @@ export const SystemLogs = () => {
                   Ingen logger matcher filtrene dine
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Ingen database-logger tilgjengelig
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-muted-foreground">
+                    Database-logger er tilgjengelige i Supabase Dashboard
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/postgres-logs', '_blank')}
+                  >
+                    Åpne Supabase Dashboard
+                  </Button>
                 </div>
               )}
             </ScrollArea>
@@ -454,8 +482,16 @@ export const SystemLogs = () => {
                   Ingen logger matcher filtrene dine
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Ingen edge function-logger tilgjengelig
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-muted-foreground">
+                    Edge function-logger er tilgjengelige i Supabase Dashboard
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/edge-logs', '_blank')}
+                  >
+                    Åpne Supabase Dashboard
+                  </Button>
                 </div>
               )}
             </ScrollArea>
