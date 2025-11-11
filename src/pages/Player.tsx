@@ -215,6 +215,24 @@ const Player = () => {
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
 
+  // Find next episode for autoplay
+  const getNextEpisode = () => {
+    if (!isEpisode || episodes.length === 0 || !item?.IndexNumber) return null;
+    
+    const currentIndex = episodes.findIndex(ep => ep.Id === id);
+    if (currentIndex === -1 || currentIndex === episodes.length - 1) return null;
+    
+    return episodes[currentIndex + 1];
+  };
+
+  const handleVideoEnded = () => {
+    const nextEpisode = getNextEpisode();
+    if (nextEpisode) {
+      console.log('Autoplay: Playing next episode', nextEpisode.Name);
+      navigate(`/player/${nextEpisode.Id}`);
+    }
+  };
+
   // Get subtitle URL using edge function
   const getSubtitleUrl = (subtitleIndex: number) => {
     if (!serverUrl || !id || !user) return '';
@@ -359,6 +377,7 @@ const Player = () => {
           });
         }}
         onError={handleVideoError}
+        onEnded={handleVideoEnded}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
