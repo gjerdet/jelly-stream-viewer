@@ -6,7 +6,7 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, List, Cast, Play, Pause, Square } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -15,13 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 interface MediaStream {
   Index: number;
@@ -87,9 +88,9 @@ const Player = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
-  const [showEpisodes, setShowEpisodes] = useState(false);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
 
@@ -406,12 +407,108 @@ const Player = () => {
   }
 
   return (
-    <div 
-      className="relative h-screen bg-black overflow-hidden"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setShowControls(false)}
-    >
-      <video
+    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <div className="relative h-screen bg-black overflow-hidden flex w-full">
+        {/* Episodes Sidebar */}
+        {isEpisode && episodes.length > 0 && (
+          <Sidebar 
+            side="right"
+            className="fixed right-0 top-0 h-screen border-l border-border z-50"
+            collapsible="offcanvas"
+          >
+            <SidebarContent className="bg-background/95 backdrop-blur-xl">
+              <SidebarGroup>
+                <SidebarGroupLabel className="text-base">
+                  {item?.SeriesName}
+                </SidebarGroupLabel>
+                <SidebarGroupContent>
+                  <div className="space-y-2 p-2">
+                    {episodes.map((episode) => {
+                      const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
+                        ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=200`
+                        : null;
+                      const episodeRuntime = episode.RunTimeTicks 
+                        ? Math.round(episode.RunTimeTicks / 600000000) 
+                        : null;
+                      const isCurrentEpisode = episode.Id === id;
+                      const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
+                        ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
+                        : 0;
+                      const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
+
+                      return (
+                        <div
+                          key={episode.Id}
+                          onClick={() => {
+                            if (!isCurrentEpisode) {
+                              navigate(`/player/${episode.Id}`);
+                            }
+                          }}
+                          className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                            isCurrentEpisode 
+                              ? 'bg-primary/20 border-2 border-primary' 
+                              : 'hover:bg-secondary/50'
+                          }`}
+                        >
+                          <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
+                            {episodeImageUrl ? (
+                              <img
+                                src={episodeImageUrl}
+                                alt={episode.Name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                Ingen bilde
+                              </div>
+                            )}
+                            {watchedPercentage > 0 && watchedPercentage < 95 && (
+                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
+                                <div 
+                                  className="h-full bg-primary"
+                                  style={{ width: `${watchedPercentage}%` }}
+                                />
+                              </div>
+                            )}
+                            {isWatched && (
+                              <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-semibold text-sm line-clamp-1">
+                                {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
+                              </h3>
+                              {episodeRuntime && (
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {episodeRuntime} min
+                                </span>
+                              )}
+                            </div>
+                            {isCurrentEpisode && (
+                              <p className="text-xs text-primary mt-1">Spiller nå</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            </SidebarContent>
+          </Sidebar>
+        )}
+
+        <div 
+          className="relative h-screen bg-black overflow-hidden flex-1"
+          onMouseMove={handleMouseMove}
+          onMouseLeave={() => setShowControls(false)}
+        >
+          <video
         ref={videoRef}
         key={streamUrl}
         src={streamUrl}
@@ -476,102 +573,15 @@ const Player = () => {
             </Button>
 
             {isEpisode && episodes.length > 0 && (
-              <Sheet open={showEpisodes} onOpenChange={setShowEpisodes}>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-white/20"
-                  >
-                    <List className="mr-2 h-4 w-4" />
-                    Episoder
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-[400px] bg-background/95 backdrop-blur-xl overflow-y-auto">
-                  <SheetHeader>
-                    <SheetTitle>Episoder</SheetTitle>
-                    <SheetDescription>
-                      {item?.SeriesName}
-                    </SheetDescription>
-                  </SheetHeader>
-                  <div className="mt-6 space-y-2">
-                    {episodes.map((episode) => {
-                      const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
-                        ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=200`
-                        : null;
-                      const episodeRuntime = episode.RunTimeTicks 
-                        ? Math.round(episode.RunTimeTicks / 600000000) 
-                        : null;
-                      const isCurrentEpisode = episode.Id === id;
-                      const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
-                        ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
-                        : 0;
-                      const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
-
-                      return (
-                        <div
-                          key={episode.Id}
-                          onClick={() => {
-                            if (!isCurrentEpisode) {
-                              navigate(`/player/${episode.Id}`);
-                              setShowEpisodes(false);
-                            }
-                          }}
-                          className={`flex gap-3 p-2 rounded-lg cursor-pointer smooth-transition ${
-                            isCurrentEpisode 
-                              ? 'bg-primary/20 border-2 border-primary' 
-                              : 'hover:bg-secondary/50'
-                          }`}
-                        >
-                          <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
-                            {episodeImageUrl ? (
-                              <img
-                                src={episodeImageUrl}
-                                alt={episode.Name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                Ingen bilde
-                              </div>
-                            )}
-                            {watchedPercentage > 0 && watchedPercentage < 95 && (
-                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
-                                <div 
-                                  className="h-full bg-primary"
-                                  style={{ width: `${watchedPercentage}%` }}
-                                />
-                              </div>
-                            )}
-                            {isWatched && (
-                              <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-semibold text-sm line-clamp-1">
-                                {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
-                              </h3>
-                              {episodeRuntime && (
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                  {episodeRuntime} min
-                                </span>
-                              )}
-                            </div>
-                            {isCurrentEpisode && (
-                              <p className="text-xs text-primary mt-1">Spiller nå</p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </SheetContent>
-              </Sheet>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="text-white hover:bg-white/20"
+              >
+                {sidebarOpen ? <ChevronRight className="h-4 w-4 mr-2" /> : <ChevronLeft className="h-4 w-4 mr-2" />}
+                Episoder
+              </Button>
             )}
             
             {subtitles.length > 0 && (
@@ -709,7 +719,9 @@ const Player = () => {
           </div>
         );
       })()}
-    </div>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 };
 
