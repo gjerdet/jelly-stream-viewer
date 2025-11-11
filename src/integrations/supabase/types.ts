@@ -200,6 +200,45 @@ export type Database = {
         }
         Relationships: []
       }
+      update_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          current_step: string | null
+          error: string | null
+          id: string
+          logs: Json | null
+          progress: number
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: string | null
+          error?: string | null
+          id?: string
+          logs?: Json | null
+          progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: string | null
+          error?: string | null
+          id?: string
+          logs?: Json | null
+          progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_favorites: {
         Row: {
           created_at: string
