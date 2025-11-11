@@ -24,6 +24,7 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useChromecast } from "@/hooks/useChromecast";
 import { useSidebar } from "@/components/ui/sidebar";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -601,6 +602,8 @@ const Header = () => {
                 <Activity className="h-4 w-4" />
               </Button>
             </div>
+            
+            <LanguageSwitcher />
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

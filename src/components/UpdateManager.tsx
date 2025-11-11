@@ -10,7 +10,8 @@ import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loa
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { nb, enUS } from "date-fns/locale";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface UpdateInfo {
   updateAvailable: boolean;
@@ -41,6 +42,10 @@ interface UpdateStatus {
 }
 
 export const UpdateManager = () => {
+  const { language, t } = useLanguage();
+  const dateLocale = language === 'no' ? nb : enUS;
+  const updates = t.updates as any; // Cast to any for simplicity
+  const common = t.common as any;
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
@@ -172,10 +177,10 @@ export const UpdateManager = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <GitBranch className="h-5 w-5" />
-          Oppdateringshåndtering
+          {updates?.title || 'Update Management'}
         </CardTitle>
         <CardDescription>
-          Sjekk og installer automatiske oppdateringer fra GitHub
+          {updates?.description || 'Check and install automatic updates from GitHub'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -184,10 +189,11 @@ export const UpdateManager = () => {
           <div className="flex items-start gap-2">
             <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-blue-400 mb-1">Kun for selvhostede installasjoner</p>
+              <p className="text-sm font-medium text-blue-400 mb-1">
+                {updates?.selfHostedOnly || 'For self-hosted installations only'}
+              </p>
               <p className="text-xs text-muted-foreground">
-                Denne funksjonen er kun for selvhostede installasjoner med en webhook-server. 
-                Hvis du kjører på Lovable Cloud, får du automatiske oppdateringer via GitHub-synkronisering.
+                {updates?.selfHostedDescription || 'This feature is only for self-hosted installations...'}
               </p>
             </div>
           </div>
@@ -199,15 +205,17 @@ export const UpdateManager = () => {
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium mb-2">Oppsett for selvhostet installasjon</p>
+                <p className="text-sm font-medium mb-2">
+                  {updates?.setupRequired || 'Setup for self-hosted installation'}
+                </p>
                 <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                  <li>Gå til "Servers" fanen</li>
-                  <li>Sett <code className="bg-background px-1 rounded">GitHub Repository URL</code> (f.eks. https://github.com/brukernavn/repo-navn)</li>
-                  <li>Sett <code className="bg-background px-1 rounded">Update Webhook URL</code> til din servers webhook-endepunkt</li>
-                  <li>Kjør update-server scriptet på serveren din som lytter på webhook-endepunktet</li>
+                  <li>{updates?.setupSteps?.step1 || 'Go to "Servers" tab'}</li>
+                  <li>{updates?.setupSteps?.step2 || 'Set GitHub Repository URL'}</li>
+                  <li>{updates?.setupSteps?.step3 || 'Set Update Webhook URL'}</li>
+                  <li>{updates?.setupSteps?.step4 || 'Run the update-server script'}</li>
                 </ol>
                 <p className="text-xs text-muted-foreground mt-2">
-                  <strong>Merk:</strong> Dette krever en selvhostet server med et webhook-endepunkt som kan motta oppdateringssignaler.
+                  <strong>{common?.note || 'Note'}:</strong> {updates?.note || 'This requires a self-hosted server...'}
                 </p>
               </div>
             </div>
@@ -218,17 +226,17 @@ export const UpdateManager = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
               <div>
-                <p className="text-sm font-medium">Installert versjon</p>
+                <p className="text-sm font-medium">{updates?.installedVersion || 'Installed version'}</p>
                 <p className="text-xs text-muted-foreground font-mono">
-                  {updateInfo.installedVersion.shortSha || 'Ukjent'}
+                  {updateInfo.installedVersion.shortSha || (language === 'no' ? 'Ukjent' : 'Unknown')}
                 </p>
               </div>
               {updateInfo.updateAvailable ? (
-                <Badge variant="secondary">Utdatert</Badge>
+                <Badge variant="secondary">{language === 'no' ? 'Utdatert' : 'Outdated'}</Badge>
               ) : (
                 <Badge variant="default" className="bg-green-500">
                   <CheckCircle className="h-3 w-3 mr-1" />
-                  Oppdatert
+                  {language === 'no' ? 'Oppdatert' : 'Up to date'}
                 </Badge>
               )}
             </div>
@@ -237,18 +245,18 @@ export const UpdateManager = () => {
               <div className="p-4 border border-primary/20 rounded-lg bg-primary/5">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <p className="font-medium">Ny versjon tilgjengelig!</p>
+                    <p className="font-medium">{updates?.updateAvailable || 'New version available!'}</p>
                     <p className="text-xs text-muted-foreground font-mono mt-1">
                       {updateInfo.latestVersion.shortSha}
                     </p>
                   </div>
-                  <Badge variant="outline">Ny</Badge>
+                  <Badge variant="outline">{language === 'no' ? 'Ny' : 'New'}</Badge>
                 </div>
                 <div className="mt-3 space-y-1 text-sm">
                   <p className="font-medium">{updateInfo.latestVersion.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    av {updateInfo.latestVersion.author} •{' '}
-                    {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
+                    {language === 'no' ? 'av' : 'by'} {updateInfo.latestVersion.author} •{' '}
+                    {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", { locale: dateLocale })}
                   </p>
                 </div>
               </div>
@@ -268,14 +276,14 @@ export const UpdateManager = () => {
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="sm">
                     <FileText className="h-4 w-4 mr-1" />
-                    Se logger
+                    {updates?.viewLogs || 'View logs'}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>Oppdateringslogger</DialogTitle>
+                    <DialogTitle>{updates?.logsTitle || 'Update logs'}</DialogTitle>
                     <DialogDescription>
-                      Detaljert logg over oppdateringsprosessen
+                      {updates?.logsDescription || 'Detailed log of the update process'}
                     </DialogDescription>
                   </DialogHeader>
                   <ScrollArea className="h-96 w-full rounded-md border p-4">
@@ -315,7 +323,7 @@ export const UpdateManager = () => {
             className="flex-1"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-            {checking ? 'Sjekker...' : 'Sjekk etter oppdatering'}
+            {checking ? (updates?.checking || 'Checking...') : (updates?.checkForUpdates || 'Check for updates')}
           </Button>
 
           {updateInfo?.updateAvailable && !updateStatus && (
@@ -323,21 +331,22 @@ export const UpdateManager = () => {
               <AlertDialogTrigger asChild>
                 <Button disabled={updating} className="flex-1">
                   <Download className="h-4 w-4 mr-2" />
-                  Installer oppdatering
+                  {updates?.installUpdate || 'Install update'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Installer oppdatering?</AlertDialogTitle>
+                  <AlertDialogTitle>{updates?.installUpdate || 'Install update'}?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Dette vil laste ned den nyeste versjonen fra GitHub og restarte serveren.
-                    Operasjonen tar vanligvis 30-60 sekunder. Siden vil automatisk laste på nytt når oppdateringen er ferdig.
+                    {language === 'no' 
+                      ? 'Dette vil laste ned den nyeste versjonen fra GitHub og restarte serveren. Operasjonen tar vanligvis 30-60 sekunder. Siden vil automatisk laste på nytt når oppdateringen er ferdig.'
+                      : 'This will download the latest version from GitHub and restart the server. The operation usually takes 30-60 seconds. The page will automatically reload when the update is complete.'}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Avbryt</AlertDialogCancel>
+                  <AlertDialogCancel>{common?.cancel || 'Cancel'}</AlertDialogCancel>
                   <AlertDialogAction onClick={installUpdate}>
-                    Installer nå
+                    {language === 'no' ? 'Installer nå' : 'Install now'}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
