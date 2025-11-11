@@ -1,67 +1,140 @@
 # Jelly Stream Viewer
 
-En moderne webapplikasjon for streaming fra Jellyfin media server - **optimalisert for lokal deployment**.
+En moderne webapplikasjon for streaming fra Jellyfin media server - **optimalisert for selvhosting**.
 
 ## 🏗️ Arkitektur
 
-**Lokal deployment med cloud-basert autentisering:**
+**Lokal deployment med egen database:**
 - Frontend snakker **direkte** med Jellyfin server for optimal kvalitet
 - Jellyfin håndterer all video-transkoding
 - Nginx konfigureres automatisk med CORS for direkte streaming
-- Supabase Cloud håndterer autentisering og database
+- Supabase håndterer autentisering og database
 - Alt kjører på lokalt nettverk for beste ytelse
 
 Se [ARCHITECTURE.md](ARCHITECTURE.md) for detaljert oversikt.
 
-## 🚀 Rask installasjon (Ubuntu)
-
-### Copy-paste disse 4 kommandoene:
-
-```bash
-git clone <DIN_GITHUB_URL> jelly-stream-viewer && cd jelly-stream-viewer
-```
-
-```bash
-chmod +x setup.sh && sudo ./setup.sh
-```
-
-Det er alt! Skriptet installerer alt du trenger automatisk.
-
----
-
 ## 📋 Hva trenger du?
 
 - **Ubuntu Server 20.04+** (eller annen Linux-distro)
-- **Jellyfin media server** på samme nettverk (lokal IP)
-- **Supabase-konto** (gratis på supabase.com) - kun for autentisering/database
+- **Node.js 18+** og **npm**
+- **Jellyfin media server** på samme nettverk
+- **Egen Supabase-konto** (gratis på supabase.com)
 
-**Viktig:** Frontend og Jellyfin må være på samme nettverk for at direktekommunikasjon skal fungere.
+## 🚀 Selvhosting - Komplett guide
 
----
+### Steg 1: Klon prosjektet
 
-## ⚙️ Oppsett etter installasjon
-
-### 1. Første gangs pålogging
+```bash
+git clone https://github.com/gjerdet/jelly-stream-viewer.git
+cd jelly-stream-viewer
 ```
-http://din-server-ip
+
+### Steg 2: Opprett Supabase-prosjekt
+
+1. Gå til [supabase.com](https://supabase.com) og opprett en gratis konto
+2. Opprett et nytt prosjekt
+3. Vent til databasen er klar (tar 1-2 minutter)
+
+### Steg 3: Sett opp databasen
+
+1. Gå til **SQL Editor** i Supabase Dashboard
+2. Klikk **+ New query**
+3. Kopier HELE innholdet fra `supabase/setup.sql` og lim inn
+4. Klikk **Run** for å kjøre scriptet
+5. Sjekk at alle tabeller er opprettet under **Table Editor**
+
+### Steg 4: Konfigurer autentisering
+
+1. Gå til **Authentication → Providers** i Supabase Dashboard
+2. Under **Email**:
+   - Aktiver **Enable Email provider**
+   - **VIKTIG:** Skru **AV** "Confirm email" (sett til disabled)
+   - Lagre endringer
+
+### Steg 5: Hent API-nøkler
+
+1. Gå til **Project Settings → API** i Supabase Dashboard
+2. Kopier disse verdiene:
+   - **Project URL** (f.eks. `https://xxxxx.supabase.co`)
+   - **anon/public key** (lang JWT-token)
+   - **Project ID** (kort ID)
+
+### Steg 6: Opprett .env fil
+
+1. Kopier example-filen:
+```bash
+cp .env.example .env
 ```
 
-### 2. Opprett brukerkonto
-Registrer en ny bruker via nettsiden.
+2. Rediger `.env` og fyll inn dine verdier:
+```env
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+VITE_SUPABASE_PROJECT_ID=xxxxx
+```
 
-### 3. Første bruker blir automatisk admin
-**Første bruker som registrerer seg blir automatisk admin** - ingen manuell konfigurasjon nødvendig!
+### Steg 7: Installer og bygg
 
-Hvis du trenger å gjøre flere brukere til admin, kan du gjøre dette via backend-grensesnittet eller kontakte systemadministrator.
+```bash
+# Installer avhengigheter
+npm install
 
-### 4. Konfigurer servere
-Gå til `/setup` ved første besøk og fyll inn:
-- **Jellyfin Server URL**: `http://192.168.1.100:8096` (din lokale Jellyfin-server)
-- **Jellyfin API Key**: Fra Jellyfin Dashboard → API Keys
+# Bygg for produksjon
+npm run build
+```
 
-**OBS:** Bruk lokal IP-adresse for Jellyfin-serveren, ikke `localhost` hvis frontend kjører på en annen maskin.
+### Steg 8: Sett opp webserver (Nginx)
 
-*Jellyseerr-konfigurasjon (valgfritt) gjøres via Admin-siden.*
+1. Installer Nginx:
+```bash
+sudo apt update
+sudo apt install nginx
+```
+
+2. Opprett Nginx config:
+```bash
+sudo nano /etc/nginx/sites-available/jelly-stream-viewer
+```
+
+3. Lim inn denne konfigurasjonen:
+```nginx
+server {
+    listen 80;
+    server_name din-server-ip;  # Bytt ut med din IP eller domene
+    
+    root /path/to/jelly-stream-viewer/dist;  # Bytt ut med full sti
+    index index.html;
+    
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+}
+```
+
+4. Aktiver siden:
+```bash
+sudo ln -s /etc/nginx/sites-available/jelly-stream-viewer /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Steg 9: Første gangs oppsett
+
+1. Åpne nettleseren på `http://din-server-ip`
+2. Klikk **Registrer** og opprett første bruker
+3. **Første bruker blir automatisk admin!**
+4. Gå til `/setup` og konfigurer:
+   - Jellyfin Server URL (f.eks. `http://192.168.1.100:8096`)
+   - Jellyfin API Key (hent fra Jellyfin Dashboard → API Keys)
+   - (Valgfritt) Jellyseerr URL og API Key
+
+## ✅ Du er ferdig!
+
+Applikasjonen kjører nå på din egen server med din egen database.
 
 ---
 
@@ -75,135 +148,118 @@ Gå til `/setup` ved første besøk og fyll inn:
 - 🌐 Undertekststøtte
 - 🎯 Jellyseerr-integrasjon med admin-godkjenning
 
-## Konfigurasjon
+## 🔧 Vedlikehold og oppgradering
 
-### Første gangs oppsett
-
-1. Besøk applikasjonen i nettleseren: `http://din-server-ip`
-2. Registrer en brukerkonto
-3. Logg inn som admin (sett i databasen)
-4. Gå til Admin-siden og konfigurer:
-   - **Jellyfin Server URL**: URL til din Jellyfin-server
-   - **Jellyfin API Key**: API-nøkkel fra Jellyfin
-   - **Jellyseerr URL**: (valgfritt) URL til Jellyseerr
-   - **Jellyseerr API Key**: (valgfritt) API-nøkkel for Jellyseerr
-
-Se [DEPLOYMENT.md](DEPLOYMENT.md) for fullstendig installasjonsveiledning.
-
-## Oppgradering
-
-For å oppdatere til nyeste versjon:
+### Oppdatere til ny versjon
 
 ```bash
-# Pull nyeste endringer fra GitHub
+cd jelly-stream-viewer
 git pull origin main
-
-# Installer nye avhengigheter
 npm install
-
-# Bygg på nytt
 npm run build
-
-# Restart tjenesten
-sudo systemctl restart nginx
+sudo systemctl reload nginx
 ```
 
-## Utviklingsmodus
+### Kjøre database-migrasjoner
 
-For å kjøre i utviklingsmodus:
+Hvis det kommer nye database-endringer i oppdateringer:
+1. Sjekk `supabase/migrations/` for nye .sql filer
+2. Kjør de nye migrasjonene i Supabase SQL Editor
+3. Eller kjør hele `supabase/setup.sql` på nytt (trygt med `IF NOT EXISTS`)
+
+## 🛠️ Utviklingsmodus
 
 ```bash
+npm install
 npm run dev
 ```
 
 Applikasjonen vil være tilgjengelig på `http://localhost:8080`
 
-## Dokumentasjon
+**OBS:** Du må fortsatt ha `.env` konfigurert med Supabase-credentials for at appen skal fungere.
 
-- [Deployment Guide](DEPLOYMENT.md) - Fullstendig guide for lokal installasjon
-- [Supabase Setup](DEPLOYMENT.md#steg-3-konfigurer-supabase) - Database og edge functions
-- [Feilsøking](DEPLOYMENT.md#feilsøking) - Vanlige problemer og løsninger
+## 📚 Filer for selvhosting
 
-## Teknologi
+- **`supabase/setup.sql`** - Komplett database-oppsett (kjør i Supabase SQL Editor)
+- **`.env.example`** - Template for environment variabler
+- **`setup.sh`** - Automatisk installasjonsscript for Ubuntu (legacy)
+- **Edge Functions** i `supabase/functions/` - Deploy via Supabase CLI om nødvendig
 
-Dette prosjektet er bygget med:
+## ⚠️ Viktige sikkerhetspunkter
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-- Supabase (database + edge functions)
-- Jellyfin API
-
-## Sikkerhet
-
-Applikasjonen implementerer flere lag med sikkerhet:
+### Database-sikkerhet
+- **Row Level Security (RLS)** er aktivert på alle tabeller
+- Brukere kan kun se sine egne data (favoritter, historikk, etc.)
+- Admins har full tilgang via `has_role()` funksjonen
+- Første bruker blir automatisk admin
 
 ### Autentisering
-- **JWT-basert autentisering**: Alle API-kall krever gyldig JWT-token fra Supabase
-- **Automatisk token-refresh**: Håndteres av Supabase-klienten
-- **Session management**: Sikker lagring i localStorage med automatisk utlogging
+- Bruk **sterke passord** for alle brukerkontoer
+- Første bruker er admin - opprett denne kontoen først!
+- Skru **AV** email confirmation i Supabase for enkel selvhosting
+- For produksjon: Aktiver email confirmation og SMTP
 
-### Database-sikkerhet (RLS)
-Row Level Security (RLS) er aktivert på alle tabeller:
-```sql
--- Eksempel: Brukere ser kun sine egne favoritter
-CREATE POLICY "Users can view own favorites"
-ON user_favorites FOR SELECT
-USING (auth.uid() = user_id);
+### API-nøkler
+- Jellyfin og Jellyseerr API-nøkler lagres i databasen
+- Kun synlig for admins via RLS policies
+- Aldri commit `.env` til Git (allerede i `.gitignore`)
 
--- Admins har full tilgang
-CREATE POLICY "Admins have full access"
-ON user_roles FOR ALL
-USING (has_role(auth.uid(), 'admin'));
-```
+## 🧰 Teknologi
 
-### API-sikkerhet
-- **API-nøkler i database**: Jellyfin/Jellyseerr-nøkler lagres kryptert, kun tilgjengelig via edge functions
-- **Input-validering**: Zod-schemas validerer alle brukerinput
-- **CORS**: Konfigurert for sikker cross-origin kommunikasjon
+- **Frontend:** React + TypeScript + Vite
+- **Styling:** Tailwind CSS + shadcn-ui
+- **Database:** PostgreSQL via Supabase
+- **Auth:** Supabase Authentication
+- **Backend:** Supabase Edge Functions (Deno)
+- **Media:** Jellyfin API
+- **Requests:** Jellyseerr API (valgfritt)
 
-### Edge Functions
-- **JWT-verifisering**: Aktivert på alle sensitive endepunkter (se `supabase/config.toml`)
-- **Rate limiting**: Implementert via Supabase
-- **Logging**: Alle API-kall logges for revisjon
+## 🔧 Feilsøking
 
-### HTTPS og transport
-- **HTTPS via Nginx + Certbot**: Anbefalt for produksjon
-- **Secure cookies**: HttpOnly og Secure flags på sessions
-- **HSTS**: HTTP Strict Transport Security aktivert
+### "Failed to fetch" eller connection errors
+- Sjekk at `.env` har riktige Supabase credentials
+- Verifiser at Supabase-prosjektet er aktivt
+- Sjekk at email confirmation er skrudd AV i Supabase
 
-## Support
+### Kan ikke logge inn
+- Første bruker MÅ registreres via `/register` ruten
+- Sjekk at `setup.sql` er kjørt korrekt
+- Verifiser at RLS policies er opprettet
 
-For problemer eller spørsmål:
-- Opprett en issue på GitHub
-- Se [DEPLOYMENT.md](DEPLOYMENT.md) for feilsøking
-- Sjekk Supabase logs for backend-feil
+### Jellyfin-innhold vises ikke
+- Gå til `/setup` og konfigurer Jellyfin URL og API key
+- Sjekk at Jellyfin-server er tilgjengelig fra appen
+- Verifiser CORS-innstillinger i Jellyfin
 
-## Lovable Integration
+### Database errors
+- Sjekk at alle tabeller er opprettet: `supabase/setup.sql`
+- Verifiser at triggers og funksjoner eksisterer
+- Se Supabase logs for detaljerte feilmeldinger
 
-Dette prosjektet kan også redigeres via Lovable:
+## 💬 Support og bidrag
 
-**URL**: https://lovable.dev/projects/205817f9-c090-44eb-91ab-92eabefe1aae
+### Rapporter problemer
+Opprett en [GitHub Issue](https://github.com/gjerdet/jelly-stream-viewer/issues) med:
+- Beskrivelse av problemet
+- Feilmeldinger (fra browser console eller Supabase logs)
+- Steg for å reprodusere
 
-Endringer gjort i Lovable vil automatisk committes til dette repoet, og endringer pushet til GitHub vil reflekteres i Lovable.
+### Bidra til prosjektet
+Pull requests er velkomne! Se [CONTRIBUTING.md](CONTRIBUTING.md) for retningslinjer.
 
-## Bidra
+## 📜 Lisens
 
-Bidrag er velkomne! Vennligst:
-1. Fork prosjektet
-2. Opprett en feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit endringer (`git commit -m 'Add some AmazingFeature'`)
-4. Push til branch (`git push origin feature/AmazingFeature`)
-5. Åpne en Pull Request
+MIT License - se [LICENSE](LICENSE) filen for detaljer.
 
-### Utviklingsoppsett
-```bash
-npm install
-npm run dev
-```
+---
 
-## Lisens
+## 🎯 Komme i gang nå?
 
-Dette prosjektet er lisensiert under MIT License - se [LICENSE](LICENSE) filen for detaljer.
+1. **[Opprett Supabase-konto](https://supabase.com)** (gratis)
+2. **Kjør `supabase/setup.sql`** i SQL Editor
+3. **Kopier `.env.example` → `.env`** og fyll inn API keys
+4. **`npm install && npm run build`**
+5. **Konfigurer Nginx** (se Steg 8)
+6. **Registrer første bruker** → Blir admin automatisk!
+
+Ferdig! 🚀
