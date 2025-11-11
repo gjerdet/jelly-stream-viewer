@@ -37,6 +37,10 @@ const Admin = () => {
   const [qbittorrentUsername, setQbittorrentUsername] = useState("");
   const [qbittorrentPassword, setQbittorrentPassword] = useState("");
   
+  // GitHub settings state
+  const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
+  
   // Site settings state
   const [newSiteName, setNewSiteName] = useState("");
   const [newLogoUrl, setNewLogoUrl] = useState("");
@@ -176,6 +180,30 @@ const Admin = () => {
     },
   });
 
+  // GitHub settings mutations
+  const updateGithubSettings = useMutation({
+    mutationFn: async ({ repoUrl, webhookUrl }: { repoUrl: string; webhookUrl: string }) => {
+      const updates = [
+        { setting_key: "github_repo_url", setting_value: repoUrl, updated_at: new Date().toISOString() },
+        { setting_key: "update_webhook_url", setting_value: webhookUrl, updated_at: new Date().toISOString() }
+      ];
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("server_settings")
+          .upsert(update, { onConflict: "setting_key" });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("GitHub-innstillinger oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere GitHub-innstillinger");
+    },
+  });
+
   useEffect(() => {
     if (serverUrl && !newServerUrl) {
       setNewServerUrl(serverUrl);
@@ -200,7 +228,7 @@ const Admin = () => {
     }
   }, [currentJellyseerrApiKey]);
 
-  // Load monitoring and qBittorrent settings
+  // Load monitoring, qBittorrent and GitHub settings
   useEffect(() => {
     const loadAdditionalSettings = async () => {
       if (!user || userRole !== "admin") return;
@@ -208,13 +236,15 @@ const Admin = () => {
       const { data } = await supabase
         .from("server_settings")
         .select("setting_key, setting_value")
-        .in("setting_key", ["monitoring_url", "qbittorrent_url", "qbittorrent_username", "qbittorrent_password"]);
+        .in("setting_key", ["monitoring_url", "qbittorrent_url", "qbittorrent_username", "qbittorrent_password", "github_repo_url", "update_webhook_url"]);
       
       data?.forEach(setting => {
         if (setting.setting_key === "monitoring_url") setMonitoringUrl(setting.setting_value || "");
         if (setting.setting_key === "qbittorrent_url") setQbittorrentUrl(setting.setting_value || "");
         if (setting.setting_key === "qbittorrent_username") setQbittorrentUsername(setting.setting_value || "");
         if (setting.setting_key === "qbittorrent_password") setQbittorrentPassword(setting.setting_value || "");
+        if (setting.setting_key === "github_repo_url") setGithubRepoUrl(setting.setting_value || "");
+        if (setting.setting_key === "update_webhook_url") setUpdateWebhookUrl(setting.setting_value || "");
       });
     };
     
@@ -699,6 +729,53 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     className="cinema-glow"
                   >
                     {updateApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle>GitHub Oppdateringer (Valgfritt)</CardTitle>
+                  <CardDescription>
+                    Konfigurer GitHub repository for automatiske oppdateringer. 
+                    Hvis du ikke bruker GitHub, kan du hoppe over dette.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="github-repo-url">GitHub Repository URL</Label>
+                    <Input
+                      id="github-repo-url"
+                      type="url"
+                      placeholder="https://github.com/brukernavn/repo-navn"
+                      value={githubRepoUrl}
+                      onChange={(e) => setGithubRepoUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Brukes for å sjekke etter oppdateringer fra GitHub
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="update-webhook-url">Update Webhook URL (Valgfritt)</Label>
+                    <Input
+                      id="update-webhook-url"
+                      type="url"
+                      placeholder="http://localhost:3001/update"
+                      value={updateWebhookUrl}
+                      onChange={(e) => setUpdateWebhookUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Webhook URL til serveren din for å installere oppdateringer
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={() => updateGithubSettings.mutate({ repoUrl: githubRepoUrl, webhookUrl: updateWebhookUrl })}
+                    disabled={updateGithubSettings.isPending || !githubRepoUrl}
+                    className="cinema-glow"
+                  >
+                    {updateGithubSettings.isPending ? "Oppdaterer..." : "Lagre GitHub-innstillinger"}
                   </Button>
                 </CardContent>
               </Card>
