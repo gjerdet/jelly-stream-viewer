@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 type DeploymentType = "cloud" | "local" | null;
-type SetupStep = "welcome" | "deployment-type" | "database-config" | "jellyfin-config" | "complete";
+type SetupStep = "welcome" | "deployment-type" | "database-config" | "jellyfin-config" | "monitoring-config" | "complete";
 
 const SetupWizard = () => {
   const navigate = useNavigate();
@@ -35,11 +35,16 @@ const SetupWizard = () => {
   const [jellyfinUrl, setJellyfinUrl] = useState("");
   const [jellyfinApiKey, setJellyfinApiKey] = useState("");
 
+  // Monitoring settings
+  const [monitoringUrl, setMonitoringUrl] = useState("http://localhost:19999");
+
   // Testing states
   const [testingDb, setTestingDb] = useState(false);
   const [dbStatus, setDbStatus] = useState<"idle" | "success" | "error">("idle");
   const [testingJellyfin, setTestingJellyfin] = useState(false);
   const [jellyfinStatus, setJellyfinStatus] = useState<"idle" | "success" | "error">("idle");
+  const [testingMonitoring, setTestingMonitoring] = useState(false);
+  const [monitoringStatus, setMonitoringStatus] = useState<"idle" | "success" | "error">("idle");
 
   // Check if setup is already completed
   useEffect(() => {
@@ -64,7 +69,7 @@ const SetupWizard = () => {
   };
 
   const getProgress = () => {
-    const steps = ["welcome", "deployment-type", "database-config", "jellyfin-config", "complete"];
+    const steps = ["welcome", "deployment-type", "database-config", "jellyfin-config", "monitoring-config", "complete"];
     const currentIndex = steps.indexOf(currentStep);
     return ((currentIndex + 1) / steps.length) * 100;
   };
@@ -145,6 +150,33 @@ const SetupWizard = () => {
     }
   };
 
+  const testMonitoringConnection = async () => {
+    setTestingMonitoring(true);
+    setMonitoringStatus("idle");
+    
+    try {
+      let normalizedUrl = monitoringUrl.trim();
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      const response = await fetch(`${normalizedUrl}/api/v1/info`);
+
+      if (response.ok) {
+        setMonitoringStatus("success");
+        toast.success("Netdata forbindelse OK!");
+      } else {
+        setMonitoringStatus("error");
+        toast.error("Kunne ikke koble til Netdata");
+      }
+    } catch (error) {
+      setMonitoringStatus("error");
+      toast.error("Feil ved tilkobling til Netdata");
+    } finally {
+      setTestingMonitoring(false);
+    }
+  };
+
   const saveConfiguration = async () => {
     setLoading(true);
     
@@ -185,6 +217,17 @@ const SetupWizard = () => {
         p_api_key: jellyfinApiKey.trim(),
       });
 
+      // Save monitoring URL
+      let normalizedMonitoringUrl = monitoringUrl.trim();
+      if (!normalizedMonitoringUrl.startsWith('http://') && !normalizedMonitoringUrl.startsWith('https://')) {
+        normalizedMonitoringUrl = `http://${normalizedMonitoringUrl}`;
+      }
+
+      await supabase.from("server_settings").upsert({
+        setting_key: "monitoring_url",
+        setting_value: normalizedMonitoringUrl,
+      }, { onConflict: "setting_key" });
+
       // Mark setup as completed
       await supabase.from("server_settings").upsert({
         setting_key: "setup_completed",
@@ -221,6 +264,9 @@ const SetupWizard = () => {
         toast.error("Vennligst test Jellyfin-forbindelsen først");
         return;
       }
+      setCurrentStep("monitoring-config");
+    } else if (currentStep === "monitoring-config") {
+      // Monitoring is optional, allow skipping
       saveConfiguration();
     }
   };
@@ -232,6 +278,8 @@ const SetupWizard = () => {
       setCurrentStep("deployment-type");
     } else if (currentStep === "jellyfin-config") {
       setCurrentStep("database-config");
+    } else if (currentStep === "monitoring-config") {
+      setCurrentStep("jellyfin-config");
     }
   };
 
@@ -244,11 +292,12 @@ const SetupWizard = () => {
           <div className="flex items-center justify-between">
             <CardTitle className="text-3xl font-bold">Installasjonsveileder</CardTitle>
             <span className="text-sm text-muted-foreground">
-              {currentStep === "welcome" && "Steg 1 av 5"}
-              {currentStep === "deployment-type" && "Steg 2 av 5"}
-              {currentStep === "database-config" && "Steg 3 av 5"}
-              {currentStep === "jellyfin-config" && "Steg 4 av 5"}
-              {currentStep === "complete" && "Steg 5 av 5"}
+              {currentStep === "welcome" && "Steg 1 av 6"}
+              {currentStep === "deployment-type" && "Steg 2 av 6"}
+              {currentStep === "database-config" && "Steg 3 av 6"}
+              {currentStep === "jellyfin-config" && "Steg 4 av 6"}
+              {currentStep === "monitoring-config" && "Steg 5 av 6"}
+              {currentStep === "complete" && "Steg 6 av 6"}
             </span>
           </div>
           <Progress value={getProgress()} className="h-2" />
@@ -290,6 +339,13 @@ const SetupWizard = () => {
                   <div>
                     <p className="font-medium">3. Konfigurer Jellyfin</p>
                     <p className="text-sm text-muted-foreground">Koble til din Jellyfin media server</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-secondary/30">
+                  <Server className="h-5 w-5 text-primary mt-0.5" />
+                  <div>
+                    <p className="font-medium">4. Konfigurer Server Monitoring</p>
+                    <p className="text-sm text-muted-foreground">Netdata for sanntids server-statistikk (valgfritt)</p>
                   </div>
                 </div>
               </div>
@@ -567,7 +623,72 @@ const SetupWizard = () => {
                 <Button 
                   onClick={handleNext} 
                   className="flex-1 cinema-glow"
-                  disabled={jellyfinStatus !== "success" || loading}
+                  disabled={jellyfinStatus !== "success"}
+                >
+                  Neste
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Monitoring Config Step */}
+          {currentStep === "monitoring-config" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Konfigurer Server Monitoring</h2>
+                <p className="text-muted-foreground">
+                  Netdata gir deg sanntids-statistikk for server-ytelse (valgfritt)
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="monitoringUrl">Netdata URL</Label>
+                  <Input
+                    id="monitoringUrl"
+                    placeholder="http://localhost:19999"
+                    value={monitoringUrl}
+                    onChange={(e) => setMonitoringUrl(e.target.value)}
+                    className="bg-secondary/50"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Standard Netdata-adresse er http://localhost:19999
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={testMonitoringConnection}
+                disabled={testingMonitoring}
+                variant={monitoringStatus === "success" ? "default" : "outline"}
+                className="w-full"
+              >
+                {testingMonitoring && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {monitoringStatus === "success" && <CheckCircle2 className="mr-2 h-4 w-4" />}
+                {monitoringStatus === "error" && <AlertCircle className="mr-2 h-4 w-4" />}
+                {testingMonitoring ? "Tester forbindelse..." : "Test forbindelse"}
+              </Button>
+
+              <div className="p-4 bg-secondary/30 rounded-lg">
+                <h3 className="font-semibold mb-2 text-sm">Om Netdata:</h3>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Netdata ble installert automatisk under oppsett. Du kan nå:
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Se sanntids CPU, RAM, disk og nettverksstatistikk</li>
+                  <li>Overvåke systemhelse direkte i Admin-panelet</li>
+                  <li>Åpne Netdata direkte på http://localhost:19999</li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3">
+                <Button onClick={handleBack} variant="outline" className="flex-1">
+                  Tilbake
+                </Button>
+                <Button 
+                  onClick={handleNext} 
+                  className="flex-1 cinema-glow"
+                  disabled={loading}
                 >
                   {loading ? (
                     <>
@@ -575,7 +696,7 @@ const SetupWizard = () => {
                       Lagrer...
                     </>
                   ) : (
-                    "Fullfør oppsett"
+                    monitoringStatus === "success" ? "Fullfør oppsett" : "Hopp over"
                   )}
                 </Button>
               </div>

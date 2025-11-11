@@ -44,12 +44,18 @@ Dette er den enkleste måten å komme i gang på, med full funksjonalitet.
 git clone https://github.com/gjerdet/jelly-stream-viewer.git
 cd jelly-stream-viewer
 
-# 2. Kjør interaktivt setup
+# 2. Kjør interaktivt setup (installerer automatisk Netdata)
 chmod +x setup-local.sh
 ./setup-local.sh
 
 # Velg alternativ 1: Supabase Cloud
 ```
+
+Setup-scriptet vil automatisk:
+- Sjekke systemkrav (Docker, Node.js)
+- Installere Netdata for server-monitoring
+- Guide deg gjennom Supabase-oppsett
+- Bygge applikasjonen
 
 ### Steg-for-steg
 
@@ -154,13 +160,34 @@ sudo systemctl reload nginx
 #### 8. Første Gangs Oppsett
 
 1. Åpne `http://din-server-ip` i nettleser
-2. Klikk **Registrer**
-3. Opprett første bruker (blir automatisk admin)
-4. Gå til `/setup`
-5. Konfigurer:
-   - Jellyfin Server URL
-   - Jellyfin API Key
-   - (Valgfritt) Jellyseerr
+2. Du vil bli møtt av **Installasjonsveiledere**
+3. Følg stegene:
+   - **Steg 1:** Velkomst og oversikt
+   - **Steg 2:** Velg deployment-type (Supabase Cloud)
+   - **Steg 3:** Konfigurer database (legg inn Supabase credentials)
+   - **Steg 4:** Konfigurer Jellyfin (server URL og API key)
+   - **Steg 5:** Konfigurer Server Monitoring (Netdata - http://localhost:19999)
+   - **Steg 6:** Fullført!
+4. Klikk **Registrer** og opprett første bruker (blir automatisk admin)
+5. Start streaming!
+
+#### 9. Server Monitoring med Netdata
+
+Netdata ble installert automatisk under setup. Du kan:
+
+- **Overvåke server-ytelse** direkte i Admin-panelet under "Server Statistikk"
+- **Åpne Netdata** direkte på http://localhost:19999 for detaljert statistikk
+- Se sanntids CPU, RAM, disk og nettverksstatus
+
+For å verifisere at Netdata kjører:
+```bash
+sudo systemctl status netdata
+```
+
+For å konfigurere Netdata senere:
+```bash
+sudo nano /etc/netdata/netdata.conf
+```
 
 ---
 
@@ -177,11 +204,17 @@ For de som vil ha full kontroll og kjøre alt lokalt.
 ### Rask Start
 
 ```bash
-# Kjør setup script
+# Kjør setup script (installerer Netdata automatisk)
 ./setup-local.sh
 
 # Velg alternativ 2: Lokal PostgreSQL
 ```
+
+Scriptet vil:
+- Installere Netdata for monitoring
+- Sette opp lokal PostgreSQL i Docker
+- Guide deg gjennom database-oppsett
+- Bygge applikasjonen
 
 ### Docker Compose Arkitektur
 

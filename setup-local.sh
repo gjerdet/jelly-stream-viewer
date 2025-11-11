@@ -72,6 +72,33 @@ check_node() {
     print_success "Node.js er installert ($(node --version))"
 }
 
+# Installer Netdata for server monitoring
+install_netdata() {
+    print_header "INSTALLERER NETDATA (SERVER MONITORING)"
+    
+    if command -v netdata &> /dev/null; then
+        print_success "Netdata er allerede installert"
+        return
+    fi
+    
+    print_info "Installerer Netdata for server-statistikk..."
+    
+    # Installer Netdata med kickstart script
+    wget -O /tmp/netdata-kickstart.sh https://get.netdata.cloud/kickstart.sh && sh /tmp/netdata-kickstart.sh --dont-wait --disable-telemetry
+    
+    if command -v netdata &> /dev/null; then
+        print_success "Netdata installert og kjører på http://localhost:19999"
+        
+        # Opprett monitoring URL setting
+        MONITORING_URL="http://localhost:19999"
+        
+        print_info "Monitoring URL: $MONITORING_URL"
+        echo "Dette vil bli konfigurert automatisk i setup-veilederen"
+    else
+        print_warning "Netdata-installasjon feilet. Du kan installere det manuelt senere."
+    fi
+}
+
 # Velg deployment type
 choose_deployment_type() {
     print_header "VELG DEPLOYMENT TYPE"
@@ -336,6 +363,9 @@ main() {
     # Sjekk systemkrav
     check_docker
     check_node
+    
+    # Installer Netdata for monitoring
+    install_netdata
     
     # Velg deployment type
     choose_deployment_type
