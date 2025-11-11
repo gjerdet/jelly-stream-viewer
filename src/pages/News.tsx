@@ -121,23 +121,23 @@ const News = () => {
   });
 
   const handleSubmitFeedback = () => {
-    try {
-      setErrors({});
-      const validated = feedbackSchema.parse({
-        title: feedbackTitle,
-        description: feedbackDescription,
+    setErrors({});
+    const parseResult = feedbackSchema.safeParse({
+      title: feedbackTitle,
+      description: feedbackDescription,
+    });
+    
+    if (!parseResult.success) {
+      const fieldErrors: { title?: string; description?: string } = {};
+      parseResult.error.errors.forEach((err) => {
+        if (err.path[0] === "title") fieldErrors.title = err.message;
+        if (err.path[0] === "description") fieldErrors.description = err.message;
       });
-      createFeedbackMutation.mutate(validated);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const fieldErrors: { title?: string; description?: string } = {};
-        error.errors.forEach((err) => {
-          if (err.path[0] === "title") fieldErrors.title = err.message;
-          if (err.path[0] === "description") fieldErrors.description = err.message;
-        });
-        setErrors(fieldErrors);
-      }
+      setErrors(fieldErrors);
+      return;
     }
+    
+    createFeedbackMutation.mutate(parseResult.data as { title: string; description: string });
   };
 
   const getStatusBadge = (status: string) => {

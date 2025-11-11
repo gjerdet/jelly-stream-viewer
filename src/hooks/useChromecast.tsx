@@ -114,9 +114,8 @@ export const useChromecast = () => {
         
         console.log('Chromecast initialized successfully');
       } catch (error) {
-        console.error('Cast initialization error:', error);
+        console.warn('Cast initialization error:', error);
         setIsLoading(false);
-        toast.error('Kunne ikke initialisere Chromecast');
       }
     };
 
@@ -126,20 +125,18 @@ export const useChromecast = () => {
         console.log('Cast SDK loaded successfully');
         initializeCast();
       } else {
-        console.error('Cast SDK not available');
+        console.warn('Cast SDK not available - Chromecast vil ikke være tilgjengelig');
         setIsLoading(false);
-        toast.error('Chromecast SDK ikke tilgjengelig');
       }
     };
 
-    // Fallback timeout after 15 seconds
+    // Fallback timeout after 30 seconds
     const timeout = setTimeout(() => {
       if (isLoading) {
-        console.error('Cast SDK load timeout');
+        console.warn('Cast SDK load timeout - Chromecast vil ikke være tilgjengelig');
         setIsLoading(false);
-        toast.error('Chromecast SDK tok for lang tid å laste');
       }
-    }, 15000);
+    }, 30000);
 
     return () => {
       clearTimeout(timeout);
