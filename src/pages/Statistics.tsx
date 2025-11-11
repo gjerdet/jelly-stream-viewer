@@ -235,7 +235,7 @@ const Statistics = () => {
     );
   }
 
-  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))'];
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--accent))'];
 
   return (
     <div className="container mx-auto p-6 space-y-6">
