@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface WatchHistoryItem {
   id: string;
@@ -26,6 +27,8 @@ interface WatchHistoryItem {
 const History = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const history = t.history as any;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,17 +53,17 @@ const History = () => {
   const handleClearHistory = async () => {
     if (!user) return;
     
-    const { error } = await supabase
+    const { error} = await supabase
       .from("watch_history")
       .delete()
       .eq("user_id", user.id);
 
     if (error) {
-      toast.error("Kunne ikke slette historikk");
+      toast.error(history.couldNotClear);
       return;
     }
 
-    toast.success("Historikk slettet");
+    toast.success(history.historyCleared);
     refetch();
   };
 
@@ -86,7 +89,7 @@ const History = () => {
         if (!seriesMap.has(item.jellyfin_series_id)) {
           seriesMap.set(item.jellyfin_series_id, {
             seriesId: item.jellyfin_series_id,
-            seriesName: item.jellyfin_series_name || "Ukjent serie",
+            seriesName: item.jellyfin_series_name || history.unknownSeries,
             seriesImage: item.image_url,
             seasons: new Map(),
           });
@@ -138,7 +141,7 @@ const History = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Laster...</p>
+        <p className="text-muted-foreground">{history.loading}</p>
       </div>
     );
   }
@@ -148,9 +151,9 @@ const History = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Historikk</h1>
+            <h1 className="text-3xl font-bold mb-2">{history.title}</h1>
             <p className="text-muted-foreground">
-              {historyItems?.length || 0} elementer
+              {historyItems?.length || 0} {history.items}
             </p>
           </div>
           {historyItems && historyItems.length > 0 && (
@@ -160,7 +163,7 @@ const History = () => {
               className="gap-2"
             >
               <Trash2 className="h-4 w-4" />
-              Slett historikk
+              {history.clearHistory}
             </Button>
           )}
         </div>
@@ -173,7 +176,7 @@ const History = () => {
                 <>
                   {series.length > 0 && (
                     <div className="space-y-6">
-                      <h2 className="text-xl font-semibold">Serier</h2>
+                      <h2 className="text-xl font-semibold">{history.series}</h2>
                       {series.map((seriesItem) => (
                         <SeriesHistoryItem
                           key={seriesItem.seriesId}
@@ -189,7 +192,7 @@ const History = () => {
                   {movies.length > 0 && (
                     <div>
                       <MediaGrid
-                        title="Filmer"
+                        title={history.movies}
                         items={mapHistoryToMediaItems(movies)}
                         onItemClick={handleItemClick}
                       />
@@ -202,10 +205,10 @@ const History = () => {
         ) : (
           <div className="text-center py-20">
             <p className="text-muted-foreground text-lg">
-              Ingen historikk ennå
+              {history.noHistory}
             </p>
             <p className="text-muted-foreground text-sm mt-2">
-              Start å se noe, så vil det dukke opp her
+              {history.startWatching}
             </p>
           </div>
         )}

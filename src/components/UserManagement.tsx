@@ -3,20 +3,24 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Shield, Loader2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { nb, enUS } from "date-fns/locale";
 import { useJellyfinUsers } from "@/hooks/useJellyfinUsers";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export const UserManagement = () => {
   const { data: users, isLoading, refetch } = useJellyfinUsers();
+  const { t, language } = useLanguage();
+  const userMgmt = t.userManagement as any;
+  const locale = language === 'no' ? nb : enUS;
 
   const handleRefresh = async () => {
-    toast.info("Oppdaterer brukerliste...");
+    toast.info(userMgmt.updating);
     try {
       await refetch();
-      toast.success("Brukerliste oppdatert");
+      toast.success(userMgmt.updated);
     } catch (error) {
-      toast.error("Kunne ikke oppdatere brukerliste");
+      toast.error(userMgmt.couldNotUpdate);
     }
   };
 
@@ -30,7 +34,7 @@ export const UserManagement = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Brukerbehandling
+            {userMgmt.title}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
@@ -47,10 +51,10 @@ export const UserManagement = () => {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Brukerbehandling
+              {userMgmt.title}
             </CardTitle>
             <CardDescription>
-              Viser alle brukere registrert i Jellyfin
+              {userMgmt.description}
             </CardDescription>
           </div>
           <Button
@@ -60,14 +64,14 @@ export const UserManagement = () => {
             size="sm"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Oppdater
+            {userMgmt.refresh}
           </Button>
         </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <p>Totalt {users?.length || 0} registrerte brukere</p>
+            <p>{userMgmt.totalUsers.replace('{count}', users?.length || 0)}</p>
           </div>
 
           <div className="space-y-3">
@@ -81,7 +85,7 @@ export const UserManagement = () => {
                     <div className="flex items-center gap-2 mb-1">
                       <p className="font-medium truncate">{user.name}</p>
                       {user.isDisabled && (
-                        <Badge variant="destructive" className="text-xs">Deaktivert</Badge>
+                        <Badge variant="destructive" className="text-xs">{userMgmt.disabled}</Badge>
                       )}
                     </div>
                     
@@ -89,12 +93,12 @@ export const UserManagement = () => {
                       {user.isAdministrator && (
                         <Badge variant={getRoleBadgeVariant(true)} className="text-xs">
                           <Shield className="h-3 w-3 mr-1" />
-                          Administrator
+                          {userMgmt.administrator}
                         </Badge>
                       )}
                       {!user.isAdministrator && (
                         <Badge variant={getRoleBadgeVariant(false)} className="text-xs">
-                          Bruker
+                          {userMgmt.user}
                         </Badge>
                       )}
                     </div>
@@ -102,11 +106,11 @@ export const UserManagement = () => {
                     <div className="text-xs text-muted-foreground space-y-1">
                       {user.lastLogin && (
                         <p>
-                          Sist innlogget: {format(new Date(user.lastLogin), "d. MMM yyyy 'kl.' HH:mm", { locale: nb })}
+                          {userMgmt.lastLogin}: {format(new Date(user.lastLogin), language === 'no' ? "d. MMM yyyy 'kl.' HH:mm" : "MMM d, yyyy 'at' h:mm a", { locale })}
                         </p>
                       )}
                       <p className="font-mono text-[10px] text-muted-foreground/70">
-                        Jellyfin ID: {user.id}
+                        {userMgmt.jellyfinId}: {user.id}
                       </p>
                     </div>
                   </div>
@@ -118,7 +122,7 @@ export const UserManagement = () => {
           {users?.length === 0 && (
             <div className="text-center py-8 text-muted-foreground">
               <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Ingen brukere registrert ennå</p>
+              <p>{userMgmt.noUsers}</p>
             </div>
           )}
         </div>

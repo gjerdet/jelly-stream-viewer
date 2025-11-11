@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trash2, ListX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FavoriteItem {
   id: string;
@@ -20,6 +21,8 @@ interface FavoriteItem {
 const MyList = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const myList = t.myList as any;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -50,11 +53,11 @@ const MyList = () => {
       .eq("user_id", user.id);
 
     if (error) {
-      toast.error("Kunne ikke tømme listen");
+      toast.error(myList.couldNotClear);
       return;
     }
 
-    toast.success("Listen er tømt");
+    toast.success(myList.listCleared);
     refetch();
   };
 
@@ -75,7 +78,7 @@ const MyList = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Laster...</p>
+        <p className="text-muted-foreground">{myList.loading}</p>
       </div>
     );
   }
@@ -85,9 +88,9 @@ const MyList = () => {
       <div className="container mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Min liste</h1>
+            <h1 className="text-3xl font-bold mb-2">{myList.title}</h1>
             <p className="text-muted-foreground">
-              {favoriteItems?.length || 0} favoritt{favoriteItems?.length !== 1 ? "er" : ""}
+              {favoriteItems?.length || 0} {favoriteItems?.length !== 1 ? myList.favorites : myList.favorite}
             </p>
           </div>
           {favoriteItems && favoriteItems.length > 0 && (
@@ -97,7 +100,7 @@ const MyList = () => {
               className="gap-2"
             >
               <Trash2 className="h-4 w-4" />
-              Tøm liste
+              {myList.clearList}
             </Button>
           )}
         </div>
@@ -112,10 +115,10 @@ const MyList = () => {
           <div className="text-center py-20">
             <ListX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <p className="text-muted-foreground text-lg mb-2">
-              Ingen favoritter ennå
+              {myList.noFavorites}
             </p>
             <p className="text-muted-foreground text-sm">
-              Legg til filmer og serier i din liste ved å trykke på "+ Min liste" knappen
+              {myList.addFavorites}
             </p>
           </div>
         )}
