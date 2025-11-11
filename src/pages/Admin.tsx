@@ -11,13 +11,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
 import { ServerMonitoring } from "@/components/ServerMonitoring";
 import { QBittorrentStatus } from "@/components/QBittorrentStatus";
 import { HealthCheckDashboard } from "@/components/HealthCheckDashboard";
+import { SystemLogs } from "@/components/SystemLogs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -660,7 +661,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="health" className="w-full">
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="grid w-full grid-cols-10">
               <TabsTrigger value="health">
                 <Activity className="h-4 w-4 mr-2" />
                 Health
@@ -679,6 +680,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               <TabsTrigger value="users">Brukere</TabsTrigger>
               <TabsTrigger value="news">Nyheter</TabsTrigger>
               <TabsTrigger value="versions">Versjoner</TabsTrigger>
+              <TabsTrigger value="logs">
+                <FileText className="h-4 w-4 mr-2" />
+                Logger
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="health" className="space-y-6">
@@ -1376,6 +1381,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="versions" className="space-y-6">
               <UpdateManager />
               <VersionManager />
+            </TabsContent>
+
+            <TabsContent value="logs" className="space-y-6">
+              <SystemLogs />
             </TabsContent>
           </Tabs>
         </div>
