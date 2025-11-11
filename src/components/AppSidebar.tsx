@@ -2,6 +2,7 @@ import { Heart, Gift, Newspaper, History, MessageSquare, BarChart3 } from "lucid
 import { NavLink } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -16,18 +17,20 @@ import {
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
 
-const items = [
-  { title: "Min liste", url: "/my-list", icon: Heart },
-  { title: "Ønsker", url: "/wishes", icon: Gift },
-  { title: "Info", url: "/news", icon: Newspaper },
-  { title: "Historikk", url: "/history", icon: History },
-];
-
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { user } = useAuth();
   const { data: role } = useUserRole(user?.id);
+  const { t } = useLanguage();
+  const sidebar = t.sidebar as any;
+
+  const items = [
+    { title: sidebar.myList || "My List", url: "/my-list", icon: Heart },
+    { title: sidebar.wishes || "Wishes", url: "/wishes", icon: Gift },
+    { title: sidebar.info || "Info", url: "/news", icon: Newspaper },
+    { title: sidebar.history || "History", url: "/history", icon: History },
+  ];
 
   // Fetch pending requests count for admins
   const { data: pendingCount } = useQuery({
@@ -79,7 +82,7 @@ export function AppSidebar() {
               {role === 'admin' && (
                 <>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={collapsed ? "Forespørsler" : undefined}>
+                    <SidebarMenuButton asChild tooltip={collapsed ? (sidebar.requests || "Requests") : undefined}>
                       <NavLink
                         to="/requests-admin"
                         className={({ isActive }) =>
@@ -92,7 +95,7 @@ export function AppSidebar() {
                       >
                         <MessageSquare className="h-4 w-4 flex-shrink-0" />
                         <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center gap-2">
-                          Forespørsler
+                          {sidebar.requests || "Requests"}
                           {pendingCount && pendingCount > 0 && (
                             <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
                               {pendingCount}
@@ -103,7 +106,7 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
-                    <SidebarMenuButton asChild tooltip={collapsed ? "Statistikk" : undefined}>
+                    <SidebarMenuButton asChild tooltip={collapsed ? (sidebar.statistics || "Statistics") : undefined}>
                       <NavLink
                         to="/statistics"
                         className={({ isActive }) =>
@@ -116,7 +119,7 @@ export function AppSidebar() {
                       >
                         <BarChart3 className="h-4 w-4 flex-shrink-0" />
                         <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
-                          Statistikk
+                          {sidebar.statistics || "Statistics"}
                         </span>
                       </NavLink>
                     </SidebarMenuButton>

@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
@@ -30,6 +31,9 @@ const Admin = () => {
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
   const { siteName, logoUrl, headerTitle, updateSetting } = useSiteSettings();
+  const { t, language } = useLanguage();
+  const admin = t.admin as any;
+  const common = t.common as any;
   const [newServerUrl, setNewServerUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [jellyseerrUrl, setJellyseerrUrl] = useState("");
@@ -646,8 +650,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 <Settings className="h-8 w-8 text-primary" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">Admin-innstillinger</h1>
-                <p className="text-muted-foreground">Administrer server-tilkoblinger og innhold</p>
+                <h1 className="text-3xl font-bold">{admin.title || "Admin Panel"}</h1>
+                <p className="text-muted-foreground">{admin.serverSettings || "Manage server connections and content"}</p>
               </div>
             </div>
             <Button 
@@ -666,23 +670,23 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 <Activity className="h-4 w-4 mr-2" />
                 Health
               </TabsTrigger>
-              <TabsTrigger value="servers">Servere</TabsTrigger>
-              <TabsTrigger value="database">Database</TabsTrigger>
-              <TabsTrigger value="site">Side</TabsTrigger>
+              <TabsTrigger value="servers">{admin.servers || "Servers"}</TabsTrigger>
+              <TabsTrigger value="database">{admin.database || "Database"}</TabsTrigger>
+              <TabsTrigger value="site">{language === 'no' ? 'Side' : 'Site'}</TabsTrigger>
               <TabsTrigger value="monitoring">
                 <Server className="h-4 w-4 mr-2" />
-                Status
+                {language === 'no' ? 'Status' : 'Status'}
               </TabsTrigger>
               <TabsTrigger value="qbittorrent">
                 <Download className="h-4 w-4 mr-2" />
                 qBittorrent
               </TabsTrigger>
-              <TabsTrigger value="users">Brukere</TabsTrigger>
-              <TabsTrigger value="news">Nyheter</TabsTrigger>
-              <TabsTrigger value="versions">Versjoner</TabsTrigger>
+              <TabsTrigger value="users">{admin.users || "Users"}</TabsTrigger>
+              <TabsTrigger value="news">{language === 'no' ? 'Nyheter' : 'News'}</TabsTrigger>
+              <TabsTrigger value="versions">{admin.versions || "Versions"}</TabsTrigger>
               <TabsTrigger value="logs">
                 <FileText className="h-4 w-4 mr-2" />
-                Logger
+                {admin.logs || "Logs"}
               </TabsTrigger>
             </TabsList>
 

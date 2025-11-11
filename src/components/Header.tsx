@@ -25,6 +25,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useChromecast } from "@/hooks/useChromecast";
 import { useSidebar } from "@/components/ui/sidebar";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 import { useState, useEffect, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,8 @@ const Header = () => {
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, apiKey } = useServerSettings();
   const { castState, isLoading: castLoading, requestSession, endSession, playOrPause } = useChromecast();
+  const { t } = useLanguage();
+  const header = t.header as any;
   
   console.log('User role:', userRole, 'Loading:', roleLoading);
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
@@ -124,7 +127,7 @@ const Header = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    toast.success("Logget ut");
+    toast.success(header.loggedOut || "Logged out");
     navigate("/");
   };
 
@@ -155,11 +158,11 @@ const Header = () => {
 
   const handleSync = async () => {
     if (!serverUrl || !apiKey) {
-      toast.error("Server ikke konfigurert");
+      toast.error(header.serverNotConfigured || "Server not configured");
       return;
     }
     
-    toast.loading("Synkroniserer med Jellyfin...");
+    toast.loading(header.syncStarted || "Syncing...");
     try {
       const response = await fetch(`${serverUrl.replace(/\/$/, '')}/Library/Refresh`, {
         method: "POST",
@@ -173,21 +176,21 @@ const Header = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      toast.success("Synkronisering startet");
+      toast.success(header.syncStarted || "Synchronization started");
     } catch (error) {
       console.error("Sync error:", error);
-      toast.error("Kunne ikke synkronisere");
+      toast.error(header.couldNotSync || "Could not synchronize");
     }
   };
 
   const handleRefresh = () => {
     window.location.reload();
-    toast.success("Laster inn på nytt");
+    toast.success(header.refreshing || "Refreshing");
   };
 
   const handleStatus = async () => {
     if (!serverUrl || !apiKey) {
-      toast.error("Server ikke konfigurert");
+      toast.error(header.serverNotConfigured || "Server not configured");
       return;
     }
     
@@ -205,10 +208,10 @@ const Header = () => {
       }
       
       const data = await response.json();
-      toast.success(`Server kjører: ${data.ServerName || "Jellyfin"}`);
+      toast.success(`${header.serverRunning || "Server running"}: ${data.ServerName || "Jellyfin"}`);
     } catch (error) {
       console.error("Status error:", error);
-      toast.error("Kunne ikke hente server-status");
+      toast.error(header.couldNotFetchStatus || "Could not fetch server status");
     }
   };
 
@@ -224,9 +227,9 @@ const Header = () => {
   };
 
   const navItems = [
-    { name: "Hjem", path: "/browse" },
-    { name: "Filmer", path: "/movies" },
-    { name: "Serier", path: "/series" },
+    { name: header.home || "Home", path: "/browse" },
+    { name: header.movies || "Movies", path: "/movies" },
+    { name: header.series || "Series", path: "/series" },
   ];
 
   return (
@@ -285,7 +288,7 @@ const Header = () => {
               </SheetTrigger>
               <SheetContent side="top" className="h-auto">
                 <SheetHeader>
-                  <SheetTitle>Søk</SheetTitle>
+                  <SheetTitle>{header.search || "Search"}</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4">
                   <form onSubmit={(e) => {
@@ -295,7 +298,7 @@ const Header = () => {
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                       <Input
-                        placeholder="Søk etter filmer og serier..."
+                        placeholder={header.searchPlaceholder || "Search for movies and series..."}
                         value={searchQuery}
                         onChange={handleInputChange}
                         className="pl-10 pr-10 text-base"
@@ -340,7 +343,7 @@ const Header = () => {
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-sm truncate">{item.Name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {item.Type === "Movie" ? "Film" : "Serie"}
+                              {item.Type === "Movie" ? (header.movies || "Movies") : (header.series || "Series")}
                               {item.ProductionYear && ` • ${item.ProductionYear}`}
                             </p>
                           </div>
@@ -357,7 +360,7 @@ const Header = () => {
               <form onSubmit={handleSearch}>
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                 <Input
-                  placeholder="Søk..."
+                  placeholder={header.searchMobilePlaceholder || "Search..."}
                   value={searchQuery}
                   onChange={handleInputChange}
                   onFocus={() => searchQuery.trim() && setShowSuggestions(true)}
@@ -398,7 +401,7 @@ const Header = () => {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{item.Name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {item.Type === "Movie" ? "Film" : "Serie"}
+                          {item.Type === "Movie" ? (header.movies || "Movies") : (header.series || "Series")}
                           {item.ProductionYear && ` • ${item.ProductionYear}`}
                         </p>
                       </div>
@@ -417,7 +420,7 @@ const Header = () => {
               </SheetTrigger>
               <SheetContent side="right">
                 <SheetHeader>
-                  <SheetTitle>Meny</SheetTitle>
+                  <SheetTitle>{header.menu || "Menu"}</SheetTitle>
                 </SheetHeader>
                 <nav className="mt-6 space-y-1">
                   {navItems.map((item) => (
@@ -450,10 +453,10 @@ const Header = () => {
                       className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
                       title={
                         castLoading 
-                          ? "Laster Chromecast..." 
+                          ? (header.loadingChromecast || "Loading Chromecast...") 
                           : castState.isConnected 
-                            ? `Koblet til ${castState.deviceName}` 
-                            : "Koble til Chromecast"
+                            ? `${header.connectedTo || "Connected to"} ${castState.deviceName}` 
+                            : (header.connectToChromecast || "Connect to Chromecast")
                       }
                       disabled={castLoading}
                     >
