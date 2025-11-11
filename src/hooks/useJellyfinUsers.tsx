@@ -37,7 +37,9 @@ export const useJellyfinUsers = () => {
 
       const users: JellyfinUser[] = await response.json();
       
-      return users.map(user => ({
+      console.log('Jellyfin API returned users:', users.length, users);
+      
+      const mappedUsers = users.map(user => ({
         id: user.Id,
         name: user.Name,
         lastActivity: user.LastActivityDate,
@@ -45,6 +47,9 @@ export const useJellyfinUsers = () => {
         isAdministrator: user.Policy?.IsAdministrator || false,
         isDisabled: user.Policy?.IsDisabled || false,
       }));
+      
+      console.log('Mapped users:', mappedUsers);
+      return mappedUsers;
     },
     enabled: !!serverUrl && !!apiKey,
   });
