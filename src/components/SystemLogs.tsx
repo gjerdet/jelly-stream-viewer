@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -6,9 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Database, Shield, Globe, Search, X, Filter } from "lucide-react";
+import { Terminal, Database, Shield, Globe, Search, X, Filter, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface LogEntry {
   timestamp: number;
@@ -20,23 +22,67 @@ interface LogEntry {
 }
 
 export const SystemLogs = () => {
-  const [consoleError, setConsoleError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<string>("all");
+  
+  const consoleLogs: LogEntry[] = []; // No console logs in production
+  const [authLogs, setAuthLogs] = useState<LogEntry[]>([]);
+  const [dbLogs, setDbLogs] = useState<LogEntry[]>([]);
+  const [edgeLogs, setEdgeLogs] = useState<LogEntry[]>([]);
+  
+  const [loadingAuth, setLoadingAuth] = useState(false);
+  const [loadingDb, setLoadingDb] = useState(false);
+  const [loadingEdge, setLoadingEdge] = useState(false);
+  const [activeTab, setActiveTab] = useState("console");
 
-  // Simulated logs - in production, these would come from actual API calls
-  const consoleLogs: LogEntry[] = [
-    {
-      timestamp: Date.now(),
-      level: "info",
-      message: "Applikasjon startet",
-    },
-  ];
+  // Fetch logs function
+  const fetchLogs = async (logType: 'auth' | 'database' | 'edge') => {
+    try {
+      const setLoading = logType === 'auth' ? setLoadingAuth : 
+                         logType === 'database' ? setLoadingDb : setLoadingEdge;
+      
+      setLoading(true);
 
-  const authLogs: LogEntry[] = [];
-  const dbLogs: LogEntry[] = [];
-  const edgeLogs: LogEntry[] = [];
+      const { data, error } = await supabase.functions.invoke('fetch-system-logs', {
+        body: { logType }
+      });
+
+      if (error) throw error;
+
+      const logs = (data?.logs || []).map((log: any) => ({
+        timestamp: log.timestamp || Date.now() * 1000,
+        level: log.level || log.error_severity || 'info',
+        message: log.msg || log.event_message || 'No message',
+        error: log.error,
+        path: log.path,
+        status: log.status || log.status_code?.toString(),
+      }));
+
+      if (logType === 'auth') setAuthLogs(logs);
+      else if (logType === 'database') setDbLogs(logs);
+      else setEdgeLogs(logs);
+
+    } catch (error) {
+      console.error(`Error fetching ${logType} logs:`, error);
+      toast.error(`Kunne ikke hente ${logType}-logger`);
+    } finally {
+      const setLoading = logType === 'auth' ? setLoadingAuth : 
+                         logType === 'database' ? setLoadingDb : setLoadingEdge;
+      setLoading(false);
+    }
+  };
+
+  // Load logs when tab changes
+  useEffect(() => {
+    if (activeTab === 'auth' && authLogs.length === 0) {
+      fetchLogs('auth');
+    } else if (activeTab === 'database' && dbLogs.length === 0) {
+      fetchLogs('database');
+    } else if (activeTab === 'edge' && edgeLogs.length === 0) {
+      fetchLogs('edge');
+    }
+  }, [activeTab]);
 
   const formatTimestamp = (timestamp: number) => {
     try {
@@ -262,7 +308,7 @@ export const SystemLogs = () => {
           )}
         </div>
 
-        <Tabs defaultValue="console" className="w-full">
+        <Tabs defaultValue="console" className="w-full" onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="console" className="gap-2">
               <Terminal className="h-4 w-4" />
@@ -290,11 +336,6 @@ export const SystemLogs = () => {
               </p>
             </div>
             
-            {consoleError ? (
-              <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400">{consoleError}</p>
-              </div>
-            ) : (
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
               {filteredConsoleLogs.length > 0 ? (
                 <div className="space-y-2">
@@ -306,18 +347,29 @@ export const SystemLogs = () => {
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
-                  Ingen console-logger tilgjengelig
+                  Console-logger er ikke tilgjengelige i produksjon. Bruk browser-konsollen (F12).
                 </div>
               )}
             </ScrollArea>
-            )}
           </TabsContent>
 
           <TabsContent value="auth" className="space-y-4 mt-4">
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <p className="text-sm text-blue-400">
-                <strong>ℹ️ Info:</strong> Auth-logger viser innlogginger og token-fornyelser.
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-1">
+                <p className="text-sm text-blue-400">
+                  <strong>ℹ️ Info:</strong> Auth-logger viser innlogginger og token-fornyelser.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs('auth')}
+                disabled={loadingAuth}
+                className="ml-4 gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingAuth ? 'animate-spin' : ''}`} />
+                Oppdater
+              </Button>
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
@@ -338,10 +390,22 @@ export const SystemLogs = () => {
           </TabsContent>
 
           <TabsContent value="database" className="space-y-4 mt-4">
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <p className="text-sm text-blue-400">
-                <strong>ℹ️ Info:</strong> Database-logger viser tilkoblinger og spørringer.
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-1">
+                <p className="text-sm text-blue-400">
+                  <strong>ℹ️ Info:</strong> Database-logger viser feil og advarsler.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs('database')}
+                disabled={loadingDb}
+                className="ml-4 gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingDb ? 'animate-spin' : ''}`} />
+                Oppdater
+              </Button>
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
@@ -362,10 +426,22 @@ export const SystemLogs = () => {
           </TabsContent>
 
           <TabsContent value="edge" className="space-y-4 mt-4">
-            <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
-              <p className="text-sm text-blue-400">
-                <strong>ℹ️ Info:</strong> Edge function-logger viser HTTP-kall til backend-funksjoner.
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 flex-1">
+                <p className="text-sm text-blue-400">
+                  <strong>ℹ️ Info:</strong> Edge function-logger viser HTTP-kall til backend-funksjoner.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs('edge')}
+                disabled={loadingEdge}
+                className="ml-4 gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingEdge ? 'animate-spin' : ''}`} />
+                Oppdater
+              </Button>
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
