@@ -88,6 +88,7 @@ const Player = () => {
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showEpisodes, setShowEpisodes] = useState(false);
+  const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
 
   // Fetch users to get user ID
@@ -230,6 +231,20 @@ const Player = () => {
     if (nextEpisode) {
       console.log('Autoplay: Playing next episode', nextEpisode.Name);
       navigate(`/player/${nextEpisode.Id}`);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video || !isEpisode) return;
+
+    const timeRemaining = video.duration - video.currentTime;
+    // Show preview when 30 seconds remaining
+    if (timeRemaining <= 30 && timeRemaining > 0 && !showNextEpisodePreview) {
+      const nextEpisode = getNextEpisode();
+      if (nextEpisode) {
+        setShowNextEpisodePreview(true);
+      }
     }
   };
 
@@ -378,6 +393,7 @@ const Player = () => {
         }}
         onError={handleVideoError}
         onEnded={handleVideoEnded}
+        onTimeUpdate={handleTimeUpdate}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
@@ -587,6 +603,50 @@ const Player = () => {
           </div>
         )}
       </div>
+
+      {/* Next Episode Preview */}
+      {showNextEpisodePreview && (() => {
+        const nextEpisode = getNextEpisode();
+        if (!nextEpisode) return null;
+
+        const nextEpisodeImageUrl = nextEpisode.ImageTags?.Primary && serverUrl
+          ? `${serverUrl.replace(/\/$/, '')}/Items/${nextEpisode.Id}/Images/Primary?maxHeight=200`
+          : null;
+
+        return (
+          <div className="absolute bottom-24 right-6 w-80 bg-background/95 backdrop-blur-xl rounded-lg p-4 shadow-2xl border border-border animate-fade-in pointer-events-auto">
+            <div className="flex items-start gap-3">
+              <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary">
+                {nextEpisodeImageUrl ? (
+                  <img
+                    src={nextEpisodeImageUrl}
+                    alt={nextEpisode.Name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                    Ingen bilde
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground mb-1">Neste episode</p>
+                <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                  {nextEpisode.IndexNumber && `${nextEpisode.IndexNumber}. `}{nextEpisode.Name}
+                </h3>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowNextEpisodePreview(false)}
+                  className="h-7 text-xs"
+                >
+                  Lukk
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
