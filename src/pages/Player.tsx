@@ -89,7 +89,9 @@ const Player = () => {
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showEpisodes, setShowEpisodes] = useState(false);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
+  const countdownInterval = useRef<NodeJS.Timeout>();
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -244,9 +246,46 @@ const Player = () => {
       const nextEpisode = getNextEpisode();
       if (nextEpisode) {
         setShowNextEpisodePreview(true);
+        setCountdown(Math.ceil(timeRemaining));
       }
     }
   };
+
+  const playNextEpisode = () => {
+    const nextEpisode = getNextEpisode();
+    if (nextEpisode) {
+      navigate(`/player/${nextEpisode.Id}`);
+    }
+  };
+
+  // Countdown effect
+  useEffect(() => {
+    if (countdown !== null && countdown > 0) {
+      countdownInterval.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => {
+        if (countdownInterval.current) {
+          clearInterval(countdownInterval.current);
+        }
+      };
+    }
+  }, [countdown]);
+
+  // Cleanup countdown on unmount
+  useEffect(() => {
+    return () => {
+      if (countdownInterval.current) {
+        clearInterval(countdownInterval.current);
+      }
+    };
+  }, []);
 
   // Get subtitle URL using edge function
   const getSubtitleUrl = (subtitleIndex: number) => {
@@ -630,18 +669,41 @@ const Player = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-muted-foreground mb-1">Neste episode</p>
-                <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs text-muted-foreground">Neste episode</p>
+                  {countdown !== null && countdown > 0 && (
+                    <span className="text-xs font-semibold text-primary">
+                      {countdown}s
+                    </span>
+                  )}
+                </div>
+                <h3 className="font-semibold text-sm line-clamp-2 mb-3">
                   {nextEpisode.IndexNumber && `${nextEpisode.IndexNumber}. `}{nextEpisode.Name}
                 </h3>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowNextEpisodePreview(false)}
-                  className="h-7 text-xs"
-                >
-                  Lukk
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={playNextEpisode}
+                    className="h-8 text-xs flex-1"
+                  >
+                    <Play className="h-3 w-3 mr-1" />
+                    Spill nå
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setShowNextEpisodePreview(false);
+                      setCountdown(null);
+                      if (countdownInterval.current) {
+                        clearInterval(countdownInterval.current);
+                      }
+                    }}
+                    className="h-8 text-xs"
+                  >
+                    Lukk
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
