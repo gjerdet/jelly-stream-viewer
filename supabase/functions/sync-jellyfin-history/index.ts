@@ -59,68 +59,89 @@ Deno.serve(async (req) => {
 
     let totalSynced = 0;
 
-    // Sync watch history for each user
-    for (const profile of profiles || []) {
-      if (!profile.jellyfin_user_id) continue;
-
-      // Get user's recently played items from Jellyfin
-      const jellyfinResponse = await fetch(
-        `${cleanServerUrl}/Users/${profile.jellyfin_user_id}/Items?Recursive=true&IncludeItemTypes=Movie,Episode&Filters=IsPlayed&Limit=200&Fields=BasicSyncInfo,UserData`,
-        {
-          headers: {
-            'X-Emby-Token': apiKey,
-          },
-        }
-      );
-
-      if (!jellyfinResponse.ok) {
-        console.error(`Failed to fetch history for user ${profile.id}`);
-        continue;
+    // Sync watch history for each user with better error handling
+    const syncPromises = (profiles || []).map(async (profile) => {
+      if (!profile.jellyfin_user_id) {
+        console.log(`Skipping user ${profile.id} - no jellyfin_user_id`);
+        return 0;
       }
 
-      const jellyfinData = await jellyfinResponse.json();
-      const items: JellyfinPlaybackItem[] = jellyfinData.Items || [];
+      try {
+        // Get user's recently played items from Jellyfin with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      // Prepare data for upsert
-      const watchHistoryData = items
-        .filter(item => item.UserData?.LastPlayedDate)
-        .map(item => {
-          const imageUrl = item.ImageTags?.Primary
-            ? `${cleanServerUrl}/Items/${item.Id}/Images/Primary?maxHeight=600`
-            : null;
+        const jellyfinResponse = await fetch(
+          `${cleanServerUrl}/Users/${profile.jellyfin_user_id}/Items?Recursive=true&IncludeItemTypes=Movie,Episode&Filters=IsPlayed&Limit=100&Fields=BasicSyncInfo,UserData`,
+          {
+            headers: {
+              'X-Emby-Token': apiKey,
+            },
+            signal: controller.signal,
+          }
+        );
 
-          return {
-            user_id: profile.id,
-            jellyfin_item_id: item.Id,
-            jellyfin_item_name: item.Name,
-            jellyfin_item_type: item.Type,
-            jellyfin_series_id: item.SeriesId || null,
-            jellyfin_series_name: item.SeriesName || null,
-            jellyfin_season_id: item.SeasonId || null,
-            image_url: imageUrl,
-            runtime_ticks: item.RunTimeTicks || null,
-            last_position_ticks: item.UserData?.PlaybackPositionTicks || 0,
-            watched_at: item.UserData?.LastPlayedDate || new Date().toISOString(),
-          };
-        });
+        clearTimeout(timeoutId);
 
-      if (watchHistoryData.length > 0) {
-        // Upsert watch history
-        const { error: upsertError } = await supabaseClient
-          .from('watch_history')
-          .upsert(watchHistoryData, {
-            onConflict: 'jellyfin_item_id,user_id',
-            ignoreDuplicates: false
+        if (!jellyfinResponse.ok) {
+          console.error(`Failed to fetch history for user ${profile.id}: ${jellyfinResponse.status}`);
+          return 0;
+        }
+
+        const jellyfinData = await jellyfinResponse.json();
+        const items: JellyfinPlaybackItem[] = jellyfinData.Items || [];
+
+        // Prepare data for upsert
+        const watchHistoryData = items
+          .filter(item => item.UserData?.LastPlayedDate)
+          .map(item => {
+            const imageUrl = item.ImageTags?.Primary
+              ? `${cleanServerUrl}/Items/${item.Id}/Images/Primary?maxHeight=600`
+              : null;
+
+            return {
+              user_id: profile.id,
+              jellyfin_item_id: item.Id,
+              jellyfin_item_name: item.Name,
+              jellyfin_item_type: item.Type,
+              jellyfin_series_id: item.SeriesId || null,
+              jellyfin_series_name: item.SeriesName || null,
+              jellyfin_season_id: item.SeasonId || null,
+              image_url: imageUrl,
+              runtime_ticks: item.RunTimeTicks || null,
+              last_position_ticks: item.UserData?.PlaybackPositionTicks || 0,
+              watched_at: item.UserData?.LastPlayedDate || new Date().toISOString(),
+            };
           });
 
-        if (upsertError) {
-          console.error(`Error upserting history for user ${profile.id}:`, upsertError);
-        } else {
-          totalSynced += watchHistoryData.length;
-          console.log(`Synced ${watchHistoryData.length} items for user ${profile.id}`);
+        if (watchHistoryData.length > 0) {
+          // Upsert watch history
+          const { error: upsertError } = await supabaseClient
+            .from('watch_history')
+            .upsert(watchHistoryData, {
+              onConflict: 'jellyfin_item_id,user_id',
+              ignoreDuplicates: false
+            });
+
+          if (upsertError) {
+            console.error(`Error upserting history for user ${profile.id}:`, upsertError);
+            return 0;
+          } else {
+            console.log(`Synced ${watchHistoryData.length} items for user ${profile.id}`);
+            return watchHistoryData.length;
+          }
         }
+
+        return 0;
+      } catch (error) {
+        console.error(`Error syncing user ${profile.id}:`, error);
+        return 0;
       }
-    }
+    });
+
+    // Wait for all syncs to complete
+    const results = await Promise.all(syncPromises);
+    totalSynced = results.reduce((sum, count) => sum + count, 0);
 
     return new Response(
       JSON.stringify({
