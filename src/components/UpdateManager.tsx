@@ -29,23 +29,31 @@ export const UpdateManager = () => {
   const [updating, setUpdating] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
 
   const checkForUpdates = async () => {
     setChecking(true);
     setError(null);
     
     try {
-      const { data, error } = await supabase.functions.invoke('check-updates');
+      const { data, error: invokeError } = await supabase.functions.invoke('check-updates');
       
-      if (error) {
-        throw error;
+      // Handle function invocation errors gracefully
+      if (invokeError) {
+        console.error('Function invocation error:', invokeError);
+        setError('Kunne ikke sjekke for oppdateringer');
+        setIsSetupComplete(false);
+        return;
       }
 
       if (data?.needsSetup) {
         setError(data.error);
+        setIsSetupComplete(false);
+        toast.info('GitHub repository må konfigureres først');
         return;
       }
 
+      setIsSetupComplete(true);
       setUpdateInfo(data);
       
       if (data.updateAvailable) {
@@ -55,8 +63,8 @@ export const UpdateManager = () => {
       }
     } catch (err: any) {
       console.error('Check updates error:', err);
-      setError(err.message || 'Kunne ikke sjekke for oppdateringer');
-      toast.error('Kunne ikke sjekke for oppdateringer');
+      setError('Kunne ikke sjekke for oppdateringer');
+      setIsSetupComplete(false);
     } finally {
       setChecking(false);
     }
@@ -105,17 +113,26 @@ export const UpdateManager = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error && (
-          <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+        {/* Setup instructions - show by default until setup is verified */}
+        {isSetupComplete === false && (
+          <div className="p-4 bg-muted/50 border border-border rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium text-destructive">{error}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Konfigurer GitHub repository URL og update webhook URL i Server Innstillinger
-                </p>
+                <p className="text-sm font-medium mb-2">GitHub oppdateringer er ikke konfigurert (valgfritt)</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
+                  <li>Sett <code className="bg-background px-1 rounded">github_repo_url</code> i Server Innstillinger</li>
+                  <li>Sett <code className="bg-background px-1 rounded">update_webhook_url</code> til din server</li>
+                  <li>Kjør update-server scriptet på serveren din</li>
+                </ol>
               </div>
             </div>
+          </div>
+        )}
+
+        {error && isSetupComplete === false && (
+          <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
+            Denne funksjonen er valgfri. Du kan fortsatt administrere applikasjonen uten GitHub-integrasjon.
           </div>
         )}
 
@@ -197,15 +214,6 @@ export const UpdateManager = () => {
               </AlertDialogContent>
             </AlertDialog>
           )}
-        </div>
-
-        <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs text-muted-foreground">
-          <p className="font-medium mb-1">Oppsett påkrevd:</p>
-          <ol className="list-decimal list-inside space-y-1 ml-2">
-            <li>Sett <code className="bg-background px-1 rounded">github_repo_url</code> i Server Innstillinger</li>
-            <li>Sett <code className="bg-background px-1 rounded">update_webhook_url</code> til din server (f.eks. http://localhost:3001/update)</li>
-            <li>Kjør update-server scriptet på serveren din (se dokumentasjon)</li>
-          </ol>
         </div>
       </CardContent>
     </Card>
