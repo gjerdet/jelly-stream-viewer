@@ -1122,7 +1122,6 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             </TabsContent>
 
             <TabsContent value="versions" className="space-y-6">
-              <UpdateManager />
               <VersionManager />
             </TabsContent>
           </Tabs>
