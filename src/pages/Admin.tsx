@@ -634,7 +634,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-12">
-          <p className="text-center text-muted-foreground">Laster...</p>
+          <p className="text-center text-muted-foreground">{common.loading || "Loading..."}</p>
         </div>
       </div>
     );
@@ -660,7 +660,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               className="gap-2"
             >
               <Newspaper className="h-4 w-4" />
-              Forespørsler
+              {admin.requests || "Requests"}
             </Button>
           </div>
 
@@ -697,18 +697,18 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="servers" className="space-y-6">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Server konfigurering</CardTitle>
+                  <CardTitle>{admin.serverConfiguration || "Server Configuration"}</CardTitle>
                   <CardDescription>
-                    Oppdater Jellyfin server URL for alle brukere
+                    {admin.updateJellyfinUrl || "Update Jellyfin server URL for all users"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="server-url">Jellyfin Server URL</Label>
+                    <Label htmlFor="server-url">{admin.jellyfinUrl || "Jellyfin Server URL"}</Label>
                     <Input
                       id="server-url"
                       type="url"
-                      placeholder="http://jellyfin.gjerdet.casa/"
+                      placeholder={admin.jellyfinUrlPlaceholder || "http://your-server:8096"}
                       value={newServerUrl}
                       onChange={(e) => setNewServerUrl(e.target.value)}
                       className="bg-secondary/50 border-border/50"
@@ -720,7 +720,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       disabled={updateServerUrl.isPending || newServerUrl === serverUrl}
                       className="cinema-glow flex-1"
                     >
-                      {updateServerUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+                      {updateServerUrl.isPending ? (admin.updating || "Updating...") : (admin.updateUrl || "Update URL")}
                     </Button>
                     <Button 
                       onClick={handleTestConnection}
@@ -728,7 +728,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       variant="outline"
                       className="flex-1"
                     >
-                      {testingConnection ? "Tester..." : "Test tilkobling"}
+                      {testingConnection ? (admin.testing || "Testing...") : (admin.testConnection || "Test Connection")}
                     </Button>
                   </div>
                   
@@ -748,25 +748,25 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     variant="secondary"
                     className="w-full"
                   >
-                    {testingConnection ? "Henter..." : "🔄 Hent ny konfigurasjon fra Jellyfin"}
+                    {testingConnection ? (admin.fetching || "Fetching...") : (admin.refreshConfigButton || "🔄 Fetch new configuration from Jellyfin")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Jellyfin API-nøkkel</CardTitle>
+                  <CardTitle>{admin.jellyfinSettings || "Jellyfin API Key"}</CardTitle>
                   <CardDescription>
-                    Konfigurer API-nøkkelen for å autentisere mot Jellyfin-serveren
+                    {admin.jellyfinApiDescription || "Configure the API key to authenticate against the Jellyfin server"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="api-key">API-nøkkel</Label>
+                    <Label htmlFor="api-key">{admin.apiKey || "API Key"}</Label>
                     <Input
                       id="api-key"
                       type="password"
-                      placeholder="Skriv inn Jellyfin API-nøkkel"
+                      placeholder={admin.enterJellyfinApiKey || "Enter Jellyfin API key"}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       className="bg-secondary/50 border-border/50"
@@ -777,22 +777,21 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     disabled={updateApiKey.isPending}
                     className="cinema-glow"
                   >
-                    {updateApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
+                    {updateApiKey.isPending ? (admin.updating || "Updating...") : (admin.updateApiKey || "Update API Key")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>GitHub Oppdateringer (Valgfritt)</CardTitle>
+                  <CardTitle>{admin.githubUpdatesOptional || "GitHub Updates (Optional)"}</CardTitle>
                   <CardDescription>
-                    Konfigurer GitHub repository for automatiske oppdateringer. 
-                    Hvis du ikke bruker GitHub, kan du hoppe over dette.
+                    {admin.githubDescription || "Configure GitHub repository for automatic updates. If you are not using GitHub, you can skip this."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="github-repo-url">GitHub Repository URL</Label>
+                    <Label htmlFor="github-repo-url">{admin.githubRepoUrl || "GitHub Repository URL"}</Label>
                     <Input
                       id="github-repo-url"
                       type="url"
@@ -802,11 +801,11 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       className="bg-secondary/50 border-border/50"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Brukes for å sjekke etter oppdateringer fra GitHub
+                      {admin.githubRepoDescription || "Used to check for updates from GitHub"}
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="update-webhook-url">Update Webhook URL (Valgfritt)</Label>
+                    <Label htmlFor="update-webhook-url">{admin.webhookUrlOptional || "Update Webhook URL (Optional)"}</Label>
                     <Input
                       id="update-webhook-url"
                       type="url"
@@ -816,7 +815,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       className="bg-secondary/50 border-border/50"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Webhook URL til serveren din for å installere oppdateringer
+                      {admin.webhookDescription || "Webhook URL to your server to install updates"}
                     </p>
                   </div>
                   <Button 
@@ -824,29 +823,27 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     disabled={updateGithubSettings.isPending || !githubRepoUrl}
                     className="cinema-glow"
                   >
-                    {updateGithubSettings.isPending ? "Oppdaterer..." : "Lagre GitHub-innstillinger"}
+                    {updateGithubSettings.isPending ? (admin.saving || "Saving...") : (admin.saveGithubSettings || "Save GitHub Settings")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Jellyseerr Server</CardTitle>
+                  <CardTitle>{admin.jellyseerrServer || "Jellyseerr Server"}</CardTitle>
                   <CardDescription>
-                    Konfigurer Jellyseerr for å be om innhold. 
+                    {admin.jellyseerrDescription || "Configure Jellyseerr to request content."}
                     <span className="block mt-2 text-yellow-500/80">
-                      ⚠️ Merk: Edge functions kjører i skyen og kan ikke nå lokale IP-adresser (192.168.x.x). 
-                      Bruk en offentlig URL eller sett opp en tunnel (ngrok/Cloudflare).
+                      {admin.jellyseerrWarning || "⚠️ Note: Edge functions run in the cloud and cannot reach local IP addresses (192.168.x.x). Use a public URL or set up a tunnel (ngrok/Cloudflare)."}
                     </span>
                     <span className="block mt-2 text-blue-500/80">
-                      💡 Tips: Hvis du får SSL-sertifikatfeil, bruk http:// i stedet for https:// 
-                      (f.eks. http://jellyseerr.dittdomene.com)
+                      {admin.jellyseerrTip || "💡 Tip: If you get SSL certificate errors, use http:// instead of https:// (e.g. http://jellyseerr.yourdomain.com)"}
                     </span>
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="jellyseerr-url">Jellyseerr Server URL</Label>
+                    <Label htmlFor="jellyseerr-url">{admin.jellyseerrUrl || "Jellyseerr Server URL"}</Label>
                     <div className="flex gap-2">
                       <Input
                         id="jellyseerr-url"
@@ -862,15 +859,15 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                           variant="outline"
                           size="sm"
                           className="shrink-0"
-                          title="Bytt til HTTP for å unngå SSL-problemer"
+                          title={admin.switchToHttpTitle || "Switch to HTTP to avoid SSL issues"}
                         >
-                          → HTTP
+                          {admin.switchToHttp || "→ HTTP"}
                         </Button>
                       )}
                     </div>
                     {currentJellyseerrUrl && currentJellyseerrUrl !== jellyseerrUrl && (
                       <p className="text-xs text-yellow-500/80">
-                        ⚠️ Lagret URL: {currentJellyseerrUrl} (forskjellig fra det du har skrevet)
+                        {admin.savedUrl || "⚠️ Saved URL:"} {currentJellyseerrUrl} {admin.differentFromTyped || "(different from what you typed)"}
                       </p>
                     )}
                   </div>
@@ -879,25 +876,25 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     disabled={updateJellyseerrUrl.isPending || !jellyseerrUrl || jellyseerrUrl === currentJellyseerrUrl}
                     className="cinema-glow"
                   >
-                    {updateJellyseerrUrl.isPending ? "Oppdaterer..." : "Oppdater URL"}
+                    {updateJellyseerrUrl.isPending ? (admin.updating || "Updating...") : (admin.updateUrl || "Update URL")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Jellyseerr API-nøkkel</CardTitle>
+                  <CardTitle>{admin.jellyseerrApiKey || "Jellyseerr API Key"}</CardTitle>
                   <CardDescription>
-                    Konfigurer API-nøkkelen for Jellyseerr (finn den i Settings → General)
+                    {admin.jellyseerrApiDescription || "Configure the API key for Jellyseerr (find it in Settings → General)"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="jellyseerr-api-key">API-nøkkel</Label>
+                    <Label htmlFor="jellyseerr-api-key">{admin.apiKey || "API Key"}</Label>
                     <Input
                       id="jellyseerr-api-key"
                       type="password"
-                      placeholder="Skriv inn Jellyseerr API-nøkkel"
+                      placeholder={admin.enterJellyseerrApiKey || "Enter Jellyseerr API key"}
                       value={jellyseerrApiKey}
                       onChange={(e) => setJellyseerrApiKey(e.target.value)}
                       className="bg-secondary/50 border-border/50"
@@ -909,7 +906,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       disabled={updateJellyseerrApiKey.isPending}
                       className="cinema-glow flex-1"
                     >
-                      {updateJellyseerrApiKey.isPending ? "Oppdaterer..." : "Oppdater API-nøkkel"}
+                      {updateJellyseerrApiKey.isPending ? (admin.updating || "Updating...") : (admin.updateJellyseerrApiKey || "Update API Key")}
                     </Button>
                     <Button 
                       onClick={handleTestJellyseerr}
@@ -917,14 +914,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       variant="outline"
                       className="flex-1"
                     >
-                      {testingJellyseerr ? "Tester..." : "Test tilkobling"}
+                      {testingJellyseerr ? (admin.testing || "Testing...") : (admin.testConnection || "Test Connection")}
                     </Button>
                   </div>
                   
                   {testingJellyseerr && (
                     <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground">Tester tilkobling...</span>
+                      <span className="text-sm text-muted-foreground">{language === 'no' ? 'Tester tilkobling...' : 'Testing connection...'}</span>
                     </div>
                   )}
                   
@@ -946,33 +943,34 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Database className="h-5 w-5" />
-                    Database-konfigurasjon
+                    {admin.databaseConfiguration || "Database Configuration"}
                   </CardTitle>
                   <CardDescription>
-                    Vis og administrer database-innstillinger. Disse er satt opp under installasjon.
+                    {admin.databaseDescription || "View and manage database settings. These are configured during installation."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
                     <p className="text-sm text-blue-400">
-                      <strong>ℹ️ Merk:</strong> Database-innstillinger kan ikke endres direkte i Admin-panelet.
-                      For å endre deployment-type eller database-konfigurasjon, må du kjøre setup-wizarden på nytt.
+                      <strong>ℹ️ {common.note || "Note"}:</strong> {language === 'no' 
+                        ? 'Database-innstillinger kan ikke endres direkte i Admin-panelet. For å endre deployment-type eller database-konfigurasjon, må du kjøre setup-wizarden på nytt.'
+                        : 'Database settings cannot be changed directly in the Admin panel. To change deployment type or database configuration, you must run the setup wizard again.'}
                     </p>
                   </div>
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Deployment Type</Label>
+                      <Label>{admin.deploymentType || "Deployment Type"}</Label>
                       <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                         <p className="font-mono text-sm">
                           {deploymentType ? (
                             deploymentType === "cloud" ? (
-                              <span className="text-primary">☁️ Supabase Cloud</span>
+                              <span className="text-primary">☁️ {admin.lovableCloud || "Lovable Cloud"}</span>
                             ) : (
-                              <span className="text-green-400">🐳 Lokal PostgreSQL (Docker)</span>
+                              <span className="text-green-400">🐳 {language === 'no' ? 'Lokal PostgreSQL (Docker)' : 'Local PostgreSQL (Docker)'}</span>
                             )
                           ) : (
-                            <span className="text-muted-foreground">Ikke konfigurert</span>
+                            <span className="text-muted-foreground">{language === 'no' ? 'Ikke konfigurert' : 'Not configured'}</span>
                           )}
                         </p>
                       </div>
@@ -981,18 +979,18 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     {deploymentType === "cloud" && (
                       <>
                         <div className="space-y-2">
-                          <Label>Supabase Project URL</Label>
+                          <Label>{admin.supabaseUrl || "Supabase Project URL"}</Label>
                           <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                             <p className="font-mono text-sm break-all">
-                              {supabaseUrl || <span className="text-muted-foreground">Ikke satt</span>}
+                              {supabaseUrl || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                             </p>
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Supabase Project ID</Label>
+                          <Label>{admin.supabaseProjectId || "Supabase Project ID"}</Label>
                           <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                             <p className="font-mono text-sm">
-                              {supabaseProjectId || <span className="text-muted-foreground">Ikke satt</span>}
+                              {supabaseProjectId || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                             </p>
                           </div>
                         </div>
@@ -1003,41 +1001,41 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       <>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label>Database Host</Label>
+                            <Label>{admin.dbHost || "Database Host"}</Label>
                             <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                               <p className="font-mono text-sm">
-                                {dbHost || <span className="text-muted-foreground">Ikke satt</span>}
+                                {dbHost || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                               </p>
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <Label>Port</Label>
+                            <Label>{admin.dbPort || "Port"}</Label>
                             <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                               <p className="font-mono text-sm">
-                                {dbPort || <span className="text-muted-foreground">Ikke satt</span>}
+                                {dbPort || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                               </p>
                             </div>
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Database Navn</Label>
+                          <Label>{admin.dbName || "Database Name"}</Label>
                           <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                             <p className="font-mono text-sm">
-                              {dbName || <span className="text-muted-foreground">Ikke satt</span>}
+                              {dbName || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                             </p>
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Brukernavn</Label>
+                          <Label>{language === 'no' ? 'Brukernavn' : 'Username'}</Label>
                           <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
                             <p className="font-mono text-sm">
-                              {dbUser || <span className="text-muted-foreground">Ikke satt</span>}
+                              {dbUser || <span className="text-muted-foreground">{admin.notSet || "Not set"}</span>}
                             </p>
                           </div>
                         </div>
                         <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
                           <p className="text-sm text-yellow-400">
-                            <strong>⚠️ Sikkerhet:</strong> Database-passord vises ikke av sikkerhetsgrunner.
+                            <strong>{admin.securityWarning || "⚠️ Security: Database password is not displayed for security reasons."}</strong>
                           </p>
                         </div>
                       </>
@@ -1046,7 +1044,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     {!deploymentType && (
                       <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg text-center">
                         <p className="text-sm text-orange-400 mb-3">
-                          Database er ikke konfigurert via setup-wizarden.
+                          {admin.databaseNotConfigured || "Database is not configured via setup wizard."}
                         </p>
                         <Button 
                           onClick={() => navigate("/setup-wizard")}
@@ -1054,7 +1052,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                           className="gap-2"
                         >
                           <HardDrive className="h-4 w-4" />
-                          Start setup-wizard
+                          {admin.startSetupWizard || "Start setup wizard"}
                         </Button>
                       </div>
                     )}
@@ -1063,13 +1061,21 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   <div className="p-4 bg-secondary/30 rounded-lg">
                     <h3 className="font-semibold mb-2 text-sm flex items-center gap-2">
                       <HardDrive className="h-4 w-4" />
-                      Feilsøking
+                      {admin.troubleshooting || "Troubleshooting"}
                     </h3>
                     <ul className="text-xs text-muted-foreground space-y-2">
-                      <li>• For Supabase Cloud: Sjekk at URL og API-keys er riktige i .env filen</li>
-                      <li>• For lokal PostgreSQL: Test forbindelse med: <code className="px-1 py-0.5 bg-secondary rounded">docker ps</code></li>
-                      <li>• Sjekk database-logs: <code className="px-1 py-0.5 bg-secondary rounded">docker logs jelly-stream-db</code></li>
-                      <li>• Se DEPLOYMENT_LOCAL.md for fullstendig feilsøkingsguide</li>
+                      <li>• {language === 'no' 
+                        ? 'For Supabase Cloud: Sjekk at URL og API-keys er riktige i .env filen' 
+                        : 'For Supabase Cloud: Check that URL and API keys are correct in the .env file'}</li>
+                      <li>• {language === 'no' 
+                        ? 'For lokal PostgreSQL: Test forbindelse med:' 
+                        : 'For local PostgreSQL: Test connection with:'} <code className="px-1 py-0.5 bg-secondary rounded">docker ps</code></li>
+                      <li>• {language === 'no' 
+                        ? 'Sjekk database-logs:' 
+                        : 'Check database logs:'} <code className="px-1 py-0.5 bg-secondary rounded">docker logs jelly-stream-db</code></li>
+                      <li>• {language === 'no' 
+                        ? 'Se DEPLOYMENT_LOCAL.md for fullstendig feilsøkingsguide' 
+                        : 'See DEPLOYMENT_LOCAL.md for complete troubleshooting guide'}</li>
                     </ul>
                   </div>
                 </CardContent>
