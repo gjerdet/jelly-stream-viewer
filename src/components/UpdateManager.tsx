@@ -113,26 +113,38 @@ export const UpdateManager = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Info banner explaining this is for self-hosted only */}
+        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-400 mb-1">Kun for selvhostede installasjoner</p>
+              <p className="text-xs text-muted-foreground">
+                Denne funksjonen er kun for selvhostede installasjoner med en webhook-server. 
+                Hvis du kjører på Lovable Cloud, får du automatiske oppdateringer via GitHub-synkronisering.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Setup instructions - show by default until setup is verified */}
         {isSetupComplete === false && (
           <div className="p-4 bg-muted/50 border border-border rounded-lg">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="flex-1">
-                <p className="text-sm font-medium mb-2">GitHub oppdateringer er ikke konfigurert (valgfritt)</p>
+                <p className="text-sm font-medium mb-2">Oppsett for selvhostet installasjon</p>
                 <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                  <li>Sett <code className="bg-background px-1 rounded">github_repo_url</code> i Server Innstillinger</li>
-                  <li>Sett <code className="bg-background px-1 rounded">update_webhook_url</code> til din server</li>
-                  <li>Kjør update-server scriptet på serveren din</li>
+                  <li>Gå til "Servers" fanen</li>
+                  <li>Sett <code className="bg-background px-1 rounded">GitHub Repository URL</code> (f.eks. https://github.com/brukernavn/repo-navn)</li>
+                  <li>Sett <code className="bg-background px-1 rounded">Update Webhook URL</code> til din servers webhook-endepunkt</li>
+                  <li>Kjør update-server scriptet på serveren din som lytter på webhook-endepunktet</li>
                 </ol>
+                <p className="text-xs text-muted-foreground mt-2">
+                  <strong>Merk:</strong> Dette krever en selvhostet server med et webhook-endepunkt som kan motta oppdateringssignaler.
+                </p>
               </div>
             </div>
-          </div>
-        )}
-
-        {error && isSetupComplete === false && (
-          <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
-            Denne funksjonen er valgfri. Du kan fortsatt administrere applikasjonen uten GitHub-integrasjon.
           </div>
         )}
 
