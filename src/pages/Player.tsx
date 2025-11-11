@@ -6,7 +6,13 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -67,6 +73,7 @@ interface Episode {
   SeasonId: string;
   ImageTags?: { Primary?: string };
   RunTimeTicks?: number;
+  Overview?: string;
   UserData?: {
     Played?: boolean;
     PlaybackPositionTicks?: number;
@@ -227,6 +234,23 @@ const Player = () => {
     if (currentIndex === -1 || currentIndex === episodes.length - 1) return null;
     
     return episodes[currentIndex + 1];
+  };
+
+  // Find previous episode
+  const getPreviousEpisode = () => {
+    if (!isEpisode || episodes.length === 0 || !item?.IndexNumber) return null;
+    
+    const currentIndex = episodes.findIndex(ep => ep.Id === id);
+    if (currentIndex === -1 || currentIndex === 0) return null;
+    
+    return episodes[currentIndex - 1];
+  };
+
+  const playPreviousEpisode = () => {
+    const prevEpisode = getPreviousEpisode();
+    if (prevEpisode) {
+      navigate(`/player/${prevEpisode.Id}`);
+    }
   };
 
   const handleVideoEnded = () => {
@@ -406,9 +430,13 @@ const Player = () => {
     );
   }
 
+  const previousEpisode = getPreviousEpisode();
+  const nextEpisode = getNextEpisode();
+
   return (
-    <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-      <div className="relative h-screen bg-black overflow-hidden flex w-full">
+    <TooltipProvider>
+      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <div className="relative h-screen bg-black overflow-hidden flex w-full">
         {/* Episodes Sidebar */}
         {isEpisode && episodes.length > 0 && (
           <Sidebar 
@@ -437,63 +465,71 @@ const Player = () => {
                       const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
 
                       return (
-                        <div
-                          key={episode.Id}
-                          onClick={() => {
-                            if (!isCurrentEpisode) {
-                              navigate(`/player/${episode.Id}`);
-                            }
-                          }}
-                          className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                            isCurrentEpisode 
-                              ? 'bg-primary/20 border-2 border-primary' 
-                              : 'hover:bg-secondary/50'
-                          }`}
-                        >
-                          <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
-                            {episodeImageUrl ? (
-                              <img
-                                src={episodeImageUrl}
-                                alt={episode.Name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                Ingen bilde
+                        <Tooltip key={episode.Id} delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <div
+                              onClick={() => {
+                                if (!isCurrentEpisode) {
+                                  navigate(`/player/${episode.Id}`);
+                                }
+                              }}
+                              className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                                isCurrentEpisode 
+                                  ? 'bg-primary/20 border-2 border-primary' 
+                                  : 'hover:bg-secondary/50'
+                              }`}
+                            >
+                              <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
+                                {episodeImageUrl ? (
+                                  <img
+                                    src={episodeImageUrl}
+                                    alt={episode.Name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                    Ingen bilde
+                                  </div>
+                                )}
+                                {watchedPercentage > 0 && watchedPercentage < 95 && (
+                                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
+                                    <div 
+                                      className="h-full bg-primary"
+                                      style={{ width: `${watchedPercentage}%` }}
+                                    />
+                                  </div>
+                                )}
+                                {isWatched && (
+                                  <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
+                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {watchedPercentage > 0 && watchedPercentage < 95 && (
-                              <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
-                                <div 
-                                  className="h-full bg-primary"
-                                  style={{ width: `${watchedPercentage}%` }}
-                                />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h3 className="font-semibold text-sm line-clamp-1">
+                                    {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
+                                  </h3>
+                                  {episodeRuntime && (
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                      {episodeRuntime} min
+                                    </span>
+                                  )}
+                                </div>
+                                {isCurrentEpisode && (
+                                  <p className="text-xs text-primary mt-1">Spiller nå</p>
+                                )}
                               </div>
-                            )}
-                            {isWatched && (
-                              <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
-                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-semibold text-sm line-clamp-1">
-                                {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
-                              </h3>
-                              {episodeRuntime && (
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                  {episodeRuntime} min
-                                </span>
-                              )}
                             </div>
-                            {isCurrentEpisode && (
-                              <p className="text-xs text-primary mt-1">Spiller nå</p>
-                            )}
-                          </div>
-                        </div>
+                          </TooltipTrigger>
+                          {episode.Overview && (
+                            <TooltipContent side="left" className="max-w-sm">
+                              <p className="text-sm">{episode.Overview}</p>
+                            </TooltipContent>
+                          )}
+                        </Tooltip>
                       );
                     })}
                   </div>
@@ -561,6 +597,32 @@ const Player = () => {
           </div>
 
           <div className="flex gap-2">
+            {/* Previous/Next Episode Buttons */}
+            {isEpisode && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={playPreviousEpisode}
+                  disabled={!previousEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Forrige episode"
+                >
+                  <SkipBack className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={playNextEpisode}
+                  disabled={!nextEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Neste episode"
+                >
+                  <SkipForward className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+
             {/* Chromecast Button */}
             <Button
               variant="ghost"
@@ -722,6 +784,7 @@ const Player = () => {
         </div>
       </div>
     </SidebarProvider>
+    </TooltipProvider>
   );
 };
 
