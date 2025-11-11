@@ -1085,14 +1085,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="site" className="space-y-6">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Side-namn</CardTitle>
+                  <CardTitle>{admin.siteNameTitle || "Site Name"}</CardTitle>
                   <CardDescription>
-                    Endre namnet på nettstaden
+                    {admin.siteNameDescription || "Change the name of the website"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="site-name">Side-namn</Label>
+                    <Label htmlFor="site-name">{admin.siteName || "Site Name"}</Label>
                     <Input
                       id="site-name"
                       type="text"
@@ -1106,21 +1106,21 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     onClick={handleUpdateSiteName}
                     className="cinema-glow"
                   >
-                    Oppdater side-namn
+                    {admin.updateSiteName || "Update Site Name"}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Logo URL</CardTitle>
+                  <CardTitle>{admin.logoUrl || "Logo URL"}</CardTitle>
                   <CardDescription>
-                    Legg til ein logo som erstattar standard ikonen (la stå tomt for standard)
+                    {admin.logoUrlDescription || "Add a logo that replaces the standard icon (leave blank for default)"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="logo-url">Logo URL</Label>
+                    <Label htmlFor="logo-url">{admin.logoUrl || "Logo URL"}</Label>
                     <Input
                       id="logo-url"
                       type="url"
@@ -1132,7 +1132,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </div>
                   {newLogoUrl && (
                     <div className="p-4 bg-secondary/20 rounded-lg">
-                      <p className="text-sm text-muted-foreground mb-2">Forhåndsvisning:</p>
+                      <p className="text-sm text-muted-foreground mb-2">{admin.preview || "Preview:"}</p>
                       <img src={newLogoUrl} alt="Logo preview" className="h-10 w-auto object-contain" />
                     </div>
                   )}
@@ -1140,21 +1140,21 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     onClick={handleUpdateLogoUrl}
                     className="cinema-glow"
                   >
-                    Oppdater logo
+                    {admin.updateLogo || "Update Logo"}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Header-tittel</CardTitle>
+                  <CardTitle>{admin.headerTitleLabel || "Header Title"}</CardTitle>
                   <CardDescription>
-                    Endre teksten som vises i headeren
+                    {admin.headerTitleDescription || "Change the text displayed in the header"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="header-title">Header-tittel</Label>
+                    <Label htmlFor="header-title">{admin.headerTitle || "Header Title"}</Label>
                     <Input
                       id="header-title"
                       type="text"
@@ -1168,7 +1168,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     onClick={handleUpdateHeaderTitle}
                     className="cinema-glow"
                   >
-                    Oppdater tittel
+                    {admin.updateTitle || "Update Title"}
                   </Button>
                 </CardContent>
               </Card>
@@ -1177,14 +1177,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="monitoring" className="space-y-6">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Server Overvåking</CardTitle>
+                  <CardTitle>{admin.serverMonitoring || "Server Monitoring"}</CardTitle>
                   <CardDescription>
-                    Konfigurer monitoring URL for å vise server statistikk (CPU, RAM, disk, nettverk)
+                    {admin.monitoringDescription || "Configure monitoring URL to display server statistics (CPU, RAM, disk, network)"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="monitoring-url">Monitoring URL (Netdata API)</Label>
+                    <Label htmlFor="monitoring-url">{admin.monitoringUrlLabel || "Monitoring URL (Netdata API)"}</Label>
                     <Input
                       id="monitoring-url"
                       type="url"
@@ -1194,7 +1194,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       className="bg-secondary/50 border-border/50"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Installer Netdata på serveren din for live statistikk. Standard port er 19999.
+                      {admin.monitoringInstructions || "Install Netdata on your server for live statistics. Default port is 19999."}
                     </p>
                   </div>
                   <Button 
@@ -1204,14 +1204,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         .upsert({ setting_key: "monitoring_url", setting_value: monitoringUrl });
                       
                       if (error) {
-                        toast.error("Kunne ikke oppdatere monitoring URL");
+                        toast.error(admin.couldNotUpdateMonitoring || "Could not update monitoring URL");
                       } else {
-                        toast.success("Monitoring URL oppdatert!");
+                        toast.success(admin.monitoringUpdated || "Monitoring URL updated!");
                       }
                     }}
                     className="cinema-glow"
                   >
-                    Lagre Monitoring URL
+                    {admin.saveMonitoringUrl || "Save Monitoring URL"}
                   </Button>
                 </CardContent>
               </Card>
@@ -1222,14 +1222,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="qbittorrent" className="space-y-6">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>qBittorrent Integrasjon</CardTitle>
+                  <CardTitle>{admin.qbittorrentIntegration || "qBittorrent Integration"}</CardTitle>
                   <CardDescription>
-                    Konfigurer qBittorrent Web UI for å vise nedlastningsstatus
+                    {admin.qbittorrentDescription || "Configure qBittorrent Web UI to display download status"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="qbittorrent-url">qBittorrent Web UI URL</Label>
+                    <Label htmlFor="qbittorrent-url">{admin.qbittorrentUrlLabel || "qBittorrent Web UI URL"}</Label>
                     <Input
                       id="qbittorrent-url"
                       type="url"
@@ -1240,7 +1240,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="qbittorrent-username">Brukernavn</Label>
+                    <Label htmlFor="qbittorrent-username">{admin.qbittorrentUsername || "Username"}</Label>
                     <Input
                       id="qbittorrent-username"
                       type="text"
@@ -1251,7 +1251,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="qbittorrent-password">Passord</Label>
+                    <Label htmlFor="qbittorrent-password">{admin.qbittorrentPassword || "Password"}</Label>
                     <Input
                       id="qbittorrent-password"
                       type="password"
@@ -1274,14 +1274,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         .upsert(updates);
                       
                       if (error) {
-                        toast.error("Kunne ikke oppdatere qBittorrent innstillinger");
+                        toast.error(admin.couldNotUpdateQbittorrent || "Could not update qBittorrent settings");
                       } else {
-                        toast.success("qBittorrent innstillinger oppdatert!");
+                        toast.success(admin.qbittorrentUpdated || "qBittorrent settings updated!");
                       }
                     }}
                     className="cinema-glow"
                   >
-                    Lagre qBittorrent Innstillinger
+                    {admin.saveQbittorrentSettings || "Save qBittorrent Settings"}
                   </Button>
                 </CardContent>
               </Card>
@@ -1292,28 +1292,28 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
             <TabsContent value="news" className="space-y-6">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Opprett ny nyhet</CardTitle>
+                  <CardTitle>{admin.createNewPost || "Create New Post"}</CardTitle>
                   <CardDescription>
-                    Legg til ei ny nyhet som blir synleg for alle brukarar
+                    {admin.newPostDescription || "Add a new post that is visible to all users"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="post-title">Tittel</Label>
+                    <Label htmlFor="post-title">{admin.postTitleLabel || "Title"}</Label>
                     <Input
                       id="post-title"
                       type="text"
-                      placeholder="Nyheitstittel..."
+                      placeholder={admin.titlePlaceholder || "Post title..."}
                       value={newPostTitle}
                       onChange={(e) => setNewPostTitle(e.target.value)}
                       className="bg-secondary/50 border-border/50"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="post-content">Innhald</Label>
+                    <Label htmlFor="post-content">{admin.postContentLabel || "Content"}</Label>
                     <Textarea
                       id="post-content"
-                      placeholder="Skriv inn innhaldet..."
+                      placeholder={admin.contentPlaceholder || "Write the content..."}
                       value={newPostContent}
                       onChange={(e) => setNewPostContent(e.target.value)}
                       className="bg-secondary/50 border-border/50 min-h-[200px]"
@@ -1324,21 +1324,21 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     disabled={createNewsPost.isPending || !newPostTitle.trim() || !newPostContent.trim()}
                     className="cinema-glow"
                   >
-                    {createNewsPost.isPending ? "Publiserer..." : "Publiser nyhet"}
+                    {createNewsPost.isPending ? (admin.publishing || "Publishing...") : (admin.publishPost || "Publish Post")}
                   </Button>
                 </CardContent>
               </Card>
 
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle>Eksisterande nyheter</CardTitle>
+                  <CardTitle>{admin.existingPosts || "Existing Posts"}</CardTitle>
                   <CardDescription>
-                    Administrer og slett publiserte nyheter
+                    {admin.existingPostsDescription || "Manage and delete published posts"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {!newsPosts || newsPosts.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-8">Ingen nyheter ennå</p>
+                    <p className="text-muted-foreground text-center py-8">{admin.noPosts || "No posts yet"}</p>
                   ) : (
                      <div className="space-y-4">
                       {newsPosts.map((post) => (
@@ -1349,7 +1349,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                                 <h3 className="font-semibold">{post.title}</h3>
                                 {post.pinned && (
                                   <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
-                                    Festa
+                                    {admin.pinned || "Pinned"}
                                   </span>
                                 )}
                               </div>
@@ -1361,7 +1361,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                                 size="icon"
                                 onClick={() => togglePin.mutate({ postId: post.id, currentPinned: post.pinned })}
                                 disabled={togglePin.isPending}
-                                title={post.pinned ? "Løs frå toppen" : "Fest til toppen"}
+                                title={post.pinned ? (admin.unpinFromTop || "Unpin from top") : (admin.pinToTop || "Pin to top")}
                               >
                                 <Pin className={`h-4 w-4 ${post.pinned ? 'fill-current text-primary' : ''}`} />
                               </Button>
