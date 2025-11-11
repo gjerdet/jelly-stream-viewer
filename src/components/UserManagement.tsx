@@ -1,12 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Users, Shield, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Users, Shield, Loader2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useJellyfinUsers } from "@/hooks/useJellyfinUsers";
+import { toast } from "sonner";
 
 export const UserManagement = () => {
-  const { data: users, isLoading } = useJellyfinUsers();
+  const { data: users, isLoading, refetch } = useJellyfinUsers();
+
+  const handleRefresh = async () => {
+    toast.info("Oppdaterer brukerliste...");
+    try {
+      await refetch();
+      toast.success("Brukerliste oppdatert");
+    } catch (error) {
+      toast.error("Kunne ikke oppdatere brukerliste");
+    }
+  };
 
   const getRoleBadgeVariant = (isAdmin: boolean) => {
     return isAdmin ? "default" as const : "outline" as const;
@@ -31,13 +43,26 @@ export const UserManagement = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Brukerbehandling
-        </CardTitle>
-        <CardDescription>
-          Viser alle brukere registrert i Jellyfin
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Brukerbehandling
+            </CardTitle>
+            <CardDescription>
+              Viser alle brukere registrert i Jellyfin
+            </CardDescription>
+          </div>
+          <Button
+            onClick={handleRefresh}
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Oppdater
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
