@@ -1,265 +1,303 @@
 # Jelly Stream Viewer
 
-En moderne webapplikasjon for streaming fra Jellyfin media server - **optimalisert for selvhosting**.
+A modern web application for streaming from Jellyfin media servers with a beautiful, responsive interface.
 
-## 🏗️ Arkitektur
+## 🌟 Features
 
-**Lokal deployment med egen database:**
-- Frontend snakker **direkte** med Jellyfin server for optimal kvalitet
-- Jellyfin håndterer all video-transkoding
-- Nginx konfigureres automatisk med CORS for direkte streaming
-- Supabase håndterer autentisering og database
-- Alt kjører på lokalt nettverk for beste ytelse
+- 🎬 **Stream Movies & TV Shows** - Direct streaming from Jellyfin
+- 📱 **Mobile Responsive** - Works great on all devices
+- 🔐 **User Authentication** - Secure login with role-based access
+- ⭐ **Favorites & Watch History** - Keep track of your content
+- 📺 **Chromecast Support** - Cast to your TV
+- 🌐 **Subtitle Support** - Multiple subtitle options
+- 🎯 **Jellyseerr Integration** - Request content with admin approval
+- 📰 **News Feed** - Stay updated with announcements
+- 👥 **User Management** - Admin panel for user control
+- 🔄 **Auto-Updates** - Built-in update tracking and management
+- 📊 **Statistics** - View your watching habits
 
-Se [ARCHITECTURE.md](ARCHITECTURE.md) for detaljert oversikt.
+## 🏗️ Architecture
 
-## 📋 Hva trenger du?
+This application is built on **Lovable Cloud** and uses:
 
-- **Ubuntu Server 20.04+** (eller annen Linux-distro)
-- **Node.js 18+** og **npm**
-- **Jellyfin media server** på samme nettverk
-- **Egen Supabase-konto** (gratis på supabase.com)
+- **Frontend**: React + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui components
+- **Backend**: Lovable Cloud (Supabase)
+  - PostgreSQL database with Row-Level Security (RLS)
+  - Edge Functions for server-side logic
+  - Real-time subscriptions
+- **Media Server**: Direct integration with Jellyfin
+- **Optional**: Jellyseerr for content requests
 
-## 🚀 Selvhosting - Komplett guide
+### How It Works
 
-### Steg 1: Klon prosjektet
+```
+┌─────────────┐
+│   Browser   │
+└──────┬──────┘
+       │
+       ├──────────────────────┐
+       │                      │
+       ▼                      ▼
+┌─────────────┐        ┌────────────┐
+│   Jellyfin  │        │  Lovable   │
+│    Server   │        │   Cloud    │
+│             │        │            │
+│  • Video    │        │  • Auth    │
+│  • Metadata │        │  • DB      │
+│  • Images   │        │  • Edge Fn │
+└─────────────┘        └────────────┘
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- A **Jellyfin media server** (with API access)
+- (Optional) A **Jellyseerr** instance for content requests
+- A modern web browser
+
+### First-Time Setup
+
+1. **Register an Account**
+   - Navigate to the application
+   - Click "Register" and create your account
+   - The first registered user automatically becomes an admin
+
+2. **Configure Jellyfin Connection**
+   - Log in with your new account
+   - Go to **Admin → Servers** tab
+   - Enter your Jellyfin server details:
+     - Server URL (e.g., `http://192.168.1.100:8096`)
+     - API Key (generate in Jellyfin Dashboard → Advanced → API Keys)
+
+3. **(Optional) Configure Jellyseerr**
+   - In the same Servers tab
+   - Enter Jellyseerr URL and API Key
+   - This enables content request functionality
+
+4. **Start Watching!**
+   - Browse your media library
+   - Add favorites
+   - Start streaming
+
+## 👥 User Roles
+
+### Admin
+- Full access to all features
+- User management
+- Server configuration
+- Content request approval
+- News posting
+
+### User
+- Browse and watch content
+- Manage favorites and watch history
+- Request content (if Jellyseerr is configured)
+- View news
+
+## 🔧 Admin Features
+
+### Server Configuration
+- Jellyfin server URL and API key
+- Jellyseerr integration settings
+- GitHub repository settings (for self-hosted deployments)
+
+### User Management
+- View all users
+- Change user roles
+- View user activity
+
+### Content Requests
+- Approve or reject user requests
+- View request status
+- Automatic Jellyseerr integration
+
+### News & Announcements
+- Create news posts
+- Pin important announcements
+- Publish/unpublish posts
+
+### System Monitoring
+- Server health checks
+- Update management
+- System logs (for self-hosted)
+
+## 🔄 Update System
+
+The application includes built-in update tracking:
+
+1. **Check for Updates**
+   - Admin → Versions tab
+   - Click "Check for Updates"
+   - View latest version info from GitHub
+
+2. **Install Updates** (Self-Hosted Only)
+   - Click "Install Update"
+   - Watch real-time progress
+   - View detailed logs
+   - Auto-reload when complete
+
+*Note: Update installation requires webhook configuration for self-hosted deployments.*
+
+## 🔒 Security
+
+### Authentication
+- Secure JWT-based authentication via Lovable Cloud
+- Password hashing and encryption
+- Session management
+- Auto-refresh tokens
+
+### Database Security
+- Row-Level Security (RLS) on all tables
+- Users can only access their own data
+- Admins have elevated permissions via `has_role()` function
+- API keys stored securely with admin-only access
+
+### Best Practices
+- Use strong passwords
+- Secure your Jellyfin API keys
+- Keep the application updated
+- Use HTTPS in production
+
+## 🛠️ Development
+
+### Local Development
 
 ```bash
-git clone https://github.com/gjerdet/jelly-stream-viewer.git
+# Clone the repository
+git clone https://github.com/yourusername/jelly-stream-viewer.git
 cd jelly-stream-viewer
-```
 
-### Steg 2: Opprett Supabase-prosjekt
-
-1. Gå til [supabase.com](https://supabase.com) og opprett en gratis konto
-2. Opprett et nytt prosjekt
-3. Vent til databasen er klar (tar 1-2 minutter)
-
-### Steg 3: Sett opp databasen
-
-1. Gå til **SQL Editor** i Supabase Dashboard
-2. Klikk **+ New query**
-3. Kopier HELE innholdet fra `supabase/setup.sql` og lim inn
-4. Klikk **Run** for å kjøre scriptet
-5. Sjekk at alle tabeller er opprettet under **Table Editor**
-
-### Steg 4: Konfigurer autentisering
-
-1. Gå til **Authentication → Providers** i Supabase Dashboard
-2. Under **Email**:
-   - Aktiver **Enable Email provider**
-   - **VIKTIG:** Skru **AV** "Confirm email" (sett til disabled)
-   - Lagre endringer
-
-### Steg 5: Hent API-nøkler
-
-1. Gå til **Project Settings → API** i Supabase Dashboard
-2. Kopier disse verdiene:
-   - **Project URL** (f.eks. `https://xxxxx.supabase.co`)
-   - **anon/public key** (lang JWT-token)
-   - **Project ID** (kort ID)
-
-### Steg 6: Opprett .env fil
-
-1. Kopier example-filen:
-```bash
-cp .env.example .env
-```
-
-2. Rediger `.env` og fyll inn dine verdier:
-```env
-VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-VITE_SUPABASE_PROJECT_ID=xxxxx
-```
-
-### Steg 7: Installer og bygg
-
-```bash
-# Installer avhengigheter
+# Install dependencies
 npm install
 
-# Bygg for produksjon
-npm run build
-```
+# Set up environment variables
+# Create a .env file with your Lovable Cloud credentials
 
-### Steg 8: Sett opp webserver (Nginx)
-
-1. Installer Nginx:
-```bash
-sudo apt update
-sudo apt install nginx
-```
-
-2. Opprett Nginx config:
-```bash
-sudo nano /etc/nginx/sites-available/jelly-stream-viewer
-```
-
-3. Lim inn denne konfigurasjonen:
-```nginx
-server {
-    listen 80;
-    server_name din-server-ip;  # Bytt ut med din IP eller domene
-    
-    root /path/to/jelly-stream-viewer/dist;  # Bytt ut med full sti
-    index index.html;
-    
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-    
-    # Gzip compression
-    gzip on;
-    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-}
-```
-
-4. Aktiver siden:
-```bash
-sudo ln -s /etc/nginx/sites-available/jelly-stream-viewer /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### Steg 9: Første gangs oppsett
-
-1. Åpne nettleseren på `http://din-server-ip`
-2. Klikk **Registrer** og opprett første bruker
-3. **Første bruker blir automatisk admin!**
-4. Gå til `/setup` og konfigurer:
-   - Jellyfin Server URL (f.eks. `http://192.168.1.100:8096`)
-   - Jellyfin API Key (hent fra Jellyfin Dashboard → API Keys)
-   - (Valgfritt) Jellyseerr URL og API Key
-
-## ✅ Du er ferdig!
-
-Applikasjonen kjører nå på din egen server med din egen database.
-
----
-
-## 🔧 Funksjoner
-
-- 🎬 Stream filmer og serier fra Jellyfin
-- 📱 Mobilvennlig design
-- 🔐 Brukerautentisering og rollestyring
-- ⭐ Favoritter og visningshistorikk
-- 📺 Chromecast-støtte
-- 🌐 Undertekststøtte
-- 🎯 Jellyseerr-integrasjon med admin-godkjenning
-
-## 🔧 Vedlikehold og oppgradering
-
-### Oppdatere til ny versjon
-
-```bash
-cd jelly-stream-viewer
-git pull origin main
-npm install
-npm run build
-sudo systemctl reload nginx
-```
-
-### Kjøre database-migrasjoner
-
-Hvis det kommer nye database-endringer i oppdateringer:
-1. Sjekk `supabase/migrations/` for nye .sql filer
-2. Kjør de nye migrasjonene i Supabase SQL Editor
-3. Eller kjør hele `supabase/setup.sql` på nytt (trygt med `IF NOT EXISTS`)
-
-## 🛠️ Utviklingsmodus
-
-```bash
-npm install
+# Start development server
 npm run dev
 ```
 
-Applikasjonen vil være tilgjengelig på `http://localhost:8080`
+### Environment Variables
 
-**OBS:** Du må fortsatt ha `.env` konfigurert med Supabase-credentials for at appen skal fungere.
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+VITE_SUPABASE_PROJECT_ID=your_project_id
+```
 
-## 📚 Filer for selvhosting
+### Building for Production
 
-- **`supabase/setup.sql`** - Komplett database-oppsett (kjør i Supabase SQL Editor)
-- **`.env.example`** - Template for environment variabler
-- **`setup.sh`** - Automatisk installasjonsscript for Ubuntu (legacy)
-- **Edge Functions** i `supabase/functions/` - Deploy via Supabase CLI om nødvendig
+```bash
+npm run build
+```
 
-## ⚠️ Viktige sikkerhetspunkter
+The built files will be in the `dist/` directory.
 
-### Database-sikkerhet
-- **Row Level Security (RLS)** er aktivert på alle tabeller
-- Brukere kan kun se sine egne data (favoritter, historikk, etc.)
-- Admins har full tilgang via `has_role()` funksjonen
-- Første bruker blir automatisk admin
+## 📁 Project Structure
 
-### Autentisering
-- Bruk **sterke passord** for alle brukerkontoer
-- Første bruker er admin - opprett denne kontoen først!
-- Skru **AV** email confirmation i Supabase for enkel selvhosting
-- For produksjon: Aktiver email confirmation og SMTP
+```
+jelly-stream-viewer/
+├── src/
+│   ├── components/        # React components
+│   │   ├── ui/           # shadcn/ui components
+│   │   └── ...           # Feature components
+│   ├── pages/            # Page components
+│   ├── hooks/            # Custom React hooks
+│   ├── lib/              # Utility functions
+│   └── integrations/     # External integrations
+│       └── supabase/     # Lovable Cloud client
+│
+├── supabase/             # Backend configuration
+│   ├── functions/        # Edge Functions
+│   └── setup.sql         # Database schema
+│
+├── public/               # Static assets
+└── docs/                 # Documentation
+```
 
-### API-nøkler
-- Jellyfin og Jellyseerr API-nøkler lagres i databasen
-- Kun synlig for admins via RLS policies
-- Aldri commit `.env` til Git (allerede i `.gitignore`)
+## 🔍 Troubleshooting
 
-## 🧰 Teknologi
+### Cannot Connect to Jellyfin
 
-- **Frontend:** React + TypeScript + Vite
-- **Styling:** Tailwind CSS + shadcn-ui
-- **Database:** PostgreSQL via Supabase
-- **Auth:** Supabase Authentication
-- **Backend:** Supabase Edge Functions (Deno)
-- **Media:** Jellyfin API
-- **Requests:** Jellyseerr API (valgfritt)
+**Check:**
+- Jellyfin server is running
+- Server URL is correct (include http:// or https://)
+- API key is valid
+- Server is accessible from your network
 
-## 🔧 Feilsøking
+### Authentication Issues
 
-### "Failed to fetch" eller connection errors
-- Sjekk at `.env` har riktige Supabase credentials
-- Verifiser at Supabase-prosjektet er aktivt
-- Sjekk at email confirmation er skrudd AV i Supabase
+**Check:**
+- Lovable Cloud backend is accessible
+- Browser cookies are enabled
+- No browser extensions blocking requests
 
-### Kan ikke logge inn
-- Første bruker MÅ registreres via `/register` ruten
-- Sjekk at `setup.sql` er kjørt korrekt
-- Verifiser at RLS policies er opprettet
+### Video Won't Play
 
-### Jellyfin-innhold vises ikke
-- Gå til `/setup` og konfigurer Jellyfin URL og API key
-- Sjekk at Jellyfin-server er tilgjengelig fra appen
-- Verifiser CORS-innstillinger i Jellyfin
+**Check:**
+- Jellyfin server can transcode the media
+- Browser supports the video codec
+- Network connection is stable
+- CORS is properly configured on Jellyfin
 
-### Database errors
-- Sjekk at alle tabeller er opprettet: `supabase/setup.sql`
-- Verifiser at triggers og funksjoner eksisterer
-- Se Supabase logs for detaljerte feilmeldinger
+### Content Requests Not Working
 
-## 💬 Support og bidrag
+**Check:**
+- Jellyseerr URL and API key are correct
+- Jellyseerr is accessible
+- User has permission to request content
 
-### Rapporter problemer
-Opprett en [GitHub Issue](https://github.com/gjerdet/jelly-stream-viewer/issues) med:
-- Beskrivelse av problemet
-- Feilmeldinger (fra browser console eller Supabase logs)
-- Steg for å reprodusere
+## 📝 Database Schema
 
-### Bidra til prosjektet
-Pull requests er velkomne! Se [CONTRIBUTING.md](CONTRIBUTING.md) for retningslinjer.
+The application uses these main tables:
 
-## 📜 Lisens
+- `profiles` - User profile information
+- `user_roles` - Role assignments (admin/user)
+- `server_settings` - Jellyfin and Jellyseerr configuration
+- `site_settings` - Site customization
+- `user_favorites` - User's favorite items
+- `watch_history` - Viewing history with progress
+- `user_likes` - Liked content
+- `jellyseerr_requests` - Content requests
+- `news_posts` - News and announcements
+- `app_versions` - Version management
+- `update_status` - Update progress tracking
 
-MIT License - se [LICENSE](LICENSE) filen for detaljer.
+All tables have Row-Level Security (RLS) policies enforcing proper access control.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [React](https://react.dev/)
+- [Lovable](https://lovable.dev/)
+- [Jellyfin](https://jellyfin.org/)
+- [Jellyseerr](https://github.com/Fallenbagel/jellyseerr)
+- [shadcn/ui](https://ui.shadcn.com/)
+- [Tailwind CSS](https://tailwindcss.com/)
+
+## 📞 Support
+
+For issues or questions:
+- Create a [GitHub Issue](https://github.com/yourusername/jelly-stream-viewer/issues)
+- Check existing documentation
+- Review closed issues for solutions
 
 ---
 
-## 🎯 Komme i gang nå?
-
-1. **[Opprett Supabase-konto](https://supabase.com)** (gratis)
-2. **Kjør `supabase/setup.sql`** i SQL Editor
-3. **Kopier `.env.example` → `.env`** og fyll inn API keys
-4. **`npm install && npm run build`**
-5. **Konfigurer Nginx** (se Steg 8)
-6. **Registrer første bruker** → Blir admin automatisk!
-
-Ferdig! 🚀
+**Made with ❤️ for Jellyfin users**

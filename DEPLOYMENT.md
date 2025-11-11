@@ -1,424 +1,559 @@
-# Deployment Guide - Lokal Ubuntu Server
+# Deployment Guide
 
-Denne guiden forklarer hvordan du deployer Jelly Stream Viewer på din lokale Ubuntu-server.
+This guide covers deployment options for Jelly Stream Viewer.
 
-## Oversikt
+## Overview
 
-Applikasjonen består av:
-- **Frontend**: React + Vite applikasjon (statiske filer)
-- **Backend**: Supabase (database + edge functions)
-- **Media Server**: Din eksisterende Jellyfin-server
+Jelly Stream Viewer can be deployed in two ways:
+1. **Lovable Cloud** (Recommended) - Fully managed, automatic deployment
+2. **Self-Hosted** - Full control, requires manual setup
 
-## Forutsetninger
+## Prerequisites
 
-Før du starter, sørg for at du har:
-- ✅ En Ubuntu-server (20.04 eller nyere)
-- ✅ SSH-tilgang til serveren
-- ✅ En Jellyfin media server som kjører
-- ✅ En Supabase-konto eller selvhostet Supabase-instans
-- ✅ Git installert på serveren
-- ✅ (Valgfritt) Et domenenavn eller bruk IP-adresse
+Before deploying, ensure you have:
+- ✅ A Jellyfin media server with API access
+- ✅ (Optional) Jellyseerr instance for content requests
+- ✅ GitHub account (for version control)
+- ✅ Modern web browser for testing
 
-## Installasjonsprosess
+---
 
-### Steg 1: Klon prosjektet fra GitHub
+## Option 1: Lovable Cloud Deployment (Recommended)
 
-SSH inn på Ubuntu-serveren din og klon prosjektet:
+### Why Lovable Cloud?
+
+- **Zero Configuration**: Backend automatically provisioned
+- **Automatic Deployments**: Push to GitHub, auto-deploy
+- **Managed Infrastructure**: Database, auth, edge functions handled
+- **Free Tier Available**: Get started at no cost
+- **Built-in SSL**: HTTPS by default
+- **Global CDN**: Fast worldwide
+
+### Deployment Steps
+
+#### 1. Connect to GitHub
+
+1. In Lovable editor, click **GitHub** in top-right
+2. Click **Connect to GitHub**
+3. Authorize Lovable GitHub App
+4. Select organization/account
+5. Click **Create Repository**
+
+Your code is now synced to GitHub with automatic bidirectional sync.
+
+#### 2. Backend Setup
+
+The backend (database, auth, edge functions) is already set up through Lovable Cloud.
+
+No additional configuration needed!
+
+#### 3. First-Time Configuration
+
+1. **Deploy the App**
+   - Click **Publish** button (top-right)
+   - Your app will be deployed to a Lovable staging URL
+
+2. **Create Admin Account**
+   - Visit your deployed app URL
+   - Click **Register**
+   - Create your account
+   - **First user is automatically admin**
+
+3. **Configure Jellyfin**
+   - Log in with your new account
+   - Navigate to **Admin → Servers** tab
+   - Enter Jellyfin settings:
+     - **Server URL**: Your Jellyfin server URL
+     - **API Key**: Generate in Jellyfin Dashboard → Advanced → API Keys
+
+4. **(Optional) Configure Jellyseerr**
+   - In the same Servers tab
+   - Enter Jellyseerr URL and API Key
+
+#### 4. Custom Domain (Optional)
+
+1. Click **Settings** in Lovable editor
+2. Go to **Domains** tab
+3. Add your custom domain
+4. Update DNS records as instructed
+5. SSL certificate auto-generated
+
+### Updating Your App
+
+**Automatic Deployment**:
+- Make changes in Lovable editor
+- Changes sync to GitHub
+- Click **Update** in publish dialog
+- App deploys automatically
+
+**Version Control**:
+- All changes tracked in GitHub
+- Use Git branches for feature development
+- Lovable supports branch switching (enable in Labs)
+
+### Monitoring
+
+**Built-in Tools**:
+- Backend panel: View database, logs
+- Real-time updates: Watch edge function execution
+- Error tracking: Automatic error logs
+
+---
+
+## Option 2: Self-Hosted Deployment
+
+### Why Self-Host?
+
+- **Full Control**: Own your infrastructure
+- **Privacy**: All data on your servers
+- **Customization**: Modify anything
+- **Cost**: Can be cheaper at scale
+
+### Requirements
+
+- **Ubuntu Server 20.04+** (or similar Linux)
+- **Node.js 18+** and npm
+- **Nginx** (or similar web server)
+- **Lovable Cloud** or **Supabase** account (for backend)
+- **Git** installed
+- (Optional) **Domain name** for SSL
+
+### Installation Steps
+
+#### 1. Clone Repository
 
 ```bash
-# Logg inn på serveren
-ssh bruker@din-server-ip
+# SSH into your server
+ssh user@your-server-ip
 
-# Klon prosjektet (erstatt med din GitHub URL)
-git clone https://github.com/ditt-brukernavn/jelly-stream-viewer.git
+# Clone your repository
+git clone https://github.com/yourusername/jelly-stream-viewer.git
 cd jelly-stream-viewer
 ```
 
-### Steg 2: Kjør installasjonsskriptet
-
-Skriptet vil automatisk:
-- Installere Node.js hvis det mangler
-- Installere npm-avhengigheter
-- Sette opp miljøvariabler
-- Bygge applikasjonen
-- Konfigurere Nginx med CORS-støtte for direkte Jellyfin-streaming
-- (Valgfritt) Sette opp systemd service
+#### 2. Install Dependencies
 
 ```bash
-# Gjør skriptet kjørbart
-chmod +x setup.sh
+# Install Node.js if needed
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
-# Kjør installasjonsskriptet med sudo
-sudo ./setup.sh
-```
-
-**Viktig om video-streaming:**
-Installasjonsskriptet konfigurerer automatisk CORS-headere i Nginx som tillater direkte video-streaming fra Jellyfin-serveren. Dette gir best mulig kvalitet da Jellyfin håndterer all transkoding direkte uten mellomliggende proxyer.
-
-Under installasjonen vil du bli spurt om:
-1. **Supabase URL**: Finn dette i Supabase Dashboard → Project Settings → API
-2. **Supabase Publishable Key**: Samme sted som URL
-3. **Supabase Project ID**: Samme sted som URL
-4. **Server navn/IP**: IP-adressen til serveren din (f.eks. 192.168.1.100)
-5. **Systemd service**: Om du vil ha automatisk start ved server-reboot
-6. **Firewall**: Om port 80 skal åpnes automatisk
-
-### Steg 3: Konfigurer Supabase
-
-#### A) Opprett database-tabeller
-
-1. Logg inn på [Supabase Dashboard](https://supabase.com/dashboard)
-2. Velg ditt prosjekt
-3. Gå til **SQL Editor** i venstre meny
-4. Kjør SQL-skriptet fra `README.md` under "Sett opp Supabase" seksjonen
-
-Dette oppretter:
-- Brukerroller og profiler
-- Serverinnstillinger (Jellyfin API-nøkler)
-- Visningshistorikk
-- Favoritter og likes
-- Nyhetsinnlegg
-
-#### B) Deploy Edge Functions
-
-Edge functions håndterer all kommunikasjon med Jellyfin:
-
-```bash
-# Installer Supabase CLI (hvis ikke allerede installert)
-npm install -g supabase
-
-# Logg inn
-supabase login
-
-# Link til ditt prosjekt
-supabase link --project-ref <din-project-ref>
-
-# Deploy alle edge functions
-supabase functions deploy jellyfin-proxy
-supabase functions deploy jellyfin-stream
-supabase functions deploy jellyfin-subtitle
-supabase functions deploy jellyfin-download-subtitle
-supabase functions deploy jellyfin-search-subtitles
-supabase functions deploy jellyseerr-request
-supabase functions deploy jellyseerr-search
-supabase functions deploy jellyseerr-discover
-```
-
-#### C) Opprett første admin-bruker
-
-1. Besøk applikasjonen: `http://din-server-ip`
-2. Registrer en ny brukerkonto
-3. Hent bruker-ID fra Supabase Dashboard:
-   - Gå til **Authentication** → **Users**
-   - Kopier UUID for brukeren din
-4. Kjør denne SQL-en i SQL Editor:
-
-```sql
--- Erstatt <USER_ID> med UUID fra forrige steg
-INSERT INTO public.user_roles (user_id, role)
-VALUES ('<USER_ID>', 'admin');
-```
-
-### Steg 4: Konfigurer applikasjonen
-
-1. Logg inn i applikasjonen som admin
-2. Gå til **Admin**-siden (i menyen øverst til høyre)
-3. Legg inn følgende informasjon:
-   - **Jellyfin Server URL**: `http://din-jellyfin-server:8096`
-   - **Jellyfin API Key**: Finn i Jellyfin → Dashboard → Advanced → API Keys
-   - (Valgfritt) **Jellyseerr URL** og **API Key**
-
-### Steg 5: Test installasjonen
-
-1. Besøk `http://din-server-ip` i nettleseren
-2. Logg inn med admin-kontoen
-3. Sjekk at du ser innhold fra Jellyfin-serveren
-4. Test videoavspilling
-5. Test favoritter og visningshistorikk
-
-## Nettverk og tilgjengelighet
-
-### Lokal tilgang
-
-Applikasjonen er nå tilgjengelig på:
-- **Internt nettverk**: `http://192.168.x.x` (server IP)
-- **Lokal server**: `http://localhost` (på serveren selv)
-
-### Ekstern tilgang (valgfritt)
-
-For tilgang utenfor hjemmenettverket:
-
-#### Alternativ 1: Port Forwarding (enklest)
-
-1. Logg inn på ruteren din
-2. Sett opp port forwarding for port 80 til server IP
-3. Finn din eksterne IP: `curl ifconfig.me`
-4. Tilgang: `http://din-eksterne-ip`
-
-**Viktig**: Dette er ikke anbefalt uten SSL/HTTPS!
-
-#### Alternativ 2: VPN (sikrere)
-
-Sett opp en VPN-løsning som:
-- WireGuard
-- OpenVPN
-- Tailscale (enklest)
-
-#### Alternativ 3: Reverse Proxy med SSL (best)
-
-Bruk Cloudflare Tunnel eller lignende for sikker tilgang.
-
-## SSL/HTTPS-konfigurering
-
-For sikker tilgang anbefales SSL:
-
-### Med Certbot (gratis Let's Encrypt)
-
-```bash
-# Installer Certbot
-sudo apt-get install certbot python3-certbot-nginx
-
-# Konfigurer SSL (krever domenenavn)
-sudo certbot --nginx -d ditt-domene.no
-
-# Sertifikatet fornyes automatisk
-```
-
-### Med selvlagd sertifikat (kun for testing)
-
-```bash
-# Generer sertifikat
-sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /etc/ssl/private/jelly-stream.key \
-  -out /etc/ssl/certs/jelly-stream.crt
-
-# Oppdater Nginx konfigurasjon manuelt
-```
-
-## Vedlikehold
-
-### Oppdatere applikasjonen
-
-Når det kommer oppdateringer på GitHub:
-
-```bash
-# Gå til installasjonskatalogen
-cd /path/to/jelly-stream-viewer
-
-# Pull nyeste endringer
-git pull origin main
-
-# Installer nye avhengigheter
+# Install project dependencies
 npm install
-
-# Bygg på nytt
-npm run build
-
-# Restart tjenestene
-sudo systemctl restart nginx
-# Hvis du bruker systemd service:
-sudo systemctl restart jelly-stream
 ```
 
-### Backup
+#### 3. Configure Environment
 
-Viktige ting å ta backup av:
-1. **.env fil**: Inneholder konfigurasjon
-2. **Supabase database**: Ta backup i Supabase Dashboard
-3. **Nginx konfigurasjon**: `/etc/nginx/sites-available/jelly-stream`
+Create `.env` file:
 
-### Monitorering
+```bash
+cp .env.example .env
+nano .env
+```
 
-Sjekk logger for feil:
+Fill in your credentials:
 
+```env
+VITE_SUPABASE_URL=https://xxxxx.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_anon_key
+VITE_SUPABASE_PROJECT_ID=your_project_id
+```
+
+Get these from:
+- **Lovable Cloud**: Settings → Backend → Connection Details
+- **Supabase**: Project Settings → API
+
+#### 4. Build Application
+
+```bash
+npm run build
+```
+
+This creates production files in `dist/` directory.
+
+#### 5. Configure Nginx
+
+Install Nginx:
+
+```bash
+sudo apt update
+sudo apt install nginx
+```
+
+Create site configuration:
+
+```bash
+sudo nano /etc/nginx/sites-available/jelly-stream
+```
+
+Add configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;  # or server IP
+    
+    root /path/to/jelly-stream-viewer/dist;
+    index index.html;
+    
+    # SPA routing
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    
+    # Gzip compression
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+    gzip_min_length 1000;
+    
+    # Security headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    
+    # Cache static assets
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+```
+
+Enable site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/jelly-stream /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+#### 6. Configure Firewall
+
+```bash
+sudo ufw allow 'Nginx Full'
+sudo ufw enable
+```
+
+#### 7. SSL Certificate (Recommended)
+
+Using Let's Encrypt:
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+Certificate auto-renews via cron.
+
+#### 8. Setup Systemd Service (Optional)
+
+For easier management:
+
+```bash
+sudo nano /etc/systemd/system/jelly-stream.service
+```
+
+Add:
+
+```ini
+[Unit]
+Description=Jelly Stream Viewer
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/path/to/jelly-stream-viewer
+ExecStart=/usr/bin/npm run preview
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable jelly-stream
+sudo systemctl start jelly-stream
+```
+
+### Update System (Self-Hosted)
+
+#### Manual Updates
+
+```bash
+cd /path/to/jelly-stream-viewer
+git pull origin main
+npm install
+npm run build
+sudo systemctl reload nginx
+```
+
+#### Automated Updates (Advanced)
+
+The app includes update tracking. To enable installation:
+
+1. **Create Update Webhook Server**
+
+Create `update-webhook.js`:
+
+```javascript
+const express = require('express');
+const { exec } = require('child_process');
+const app = express();
+
+app.use(express.json());
+
+app.post('/update', (req, res) => {
+  const secret = req.headers['x-update-secret'];
+  
+  if (secret !== process.env.UPDATE_SECRET) {
+    return res.status(403).json({ error: 'Unauthorized' });
+  }
+  
+  res.json({ message: 'Update started' });
+  
+  // Run update in background
+  exec(`cd ${process.env.APP_DIR} && ./update.sh`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Update failed: ${error}`);
+      return;
+    }
+    console.log(`Update output: ${stdout}`);
+  });
+});
+
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Webhook server running on port ${PORT}`);
+});
+```
+
+Create `update.sh`:
+
+```bash
+#!/bin/bash
+git pull origin main
+npm install
+npm run build
+sudo systemctl reload nginx
+```
+
+Make executable:
+
+```bash
+chmod +x update.sh
+```
+
+2. **Start Webhook Server**
+
+```bash
+npm install express
+UPDATE_SECRET=$(openssl rand -hex 32)
+PORT=3001 APP_DIR=$(pwd) node update-webhook.js &
+```
+
+Or use PM2:
+
+```bash
+npm install -g pm2
+pm2 start update-webhook.js --name update-webhook
+pm2 save
+pm2 startup
+```
+
+3. **Configure in Admin Panel**
+
+In Admin → Versions tab:
+
+- **GitHub Repository URL**: `https://github.com/user/repo`
+- **Update Webhook URL**: `http://localhost:3001/update`
+- **Update Secret**: Your `UPDATE_SECRET` value
+
+Now you can check and install updates from the admin panel!
+
+---
+
+## Post-Deployment
+
+### Initial Setup
+
+1. **Register First User**
+   - Visit your app URL
+   - Register account (becomes admin)
+
+2. **Configure Jellyfin**
+   - Admin → Servers
+   - Add Jellyfin URL and API key
+
+3. **Customize Site**
+   - Admin → Site
+   - Set site name, logo, header title
+
+4. **Invite Users**
+   - Share registration link
+   - Assign roles in Admin → Users
+
+### Monitoring
+
+**Health Checks**:
+- Admin → Health tab
+- View Jellyfin connection status
+- Check backend connectivity
+
+**System Logs** (Self-Hosted):
 ```bash
 # Nginx logs
 sudo tail -f /var/log/nginx/error.log
 sudo tail -f /var/log/nginx/access.log
 
-# Systemd service logs (hvis aktivert)
+# Systemd service logs
 sudo journalctl -u jelly-stream -f
-
-# Supabase Edge Function logs
-# Se i Supabase Dashboard → Functions → Logs
 ```
 
-## Feilsøking
+**Backend Logs**:
+- Lovable Cloud: Backend panel → Logs
+- Supabase: Dashboard → Functions → Logs
 
-### Problem: Kan ikke se innhold fra Jellyfin
+### Backup
 
-**Løsning**:
-1. Sjekk at Jellyfin-serveren kjører: `http://jellyfin-ip:8096`
-2. Verifiser API-nøkkelen i Admin-panelet
-3. Sjekk at server URL er riktig (inkludert http:// eller https://)
-4. Se Edge Function logs i Supabase Dashboard
+**Important Data**:
+- `.env` file - Configuration
+- Database - Take regular backups via backend panel
+- `nginx` config - `/etc/nginx/sites-available/`
 
-### Problem: Video spiller ikke eller dårlig kvalitet
-
-**Løsning**:
-1. Verifiser at CORS-headere er konfigurert i Nginx:
-   ```bash
-   sudo cat /etc/nginx/sites-available/jelly-stream | grep "Access-Control"
-   ```
-2. Hvis CORS-headere mangler, legg til følgende i Nginx-konfigurasjonen under `server` blokken:
-   ```nginx
-   # CORS headers for direkte Jellyfin-streaming
-   add_header 'Access-Control-Allow-Origin' '*' always;
-   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, HEAD' always;
-   add_header 'Access-Control-Allow-Headers' 'Range, Origin, X-Requested-With, Content-Type, Accept, Authorization' always;
-   add_header 'Access-Control-Expose-Headers' 'Content-Length, Content-Range, Accept-Ranges' always;
-   ```
-3. Test og restart Nginx:
-   ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-
-### Problem: 502 Bad Gateway
-
-**Løsning**:
-1. Sjekk at Nginx kjører: `sudo systemctl status nginx`
-2. Sjekk Nginx konfigurasjon: `sudo nginx -t`
-3. Se Nginx error logs: `sudo tail -f /var/log/nginx/error.log`
-
-### Problem: Ingen tilgang fra andre enheter
-
-**Løsning**:
-1. Sjekk firewall: `sudo ufw status`
-2. Åpne port 80: `sudo ufw allow 80/tcp`
-3. Sjekk at serveren er tilgjengelig: `ping server-ip`
-
-### Problem: Edge Functions feiler
-
-**Løsning**:
-1. Verifiser at alle functions er deployet: `supabase functions list`
-2. Sjekk function logs i Supabase Dashboard
-3. Redeploy functions: `supabase functions deploy function-name`
-
-## Ytterligere ressurser
-
-- [Supabase Dokumentasjon](https://supabase.com/docs)
-- [Nginx Dokumentasjon](https://nginx.org/en/docs/)
-- [Jellyfin Dokumentasjon](https://jellyfin.org/docs/)
-- [Certbot Dokumentasjon](https://certbot.eff.org/instructions)
-
-## Support
-
-For problemer eller spørsmål:
-- Opprett en issue på GitHub
-- Sjekk eksisterende issues for løsninger
-- Se README.md for mer detaljert dokumentasjon
+**Database Backup**:
+- Lovable Cloud: Backend panel → Backup
+- Supabase: Dashboard → Database → Backups
 
 ---
 
-## Automatisk Oppdateringssystem
+## Troubleshooting
 
-Applikasjonen har innebygd støtte for automatiske oppdateringer via Admin-panelet.
+### Cannot Access App
 
-### Oversikt
+**Check:**
+- Firewall allows port 80/443
+- Nginx is running: `sudo systemctl status nginx`
+- DNS points to correct IP
+- SSL certificate is valid
 
-Systemet består av tre deler:
-1. **Admin UI** - "Sjekk etter oppdatering" og "Installer oppdatering" knapper
-2. **Edge Functions** - `check-updates` og `trigger-update` 
-3. **Update Server** - Lokal server som mottar webhook og utfører oppdatering
+### Jellyfin Connection Failed
 
-### Oppsett av auto-update
+**Check:**
+- Jellyfin server is accessible
+- API key is correct
+- Server URL includes protocol (http/https)
+- CORS is configured if needed
 
-#### 1. Start Update Server
+### Updates Not Working
 
-Update serveren lytter på webhook requests og utfører oppdateringer:
+**Check:**
+- Webhook server is running
+- Update secret matches
+- Webhook URL is accessible
+- App directory has write permissions
+- Git is configured correctly
+
+### Database Errors
+
+**Check:**
+- Backend credentials in `.env`
+- Tables exist (run `supabase/setup.sql`)
+- RLS policies are enabled
+- Edge functions are deployed
+
+### Video Playback Issues
+
+**Check:**
+- Jellyfin can transcode the media
+- Browser supports codec
+- Network bandwidth sufficient
+- Jellyfin CORS allows your domain
+
+---
+
+## Performance Tips
+
+### Frontend Optimization
+- Enable gzip compression
+- Cache static assets
+- Use CDN for assets
+- Lazy load images
+
+### Database Optimization
+- Regular database maintenance
+- Monitor slow queries
+- Add indexes for common queries
+- Optimize RLS policies
+
+### Media Streaming
+- Let Jellyfin handle transcoding
+- Use direct streaming when possible
+- Configure quality settings in Jellyfin
+- Ensure good network between app and Jellyfin
+
+---
+
+## Security Checklist
+
+- [ ] HTTPS enabled (SSL certificate)
+- [ ] Strong admin password
+- [ ] Firewall configured
+- [ ] Database backups enabled
+- [ ] RLS policies active
+- [ ] API keys secured
+- [ ] Update system configured
+- [ ] Security headers set in Nginx
+- [ ] Jellyfin API key rotated regularly
+- [ ] Regular security updates
+
+---
+
+## Support Resources
+
+- **Documentation**: Check README.md and other docs
+- **GitHub Issues**: Report bugs or request features
+- **Lovable Docs**: https://docs.lovable.dev/
+- **Supabase Docs**: https://supabase.com/docs
+- **Jellyfin Docs**: https://jellyfin.org/docs/
+
+---
+
+## Quick Reference
+
+### Common Commands
 
 ```bash
-# Gå til app-mappen
-cd /path/to/jelly-stream-viewer
+# Build for production
+npm run build
 
-# Installer Express (hvis ikke allerede installert)
-npm install express
+# Start development server
+npm run dev
 
-# Opprett .env fil for update-server
-cat > .env.update << EOF
-PORT=3001
-UPDATE_SECRET=$(openssl rand -hex 32)
-APP_DIR=$(pwd)
-RESTART_COMMAND="sudo systemctl restart nginx"
-EOF
+# Test Nginx config
+sudo nginx -t
 
-# Start update-server med PM2 (anbefalt)
-npm install -g pm2
-pm2 start update-server.js --name "update-server" --env-file .env.update
-pm2 save
-pm2 startup  # Følg instruksjonene
+# Reload Nginx
+sudo systemctl reload nginx
+
+# View logs
+sudo journalctl -u jelly-stream -f
+
+# Pull updates
+git pull origin main
+
+# Check update webhook
+pm2 logs update-webhook
 ```
 
-#### 2. Konfigurer i Admin
+### URLs to Remember
 
-Logg inn på appen og gå til Admin → Versjoner:
+- **Admin Panel**: `https://your-domain.com/admin`
+- **Backend Panel**: Lovable editor → Backend
+- **Jellyfin API Docs**: `https://api.jellyfin.org/`
 
-1. **Legg til GitHub Repository URL**:
-   - Nøkkel: `github_repo_url`
-   - Verdi: `https://github.com/DIN_BRUKER/DIN_REPO`
+---
 
-2. **Legg til Update Webhook URL**:
-   - Nøkkel: `update_webhook_url`
-   - Verdi: `http://localhost:3001/update`
-
-3. **Legg til Update Secret**:
-   - Nøkkel: `update_webhook_secret`
-   - Verdi: Samme som `UPDATE_SECRET` fra `.env.update`
-
-4. **Sett installert commit SHA** (første gang):
-   ```bash
-   cd /path/to/jelly-stream-viewer
-   git rev-parse HEAD
-   ```
-   - Nøkkel: `installed_commit_sha`
-   - Verdi: Output fra kommandoen over
-
-### Bruk av auto-update
-
-#### Sjekke for oppdateringer
-
-1. Gå til Admin → Versjoner
-2. Klikk **"Sjekk etter oppdatering"**
-3. Systemet sammenligner installert versjon med GitHub
-
-#### Installere oppdatering
-
-1. Hvis ny versjon er tilgjengelig, klikk **"Installer oppdatering"**
-2. Bekreft i dialogen
-3. Serveren vil automatisk:
-   - Pulle ny kode fra GitHub
-   - Installere nye avhengigheter
-   - Bygge prosjektet
-   - Restarte appen
-4. Siden laster automatisk på nytt etter ~30-60 sekunder
-
-### Feilsøking auto-update
-
-#### Update Server kjører ikke
-
-```bash
-# Sjekk status
-pm2 status
-
-# Se logger
-pm2 logs update-server
-
-# Restart
-pm2 restart update-server
-```
-
-#### Oppdatering feiler
-
-1. Sjekk update-server logger: `pm2 logs update-server`
-2. Verifiser at appen har skrivetilgang til app-mappen
-3. Sjekk at git credentials er konfigurert riktig
-4. Verifiser at webhook URL er tilgjengelig
-
-### Sikkerhet for auto-update
-
-⚠️ **Viktig:**
-- Bruk sterk `UPDATE_SECRET` (generes automatisk med openssl)
-- Hold webhook URL intern (ikke offentlig tilgjengelig)
-- Vurder å bruke HTTPS med reverse proxy for webhook-endepunktet
-
+**Happy Streaming! 🎬**
