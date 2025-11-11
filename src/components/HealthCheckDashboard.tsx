@@ -57,11 +57,6 @@ export const HealthCheckDashboard = () => {
     }
   };
 
-  const formatResponseTime = (ms?: number) => {
-    if (!ms) return "";
-    return `${ms}ms`;
-  };
-
   const services = [
     healthStatus.jellyfin,
     healthStatus.jellyseerr,
@@ -120,11 +115,8 @@ export const HealthCheckDashboard = () => {
                 <p className="text-xs text-muted-foreground line-clamp-2">
                   {service.message}
                 </p>
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground">
                   <span>{service.lastChecked.toLocaleTimeString('no-NO')}</span>
-                  {service.responseTime && (
-                    <span className="font-mono">{formatResponseTime(service.responseTime)}</span>
-                  )}
                 </div>
               </CardContent>
             </Card>
