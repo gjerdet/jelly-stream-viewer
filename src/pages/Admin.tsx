@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -40,6 +40,15 @@ const Admin = () => {
   // GitHub settings state
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
+  
+  // Database settings state
+  const [deploymentType, setDeploymentType] = useState("");
+  const [dbHost, setDbHost] = useState("");
+  const [dbPort, setDbPort] = useState("");
+  const [dbName, setDbName] = useState("");
+  const [dbUser, setDbUser] = useState("");
+  const [supabaseUrl, setSupabaseUrl] = useState("");
+  const [supabaseProjectId, setSupabaseProjectId] = useState("");
   
   // Site settings state
   const [newSiteName, setNewSiteName] = useState("");
@@ -228,7 +237,7 @@ const Admin = () => {
     }
   }, [currentJellyseerrApiKey]);
 
-  // Load monitoring, qBittorrent and GitHub settings
+  // Load monitoring, qBittorrent, GitHub and database settings
   useEffect(() => {
     const loadAdditionalSettings = async () => {
       if (!user || userRole !== "admin") return;
@@ -236,7 +245,21 @@ const Admin = () => {
       const { data } = await supabase
         .from("server_settings")
         .select("setting_key, setting_value")
-        .in("setting_key", ["monitoring_url", "qbittorrent_url", "qbittorrent_username", "qbittorrent_password", "github_repo_url", "update_webhook_url"]);
+        .in("setting_key", [
+          "monitoring_url", 
+          "qbittorrent_url", 
+          "qbittorrent_username", 
+          "qbittorrent_password", 
+          "github_repo_url", 
+          "update_webhook_url",
+          "deployment_type",
+          "db_host",
+          "db_port",
+          "db_name",
+          "db_user",
+          "supabase_url",
+          "supabase_project_id"
+        ]);
       
       data?.forEach(setting => {
         if (setting.setting_key === "monitoring_url") setMonitoringUrl(setting.setting_value || "");
@@ -245,6 +268,13 @@ const Admin = () => {
         if (setting.setting_key === "qbittorrent_password") setQbittorrentPassword(setting.setting_value || "");
         if (setting.setting_key === "github_repo_url") setGithubRepoUrl(setting.setting_value || "");
         if (setting.setting_key === "update_webhook_url") setUpdateWebhookUrl(setting.setting_value || "");
+        if (setting.setting_key === "deployment_type") setDeploymentType(setting.setting_value || "");
+        if (setting.setting_key === "db_host") setDbHost(setting.setting_value || "");
+        if (setting.setting_key === "db_port") setDbPort(setting.setting_value || "");
+        if (setting.setting_key === "db_name") setDbName(setting.setting_value || "");
+        if (setting.setting_key === "db_user") setDbUser(setting.setting_value || "");
+        if (setting.setting_key === "supabase_url") setSupabaseUrl(setting.setting_value || "");
+        if (setting.setting_key === "supabase_project_id") setSupabaseProjectId(setting.setting_value || "");
       });
     };
     
@@ -629,8 +659,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="servers" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="servers">Servere</TabsTrigger>
+              <TabsTrigger value="database">Database</TabsTrigger>
               <TabsTrigger value="site">Side</TabsTrigger>
               <TabsTrigger value="monitoring">
                 <Server className="h-4 w-4 mr-2" />
@@ -888,6 +919,141 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       <div className="whitespace-pre-wrap">{jellyseerrStatus}</div>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="database" className="space-y-6">
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Database-konfigurasjon
+                  </CardTitle>
+                  <CardDescription>
+                    Vis og administrer database-innstillinger. Disse er satt opp under installasjon.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <p className="text-sm text-blue-400">
+                      <strong>ℹ️ Merk:</strong> Database-innstillinger kan ikke endres direkte i Admin-panelet.
+                      For å endre deployment-type eller database-konfigurasjon, må du kjøre setup-wizarden på nytt.
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Deployment Type</Label>
+                      <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                        <p className="font-mono text-sm">
+                          {deploymentType ? (
+                            deploymentType === "cloud" ? (
+                              <span className="text-primary">☁️ Supabase Cloud</span>
+                            ) : (
+                              <span className="text-green-400">🐳 Lokal PostgreSQL (Docker)</span>
+                            )
+                          ) : (
+                            <span className="text-muted-foreground">Ikke konfigurert</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {deploymentType === "cloud" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Supabase Project URL</Label>
+                          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                            <p className="font-mono text-sm break-all">
+                              {supabaseUrl || <span className="text-muted-foreground">Ikke satt</span>}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Supabase Project ID</Label>
+                          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                            <p className="font-mono text-sm">
+                              {supabaseProjectId || <span className="text-muted-foreground">Ikke satt</span>}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {deploymentType === "local" && (
+                      <>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Database Host</Label>
+                            <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                              <p className="font-mono text-sm">
+                                {dbHost || <span className="text-muted-foreground">Ikke satt</span>}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Port</Label>
+                            <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                              <p className="font-mono text-sm">
+                                {dbPort || <span className="text-muted-foreground">Ikke satt</span>}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Database Navn</Label>
+                          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                            <p className="font-mono text-sm">
+                              {dbName || <span className="text-muted-foreground">Ikke satt</span>}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Brukernavn</Label>
+                          <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                            <p className="font-mono text-sm">
+                              {dbUser || <span className="text-muted-foreground">Ikke satt</span>}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                          <p className="text-sm text-yellow-400">
+                            <strong>⚠️ Sikkerhet:</strong> Database-passord vises ikke av sikkerhetsgrunner.
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {!deploymentType && (
+                      <div className="p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg text-center">
+                        <p className="text-sm text-orange-400 mb-3">
+                          Database er ikke konfigurert via setup-wizarden.
+                        </p>
+                        <Button 
+                          onClick={() => navigate("/setup-wizard")}
+                          variant="outline"
+                          className="gap-2"
+                        >
+                          <HardDrive className="h-4 w-4" />
+                          Start setup-wizard
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-4 bg-secondary/30 rounded-lg">
+                    <h3 className="font-semibold mb-2 text-sm flex items-center gap-2">
+                      <HardDrive className="h-4 w-4" />
+                      Feilsøking
+                    </h3>
+                    <ul className="text-xs text-muted-foreground space-y-2">
+                      <li>• For Supabase Cloud: Sjekk at URL og API-keys er riktige i .env filen</li>
+                      <li>• For lokal PostgreSQL: Test forbindelse med: <code className="px-1 py-0.5 bg-secondary rounded">docker ps</code></li>
+                      <li>• Sjekk database-logs: <code className="px-1 py-0.5 bg-secondary rounded">docker logs jelly-stream-db</code></li>
+                      <li>• Se DEPLOYMENT_LOCAL.md for fullstendig feilsøkingsguide</li>
+                    </ul>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

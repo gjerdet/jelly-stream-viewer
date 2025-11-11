@@ -2,7 +2,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useEffect } from "react";
@@ -10,6 +11,7 @@ import { useSiteSettings } from "@/hooks/useSiteSettings";
 import Header from "./components/Header";
 import Login from "./pages/Login";
 import Setup from "./pages/Setup";
+import SetupWizard from "./pages/SetupWizard";
 import Browse from "./pages/Browse";
 import Search from "./pages/Search";
 import History from "./pages/History";
@@ -35,13 +37,14 @@ const AppContent = () => {
   useEffect(() => {
     document.title = siteName;
   }, [siteName]);
-  const isLoginOrSetupPage = location.pathname === "/" || location.pathname === "/setup";
+  const isLoginOrSetupPage = location.pathname === "/" || location.pathname === "/setup" || location.pathname === "/setup-wizard";
 
   if (isLoginOrSetupPage) {
     return (
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/setup" element={<Setup />} />
+        <Route path="/setup-wizard" element={<SetupWizard />} />
       </Routes>
     );
   }
