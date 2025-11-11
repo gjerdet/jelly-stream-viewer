@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export interface ServiceStatus {
   name: string;
@@ -19,11 +20,14 @@ export interface HealthCheckResult {
 }
 
 export const useHealthCheck = (autoCheck: boolean = true, interval: number = 60000) => {
+  const { t } = useLanguage();
+  const health = t.health as any;
+  
   const [healthStatus, setHealthStatus] = useState<HealthCheckResult>({
-    jellyfin: { name: "Jellyfin", status: "checking", message: "Sjekker...", lastChecked: new Date() },
-    jellyseerr: { name: "Jellyseerr", status: "checking", message: "Sjekker...", lastChecked: new Date() },
-    database: { name: "Database", status: "checking", message: "Sjekker...", lastChecked: new Date() },
-    netdata: { name: "Netdata", status: "checking", message: "Sjekker...", lastChecked: new Date() },
+    jellyfin: { name: "Jellyfin", status: "checking", message: health.checking || "Checking...", lastChecked: new Date() },
+    jellyseerr: { name: "Jellyseerr", status: "checking", message: health.checking || "Checking...", lastChecked: new Date() },
+    database: { name: "Database", status: "checking", message: health.checking || "Checking...", lastChecked: new Date() },
+    netdata: { name: "Netdata", status: "checking", message: health.checking || "Checking...", lastChecked: new Date() },
     overallStatus: "healthy",
   });
   const [isChecking, setIsChecking] = useState(false);
@@ -44,7 +48,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         return { 
           name: "Jellyfin", 
           status: "down", 
-          message: "Ikke konfigurert", 
+          message: health.notConfigured || "Not configured", 
           lastChecked: new Date() 
         };
       }
@@ -83,7 +87,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Jellyfin", 
         status: "down", 
-        message: error instanceof Error ? error.message : "Ukjent feil", 
+        message: error instanceof Error ? error.message : (health.unknownError || "Unknown error"), 
         lastChecked: new Date() 
       };
     }
@@ -105,7 +109,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         return { 
           name: "Jellyseerr", 
           status: "down", 
-          message: "Ikke konfigurert", 
+          message: health.notConfigured || "Not configured", 
           lastChecked: new Date() 
         };
       }
@@ -120,7 +124,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         return { 
           name: "Jellyseerr", 
           status: "down", 
-          message: (testData as any)?.message || (testError as any)?.message || "Tilkobling feilet", 
+          message: (testData as any)?.message || (testError as any)?.message || (health.connectionFailed || "Connection failed"), 
           lastChecked: new Date(),
           responseTime 
         };
@@ -129,7 +133,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Jellyseerr", 
         status: "healthy", 
-        message: `v${testData.data?.version || 'Ukjent'}`, 
+        message: `v${testData.data?.version || (health.unknown || 'Unknown')}`, 
         lastChecked: new Date(),
         responseTime 
       };
@@ -137,7 +141,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Jellyseerr", 
         status: "down", 
-        message: error instanceof Error ? error.message : "Ukjent feil", 
+        message: error instanceof Error ? error.message : (health.unknownError || "Unknown error"), 
         lastChecked: new Date() 
       };
     }
@@ -166,7 +170,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Database", 
         status: "healthy", 
-        message: "Tilkoblet", 
+        message: health.connected || "Connected", 
         lastChecked: new Date(),
         responseTime 
       };
@@ -174,7 +178,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Database", 
         status: "down", 
-        message: error instanceof Error ? error.message : "Ukjent feil", 
+        message: error instanceof Error ? error.message : (health.unknownError || "Unknown error"), 
         lastChecked: new Date() 
       };
     }
@@ -196,7 +200,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         return { 
           name: "Netdata", 
           status: "down", 
-          message: "Ikke konfigurert", 
+          message: health.notConfigured || "Not configured", 
           lastChecked: new Date() 
         };
       }
@@ -209,7 +213,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         return { 
           name: "Netdata", 
           status: "down", 
-          message: statsError?.message || "Ingen data", 
+          message: statsError?.message || (health.noData || "No data"), 
           lastChecked: new Date(),
           responseTime 
         };
@@ -218,7 +222,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Netdata", 
         status: "healthy", 
-        message: `${statsData.system?.os || 'Ukjent'} (${statsData.system?.version || 'N/A'})`, 
+        message: `${statsData.system?.os || (health.unknown || 'Unknown')} (${statsData.system?.version || 'N/A'})`, 
         lastChecked: new Date(),
         responseTime 
       };
@@ -226,7 +230,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
       return { 
         name: "Netdata", 
         status: "down", 
-        message: error instanceof Error ? error.message : "Ukjent feil", 
+        message: error instanceof Error ? error.message : (health.unknownError || "Unknown error"), 
         lastChecked: new Date() 
       };
     }
@@ -262,16 +266,16 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
 
     // Show toast notifications for services that went down
     if (jellyfinStatus.status === "down" && healthStatus.jellyfin.status !== "down") {
-      toast.error(`Jellyfin er nede: ${jellyfinStatus.message}`);
+      toast.error(`Jellyfin ${health.isDown || "is down"}: ${jellyfinStatus.message}`);
     }
     if (jellyseerrStatus.status === "down" && healthStatus.jellyseerr.status !== "down") {
-      toast.error(`Jellyseerr er nede: ${jellyseerrStatus.message}`);
+      toast.error(`Jellyseerr ${health.isDown || "is down"}: ${jellyseerrStatus.message}`);
     }
     if (databaseStatus.status === "down" && healthStatus.database.status !== "down") {
-      toast.error(`Database er nede: ${databaseStatus.message}`);
+      toast.error(`Database ${health.isDown || "is down"}: ${databaseStatus.message}`);
     }
     if (netdataStatus.status === "down" && healthStatus.netdata.status !== "down") {
-      toast.warning(`Netdata er nede: ${netdataStatus.message}`);
+      toast.warning(`Netdata ${health.isDown || "is down"}: ${netdataStatus.message}`);
     }
 
     return newHealthStatus;

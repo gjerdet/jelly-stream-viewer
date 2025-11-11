@@ -246,4 +246,25 @@ export const noTranslations = {
     unpinFromTop: 'Løs frå toppen',
     pinToTop: 'Fest til toppen',
   },
+
+  // Health Check
+  health: {
+    systemHealth: 'System Health',
+    realtimeMonitoring: 'Sanntidsovervåking av alle systemtjenester',
+    allServicesOk: 'Alle tjenester OK',
+    someServicesIssues: 'Noen tjenester har problemer',
+    criticalError: 'Kritisk feil',
+    connected: 'Tilkoblet',
+    degraded: 'Degradert',
+    down: 'Nede',
+    checking: 'Sjekker...',
+    someServicesUnavailable: 'Noen tjenester er ikke tilgjengelige',
+    checkConfigOrLogs: 'Sjekk konfigurasjonen i innstillingene eller se i loggen for mer informasjon.',
+    notConfigured: 'Ikke konfigurert',
+    connectionFailed: 'Tilkobling feilet',
+    unknownError: 'Ukjent feil',
+    unknown: 'Ukjent',
+    noData: 'Ingen data',
+    isDown: 'er nede',
+  },
 } as const;

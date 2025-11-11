@@ -246,4 +246,25 @@ export const enTranslations = {
     unpinFromTop: 'Unpin from top',
     pinToTop: 'Pin to top',
   },
+
+  // Health Check
+  health: {
+    systemHealth: 'System Health',
+    realtimeMonitoring: 'Real-time monitoring of all system services',
+    allServicesOk: 'All services OK',
+    someServicesIssues: 'Some services have issues',
+    criticalError: 'Critical Error',
+    connected: 'Connected',
+    degraded: 'Degraded',
+    down: 'Down',
+    checking: 'Checking...',
+    someServicesUnavailable: 'Some services are unavailable',
+    checkConfigOrLogs: 'Check the configuration in settings or see the logs for more information.',
+    notConfigured: 'Not configured',
+    connectionFailed: 'Connection failed',
+    unknownError: 'Unknown error',
+    unknown: 'Unknown',
+    noData: 'No data',
+    isDown: 'is down',
+  },
 } as const;

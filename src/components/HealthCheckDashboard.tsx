@@ -3,9 +3,12 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, CheckCircle2, AlertTriangle, XCircle, Loader2, Activity } from "lucide-react";
 import { useHealthCheck } from "@/hooks/useHealthCheck";
 import { Badge } from "@/components/ui/badge";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export const HealthCheckDashboard = () => {
   const { healthStatus, isChecking, performHealthCheck } = useHealthCheck(true, 60000);
+  const { t } = useLanguage();
+  const health = t.health as any;
 
   const getStatusIcon = (status: "healthy" | "degraded" | "down" | "checking") => {
     switch (status) {
@@ -47,13 +50,13 @@ export const HealthCheckDashboard = () => {
   const getStatusText = (status: "healthy" | "degraded" | "down" | "checking") => {
     switch (status) {
       case "healthy":
-        return "Tilkoblet";
+        return health.connected || "Connected";
       case "degraded":
-        return "Degradert";
+        return health.degraded || "Degraded";
       case "down":
-        return "Nede";
+        return health.down || "Down";
       case "checking":
-        return "Sjekker...";
+        return health.checking || "Checking...";
     }
   };
 
@@ -70,13 +73,13 @@ export const HealthCheckDashboard = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            <CardTitle>System Health</CardTitle>
+            <CardTitle>{health.systemHealth || "System Health"}</CardTitle>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant={getOverallBadgeVariant(healthStatus.overallStatus)}>
-              {healthStatus.overallStatus === "healthy" && "Alle tjenester OK"}
-              {healthStatus.overallStatus === "degraded" && "Noen tjenester har problemer"}
-              {healthStatus.overallStatus === "down" && "Kritisk feil"}
+              {healthStatus.overallStatus === "healthy" && (health.allServicesOk || "All services OK")}
+              {healthStatus.overallStatus === "degraded" && (health.someServicesIssues || "Some services have issues")}
+              {healthStatus.overallStatus === "down" && (health.criticalError || "Critical Error")}
             </Badge>
             <Button
               variant="outline"
@@ -93,7 +96,7 @@ export const HealthCheckDashboard = () => {
           </div>
         </div>
         <CardDescription>
-          Sanntidsovervåking av alle systemtjenester
+          {health.realtimeMonitoring || "Real-time monitoring of all system services"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -129,10 +132,10 @@ export const HealthCheckDashboard = () => {
               <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
-                  Noen tjenester er ikke tilgjengelige
+                  {health.someServicesUnavailable || "Some services are unavailable"}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Sjekk konfigurasjonen i innstillingene eller se i loggen for mer informasjon.
+                  {health.checkConfigOrLogs || "Check the configuration in settings or see the logs for more information."}
                 </p>
               </div>
             </div>
