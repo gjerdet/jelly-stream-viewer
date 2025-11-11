@@ -6,13 +6,15 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -98,6 +100,10 @@ const Player = () => {
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [autoMarkWatched, setAutoMarkWatched] = useState(() => {
+    const saved = localStorage.getItem('autoMarkWatched');
+    return saved === 'true';
+  });
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
 
@@ -253,7 +259,76 @@ const Player = () => {
     }
   };
 
-  const handleVideoEnded = () => {
+  const handleProgressClick = (episode: Episode, event: React.MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    
+    if (!episode.RunTimeTicks) return;
+    
+    const rect = event.currentTarget.getBoundingClientRect();
+    const clickX = event.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const targetTicks = Math.floor(episode.RunTimeTicks * percentage);
+    const targetSeconds = targetTicks / 10000000;
+    
+    if (episode.Id === id) {
+      // Current episode - seek to position
+      if (videoRef.current) {
+        videoRef.current.currentTime = targetSeconds;
+      }
+    } else {
+      // Different episode - navigate with position
+      localStorage.setItem(`player_start_position_${episode.Id}`, targetSeconds.toString());
+      navigate(`/player/${episode.Id}`);
+    }
+  };
+
+  // Restore playback position from localStorage
+  useEffect(() => {
+    if (!id || !videoRef.current) return;
+    
+    const savedPosition = localStorage.getItem(`player_start_position_${id}`);
+    if (savedPosition) {
+      const position = parseFloat(savedPosition);
+      videoRef.current.currentTime = position;
+      localStorage.removeItem(`player_start_position_${id}`);
+    }
+  }, [id, streamUrl]);
+
+  // Save auto-mark setting to localStorage
+  useEffect(() => {
+    localStorage.setItem('autoMarkWatched', autoMarkWatched.toString());
+  }, [autoMarkWatched]);
+
+  const handleVideoEnded = async () => {
+    // Mark as watched if auto-mark is enabled
+    if (autoMarkWatched && item && userId && serverUrl) {
+      try {
+        const jellyfinSession = localStorage.getItem('jellyfin_session');
+        const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+        
+        if (accessToken) {
+          let normalizedUrl = serverUrl;
+          if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+            normalizedUrl = `http://${normalizedUrl}`;
+          }
+          
+          // Mark as played in Jellyfin
+          await fetch(
+            `${normalizedUrl.replace(/\/$/, '')}/Users/${userId}/PlayedItems/${item.Id}`,
+            {
+              method: 'POST',
+              headers: {
+                'X-Emby-Token': accessToken,
+              },
+            }
+          );
+          console.log('Marked as watched:', item.Name);
+        }
+      } catch (error) {
+        console.error('Failed to mark as watched:', error);
+      }
+    }
+
     const nextEpisode = getNextEpisode();
     if (nextEpisode) {
       console.log('Autoplay: Playing next episode', nextEpisode.Name);
@@ -490,16 +565,27 @@ const Player = () => {
                                   <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
                                     Ingen bilde
                                   </div>
-                                )}
-                                {watchedPercentage > 0 && watchedPercentage < 95 && (
-                                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
-                                    <div 
-                                      className="h-full bg-primary"
-                                      style={{ width: `${watchedPercentage}%` }}
-                                    />
-                                  </div>
-                                )}
-                                {isWatched && (
+                                 )}
+                                 {watchedPercentage > 0 && watchedPercentage < 95 && (
+                                   <div 
+                                     className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50 cursor-pointer hover:h-1.5 transition-all"
+                                     onClick={(e) => handleProgressClick(episode, e)}
+                                     title={`Hopp til ${Math.floor(watchedPercentage)}%`}
+                                   >
+                                     <div 
+                                       className="h-full bg-primary"
+                                       style={{ width: `${watchedPercentage}%` }}
+                                     />
+                                   </div>
+                                 )}
+                                 {watchedPercentage === 0 && episode.RunTimeTicks && (
+                                   <div 
+                                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-secondary/50 hover:h-1.5 cursor-pointer transition-all"
+                                     onClick={(e) => handleProgressClick(episode, e)}
+                                     title="Klikk for å hoppe til en posisjon"
+                                   />
+                                 )}
+                                 {isWatched && (
                                   <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
                                     <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -596,7 +682,22 @@ const Player = () => {
             </h1>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {/* Auto-mark watched setting */}
+            {isEpisode && (
+              <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-md px-3 py-1.5 border border-white/20">
+                <Label htmlFor="auto-mark" className="text-white text-xs whitespace-nowrap cursor-pointer">
+                  Auto-marker som sett
+                </Label>
+                <Switch
+                  id="auto-mark"
+                  checked={autoMarkWatched}
+                  onCheckedChange={setAutoMarkWatched}
+                  className="data-[state=checked]:bg-green-600"
+                />
+              </div>
+            )}
+
             {/* Previous/Next Episode Buttons */}
             {isEpisode && (
               <>
