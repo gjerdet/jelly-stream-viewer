@@ -61,35 +61,21 @@ check_docker() {
 # Sjekk om Node.js er installert
 check_node() {
     if ! command -v node &> /dev/null; then
-        print_error "Node.js er ikke installert!"
-        echo ""
-        echo "Installer Node.js 18+:"
-        echo "  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
-        echo "  sudo apt-get install -y nodejs"
-        echo ""
-        echo "Eller bruk nvm:"
-        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
-        echo "  source ~/.bashrc"
-        echo "  nvm install 20"
-        exit 1
+        print_info "Node.js ikke funnet. Installerer Node.js 20..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        print_success "Node.js installert"
+    else
+        NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+        if [ "$NODE_VERSION" -lt 18 ]; then
+            print_warning "Node.js versjon $(node --version) er for gammel. Oppgraderer til Node.js 20..."
+            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+            sudo apt-get install -y nodejs
+            print_success "Node.js oppgradert til $(node --version)"
+        else
+            print_success "Node.js $(node --version) er installert"
+        fi
     fi
-    
-    NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
-    if [ "$NODE_VERSION" -lt 18 ]; then
-        print_error "Node.js versjon $(node --version) er for gammel. Trenger versjon 18 eller nyere."
-        echo ""
-        echo "Oppgrader Node.js:"
-        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
-        echo "  sudo apt-get install -y nodejs"
-        echo ""
-        echo "Eller bruk nvm:"
-        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
-        echo "  source ~/.bashrc"
-        echo "  nvm install 20"
-        exit 1
-    fi
-    
-    print_success "Node.js $(node --version) er installert"
 }
 
 # Installer Netdata for server monitoring
