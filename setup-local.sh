@@ -66,10 +66,30 @@ check_node() {
         echo "Installer Node.js 18+:"
         echo "  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -"
         echo "  sudo apt-get install -y nodejs"
+        echo ""
+        echo "Eller bruk nvm:"
+        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
+        echo "  source ~/.bashrc"
+        echo "  nvm install 20"
         exit 1
     fi
     
-    print_success "Node.js er installert ($(node --version))"
+    NODE_VERSION=$(node --version | cut -d'v' -f2 | cut -d'.' -f1)
+    if [ "$NODE_VERSION" -lt 18 ]; then
+        print_error "Node.js versjon $(node --version) er for gammel. Trenger versjon 18 eller nyere."
+        echo ""
+        echo "Oppgrader Node.js:"
+        echo "  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -"
+        echo "  sudo apt-get install -y nodejs"
+        echo ""
+        echo "Eller bruk nvm:"
+        echo "  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash"
+        echo "  source ~/.bashrc"
+        echo "  nvm install 20"
+        exit 1
+    fi
+    
+    print_success "Node.js $(node --version) er installert"
 }
 
 # Installer Netdata for server monitoring
