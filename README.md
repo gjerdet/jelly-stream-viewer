@@ -1,4 +1,5 @@
 # Jelly Stream Viewer
+# working progress
 
 A modern web application for streaming from Jellyfin media servers with a beautiful, responsive interface.
 
