@@ -325,22 +325,120 @@ Monitor these packages for security updates:
 
 **DO NOT** create public GitHub issues for security vulnerabilities.
 
-Instead:
-1. Email security contact (see repository)
-2. Include:
-   - Description of vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-3. Expected response: Within 48 hours
-4. Fix timeline: Within 7 days for critical issues
+**How to Report:**
+
+1. **For Critical Vulnerabilities** (SQL injection, authentication bypass, data leaks):
+   - Create a private security advisory on GitHub: https://github.com/[your-repo]/security/advisories/new
+   - Or email: security@[your-domain] (create this mailbox!)
+   - Expected response: Within 24 hours
+   - Fix timeline: Within 48-72 hours for critical issues
+
+2. **For Non-Critical Issues** (info disclosure, configuration issues):
+   - Create a private security advisory on GitHub
+   - Expected response: Within 48 hours
+   - Fix timeline: Within 7-14 days
+
+3. **What to Include in Your Report:**
+   - Clear description of the vulnerability
+   - Step-by-step reproduction steps
+   - Proof of concept (if applicable)
+   - Potential impact and severity assessment
+   - Affected versions
+   - Suggested fix (optional but appreciated)
+   - Your contact information for follow-up
+
+4. **What Constitutes a Security Issue:**
+   - Authentication/authorization bypass
+   - SQL injection or other injection attacks
+   - XSS vulnerabilities
+   - Exposure of sensitive data (API keys, passwords, PII)
+   - CSRF vulnerabilities
+   - RLS policy bypasses
+   - Denial of service vulnerabilities
+   - Insecure direct object references
+
+5. **What is NOT a Security Issue:**
+   - Feature requests
+   - Performance issues
+   - UI/UX bugs
+   - Compatibility issues
+   - Issues requiring physical access to the server
+   - Social engineering attacks
 
 ### Disclosure Policy
 
-- **Private disclosure** to maintainers first
-- **Public disclosure** after fix is released
-- **Credit** given to responsible reporters
-- **CVE** assigned for significant vulnerabilities
+- **Private Disclosure**: Report privately through security advisory or email
+- **Acknowledgment**: We'll acknowledge receipt within 24-48 hours
+- **Investigation**: We'll investigate and confirm the issue
+- **Fix Development**: We'll develop and test a fix
+- **Coordinated Disclosure**: We'll coordinate public disclosure with you
+- **Public Disclosure**: After fix is released and users have time to update (typically 7-14 days)
+- **Credit**: We give credit to responsible reporters in:
+  - Security advisory
+  - Release notes
+  - CHANGELOG.md (with 🔒 emoji)
+  - Security hall of fame (if applicable)
+- **CVE Assignment**: For significant vulnerabilities, we'll:
+  - Request CVE ID from MITRE or GitHub
+  - Include CVE in advisory and release notes
+  - Document in National Vulnerability Database
+
+### Security Hall of Fame
+
+We maintain a list of security researchers who have helped improve Jelly Stream Viewer:
+
+- (Add names here as vulnerabilities are reported and fixed)
+
+Thank you to everyone who practices responsible disclosure!
+
+### Vulnerability Severity Levels
+
+**Critical (CVSS 9.0-10.0)**
+- Authentication bypass allowing full admin access
+- SQL injection leading to database compromise
+- Remote code execution
+- **Response Time**: Within 24 hours
+- **Fix Timeline**: 24-48 hours
+
+**High (CVSS 7.0-8.9)**
+- XSS allowing account takeover
+- RLS bypass exposing all user data
+- API key exposure in client code
+- **Response Time**: Within 48 hours
+- **Fix Timeline**: 3-7 days
+
+**Medium (CVSS 4.0-6.9)**
+- CSRF on sensitive operations
+- Information disclosure (non-PII)
+- Weak encryption or hashing
+- **Response Time**: Within 1 week
+- **Fix Timeline**: 7-14 days
+
+**Low (CVSS 0.1-3.9)**
+- Missing security headers
+- Verbose error messages
+- Minor information leaks
+- **Response Time**: Within 2 weeks
+- **Fix Timeline**: Next minor release
+
+### Security Update Process
+
+1. **Hotfix Release** (Critical/High):
+   - Immediate patch release (e.g., 1.2.3 → 1.2.4)
+   - Security advisory published
+   - Users notified via GitHub and in-app notification
+   - Backport to supported versions if applicable
+
+2. **Regular Release** (Medium/Low):
+   - Included in next scheduled release
+   - Documented in release notes
+   - Security advisory for transparency
+
+3. **User Notification**:
+   - GitHub Security Advisory
+   - Release notes with 🔒 emoji
+   - In-app update notification for admins
+   - Email notification (if email list exists)
 
 ## Logging and Monitoring
 
@@ -434,17 +532,213 @@ CREATE TRIGGER audit_server_settings
 7. **Code Review**: Peer review all security-related code
 8. **Test RLS**: Test all RLS policies thoroughly
 
+## Data Classification
+
+Understanding what data is considered sensitive:
+
+### Personally Identifiable Information (PII)
+- User email addresses
+- Jellyfin usernames
+- IP addresses (in logs)
+- Session tokens
+
+**Protection**: RLS policies, encryption at rest, HTTPS in transit
+
+### Authentication Data
+- Password hashes
+- JWT tokens
+- API keys (Jellyfin, Jellyseerr)
+- Webhook secrets
+
+**Protection**: Never stored in client code, hashed/encrypted, edge functions only
+
+### User Content
+- Watch history
+- Favorites
+- Content requests
+- Feedback
+
+**Protection**: RLS policies ensuring user-specific access only
+
+### Public Data
+- News posts (published)
+- Site settings (name, logo)
+- App versions
+- Server URLs (without credentials)
+
+**Protection**: Minimal, intended for public consumption
+
+## Compliance
+
+### GDPR Compliance
+
+This application collects and processes personal data. Here's how we comply:
+
+**Data Controller Information:**
+- Administrator of the Jelly Stream Viewer instance is the data controller
+- Contact: [Add your contact information]
+
+**Legal Basis for Processing:**
+- Consent: Users create accounts voluntarily
+- Legitimate Interest: Providing streaming service functionality
+
+**User Rights Implementation:**
+
+1. **Right to Access (GDPR Art. 15)**:
+   - Users can view all their data in Profile → My Data
+   - Export functionality available (JSON format)
+
+2. **Right to Rectification (GDPR Art. 16)**:
+   - Users can update their profile and preferences
+   - Contact admin for corrections
+
+3. **Right to Erasure (GDPR Art. 17)**:
+   - Users can delete their account in Profile → Delete Account
+   - All personal data removed within 30 days
+   - Cascade deletes: favorites, history, requests, feedback
+
+4. **Right to Data Portability (GDPR Art. 20)**:
+   - Export function provides machine-readable JSON
+   - Includes: profile, favorites, watch history, requests
+
+5. **Right to Object (GDPR Art. 21)**:
+   - Users can opt out of optional features
+   - Essential functionality requires data processing
+
+**Data Retention:**
+- Active user data: Retained while account exists
+- Deleted account data: Purged after 30 days
+- Logs: 30 days retention
+- Backups: 90 days (then deleted)
+
+**Data Breach Notification:**
+- Users notified within 72 hours of confirmed breach
+- Supervisory authority notified if required
+- Incident documented in security log
+
+### Privacy by Design
+
+- **Data Minimization**: Only collect necessary data
+- **Purpose Limitation**: Data used only for stated purposes
+- **Storage Limitation**: Automatic deletion of old data
+- **Integrity**: Checksums and validation
+- **Confidentiality**: Encryption and access controls
+
+## Security Audit Checklist
+
+Use this checklist for security reviews:
+
+### Infrastructure Security
+- [ ] HTTPS enabled with valid SSL certificate
+- [ ] Firewall configured (only ports 80, 443 open)
+- [ ] SSH key-based authentication (no password login)
+- [ ] Fail2ban or similar intrusion prevention
+- [ ] Regular security updates (unattended-upgrades)
+- [ ] Strong server passwords (if any)
+- [ ] Database not exposed to internet
+- [ ] Backup encryption enabled
+
+### Application Security
+- [ ] No .env file in git repository
+- [ ] All secrets in Lovable Cloud Secrets (not code)
+- [ ] VITE_ prefix only for public keys
+- [ ] RLS enabled on all tables
+- [ ] RLS policies tested for bypasses
+- [ ] JWT verification enabled on edge functions
+- [ ] Input validation on all user inputs
+- [ ] CORS properly configured (not wildcard)
+- [ ] Rate limiting on API endpoints
+- [ ] SQL injection prevention (parameterized queries)
+- [ ] XSS prevention (no dangerouslySetInnerHTML)
+- [ ] CSRF tokens where applicable
+
+### Authentication & Authorization
+- [ ] Strong password requirements (min 12 chars)
+- [ ] Email confirmation enabled (production)
+- [ ] Session timeout configured (7 days)
+- [ ] Logout functionality works correctly
+- [ ] Admin role properly protected
+- [ ] has_role() function used correctly
+- [ ] No privilege escalation possible
+
+### Monitoring & Logging
+- [ ] Edge function logs reviewed regularly
+- [ ] Failed auth attempts monitored
+- [ ] Admin actions logged
+- [ ] Unusual traffic patterns detected
+- [ ] Security alerts configured
+- [ ] Log retention policy defined (30 days)
+
+### Dependency Management
+- [ ] npm audit run regularly (weekly)
+- [ ] Critical vulnerabilities fixed immediately
+- [ ] Dependencies updated monthly
+- [ ] Dependabot enabled
+- [ ] Security advisories subscribed
+
+### Data Protection
+- [ ] PII properly protected
+- [ ] User data exportable
+- [ ] Account deletion works correctly
+- [ ] Data retention policy enforced
+- [ ] GDPR rights implemented
+
+### Documentation
+- [ ] SECURITY.md up to date
+- [ ] RLS policies documented
+- [ ] Security contact information current
+- [ ] Incident response plan defined
+- [ ] User privacy policy available
+
 ## Security Contact
 
-For security inquiries:
-- Create issue on GitHub (for general security questions)
-- Email security contact (for vulnerability reports)
+**For Security Vulnerabilities:**
+- GitHub Security Advisory: https://github.com/[your-repo]/security/advisories/new
+- Email: security@[your-domain] (for critical issues)
+- PGP Key: [Add PGP key fingerprint if using encrypted email]
+
+**For General Security Questions:**
+- GitHub Discussions: https://github.com/[your-repo]/discussions
+- Create issue with [SECURITY] tag
+
+**Response Times:**
+- Critical vulnerabilities: Within 24 hours
+- High severity: Within 48 hours
+- Medium/Low: Within 1-2 weeks
 
 ## Changelog
 
 Security-related changes are documented in CHANGELOG.md with 🔒 emoji.
 
+Example entries:
+- 🔒 Fixed SQL injection in search endpoint (CVE-2024-XXXXX)
+- 🔒 Updated dependency with known vulnerability
+- 🔒 Improved RLS policies on user_favorites table
+
+## Security Resources
+
+**Documentation:**
+- Supabase Security Best Practices: https://supabase.com/docs/guides/platform/security
+- OWASP Top 10: https://owasp.org/www-project-top-ten/
+- OWASP API Security: https://owasp.org/www-project-api-security/
+
+**Tools:**
+- npm audit: Built-in dependency scanner
+- Dependabot: Automated dependency updates
+- GitHub Security: Security advisories and scanning
+- Supabase RLS: Row-level security policies
+
+**Training:**
+- OWASP Secure Coding Practices
+- Web Security Academy (PortSwigger)
+- Supabase Security Documentation
+
 ---
 
-**Last Updated**: Check git history for latest security updates
+**Last Updated**: 2025-01-13
 **Review Schedule**: Quarterly security audits recommended
+**Next Review**: 2025-04-13
+
+**Document Version**: 2.0
+**Maintained By**: [Your name/organization]
+**Security Team**: [List security team members or admin contacts]
