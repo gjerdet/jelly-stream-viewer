@@ -166,7 +166,7 @@ The application includes built-in update tracking:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/jelly-stream-viewer.git
+git clone https://github.com/gjerdet/jelly-stream-viewer.git
 cd jelly-stream-viewer
 
 # Install dependencies
