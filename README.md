@@ -1,36 +1,25 @@
 # Jelly Stream Viewer
-# working progress
 
-A modern web application for streaming from Jellyfin media servers with a beautiful, responsive interface.
+En moderne webapplikasjon for streaming fra Jellyfin-medieservere med et vakkert, responsivt grensesnitt.
 
-## 🌟 Features
+## 🌟 Funksjoner
 
-- 🎬 **Stream Movies & TV Shows** - Direct streaming from Jellyfin
-- 📱 **Mobile Responsive** - Works great on all devices
-- 🔐 **User Authentication** - Secure login with role-based access
-- ⭐ **Favorites & Watch History** - Keep track of your content
-- 📺 **Chromecast Support** - Cast to your TV
-- 🌐 **Subtitle Support** - Multiple subtitle options
-- 🎯 **Jellyseerr Integration** - Request content with admin approval
-- 📰 **News Feed** - Stay updated with announcements
-- 👥 **User Management** - Admin panel for user control
-- 🔄 **Auto-Updates** - Built-in update tracking and management
-- 📊 **Statistics** - View your watching habits
+- 🎬 **Stream filmer og TV-serier** - Direkte streaming fra Jellyfin
+- 📱 **Mobilresponsiv** - Fungerer flott på alle enheter
+- 🔐 **Brukerautentisering** - Sikker innlogging med rollebasert tilgang
+- ⭐ **Favoritter og visningshistorikk** - Hold oversikt over innholdet ditt
+- 📺 **Chromecast-støtte** - Cast til TV-en din
+- 🌐 **Undertekststøtte** - Flere undertekstalternativer
+- 🎯 **Jellyseerr-integrasjon** - Be om innhold med admin-godkjenning
+- 📰 **Nyhetsfeed** - Hold deg oppdatert med kunngjøringer
+- 👥 **Brukerstyring** - Adminpanel for brukerkontroll
+- 🔄 **Auto-oppdateringer** - Innebygd oppdateringssporing og -styring
+- 📊 **Statistikk** - Se dine seervaner
 
-## 🏗️ Architecture
+## 🏗️ Arkitektur
 
-This application is built on **Lovable Cloud** and uses:
-
-- **Frontend**: React + TypeScript + Vite
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **Backend**: Lovable Cloud (Supabase)
-  - PostgreSQL database with Row-Level Security (RLS)
-  - Edge Functions for server-side logic
-  - Real-time subscriptions
-- **Media Server**: Direct integration with Jellyfin
-- **Optional**: Jellyseerr for content requests
-
-### How It Works
+**Frontend**: React + TypeScript + Vite + Tailwind CSS + shadcn/ui  
+**Backend**: Lovable Cloud (bygget på Supabase)
 
 ```
 ┌─────────────┐
@@ -46,245 +35,182 @@ This application is built on **Lovable Cloud** and uses:
 │             │        │            │
 │  • Video    │        │  • Auth    │
 │  • Metadata │        │  • DB      │
-│  • Images   │        │  • Edge Fn │
+│  • Bilder   │        │  • Edge Fn │
 └─────────────┘        └────────────┘
 ```
 
-## 🚀 Getting Started
+## 🚀 Kom i gang
 
-### Prerequisites
+### Forutsetninger
 
-- A **Jellyfin media server** (with API access)
-- (Optional) A **Jellyseerr** instance for content requests
-- A modern web browser
+- En **Jellyfin-medieserver** (med API-tilgang)
+- (Valgfritt) En **Jellyseerr**-instans for innholdsforespørsler
 
-### First-Time Setup
+### Første gangs oppsett
 
-1. **Register an Account**
-   - Navigate to the application
-   - Click "Register" and create your account
-   - The first registered user automatically becomes an admin
+1. **Registrer en konto**
+   - Gå til applikasjonen
+   - Klikk "Registrer" og opprett kontoen din
+   - Den første registrerte brukeren blir automatisk admin
 
-2. **Configure Jellyfin Connection**
-   - Log in with your new account
-   - Go to **Admin → Servers** tab
-   - Enter your Jellyfin server details:
-     - Server URL (e.g., `http://192.168.1.100:8096`)
-     - API Key (generate in Jellyfin Dashboard → Advanced → API Keys)
+2. **Konfigurer Jellyfin-tilkobling**
+   - Logg inn med din nye konto
+   - Gå til **Admin → Servere**
+   - Skriv inn Jellyfin-serverdetaljer:
+     - Server-URL (f.eks. `http://192.168.1.100:8096`)
+     - API-nøkkel (generer i Jellyfin Dashboard → Avansert → API-nøkler)
 
-3. **(Optional) Configure Jellyseerr**
-   - In the same Servers tab
-   - Enter Jellyseerr URL and API Key
-   - This enables content request functionality
+3. **(Valgfritt) Konfigurer Jellyseerr**
+   - I samme Servere-fane
+   - Skriv inn Jellyseerr-URL og API-nøkkel
 
-4. **Start Watching!**
-   - Browse your media library
-   - Add favorites
+4. **Begynn å se!**
+   - Bla gjennom mediebiblioteket ditt
+   - Legg til favoritter
    - Start streaming
 
-## 👥 User Roles
+## 💻 Lokal utvikling
 
-### Admin
-- Full access to all features
-- User management
-- Server configuration
-- Content request approval
-- News posting
-
-### User
-- Browse and watch content
-- Manage favorites and watch history
-- Request content (if Jellyseerr is configured)
-- View news
-
-## 🔧 Admin Features
-
-### Server Configuration
-- Jellyfin server URL and API key
-- Jellyseerr integration settings
-- GitHub repository settings (for self-hosted deployments)
-
-### User Management
-- View all users
-- Change user roles
-- View user activity
-
-### Content Requests
-- Approve or reject user requests
-- View request status
-- Automatic Jellyseerr integration
-
-### News & Announcements
-- Create news posts
-- Pin important announcements
-- Publish/unpublish posts
-
-### System Monitoring
-- Server health checks
-- Update management
-- System logs (for self-hosted)
-
-## 🔄 Update System
-
-The application includes built-in update tracking:
-
-1. **Check for Updates**
-   - Admin → Versions tab
-   - Click "Check for Updates"
-   - View latest version info from GitHub
-
-2. **Install Updates** (Self-Hosted Only)
-   - Click "Install Update"
-   - Watch real-time progress
-   - View detailed logs
-   - Auto-reload when complete
-
-*Note: Update installation requires webhook configuration for self-hosted deployments.*
-
-## 🔒 Security
-
-### Authentication
-- Secure JWT-based authentication via Lovable Cloud
-- Password hashing and encryption
-- Session management
-- Auto-refresh tokens
-
-### Database Security
-- Row-Level Security (RLS) on all tables
-- Users can only access their own data
-- Admins have elevated permissions via `has_role()` function
-- API keys stored securely with admin-only access
-
-### Best Practices
-- Use strong passwords
-- Secure your Jellyfin API keys
-- Keep the application updated
-- Use HTTPS in production
-
-## 🛠️ Development
-
-### Local Development
+### Rask start (Ubuntu/Debian)
 
 ```bash
-# Clone the repository
+# Installer Node.js 18 eller nyere
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs git
+
+# Klon repository
 git clone https://github.com/gjerdet/jelly-stream-viewer.git
 cd jelly-stream-viewer
 
-# Install dependencies
+# Installer avhengigheter
 npm install
 
-# Set up environment variables
-# Create a .env file with your Lovable Cloud credentials
+# Opprett .env fil
+cp .env.example .env
+# Rediger .env og fyll inn dine Lovable Cloud-verdier:
+# VITE_SUPABASE_URL=https://xxxxx.supabase.co
+# VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbG...
+# VITE_SUPABASE_PROJECT_ID=xxxxx
 
-# Start development server
+# Start utviklingsserver
 npm run dev
 ```
 
-### Environment Variables
+Besøk `http://localhost:5173`
+
+### Miljøvariabler
+
+Opprett en `.env` fil (bruk `.env.example` som mal):
 
 ```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
-VITE_SUPABASE_PROJECT_ID=your_project_id
+VITE_SUPABASE_URL=din_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=din_supabase_anon_key
+VITE_SUPABASE_PROJECT_ID=ditt_project_id
 ```
 
-### Building for Production
+⚠️ **VIKTIG**: `.env` skal ALDRI committes til Git. Den er allerede i `.gitignore`.
+
+### Tilgjengelige kommandoer
 
 ```bash
-npm run build
+npm run dev      # Start utviklingsserver
+npm run build    # Bygg for produksjon
+npm run lint     # Kjør linter
+npm run preview  # Forhåndsvis produksjonsbygg
 ```
 
-The built files will be in the `dist/` directory.
+## 🚀 Deployment
 
-## 📁 Project Structure
+Se [DEPLOYMENT.md](DEPLOYMENT.md) for detaljerte instruksjoner om:
+- Lovable Cloud deployment (anbefalt)
+- Self-hosted deployment (Ubuntu med Nginx)
+
+## 👥 Brukerroller
+
+### Admin
+- Full tilgang til alle funksjoner
+- Brukerstyring
+- Serverkonfigurasjon
+- Godkjenning av innholdsforespørsler
+- Nyhetsinnlegg
+
+### Bruker
+- Bla gjennom og se innhold
+- Administrer favoritter og visningshistorikk
+- Be om innhold (hvis Jellyseerr er konfigurert)
+- Se nyheter
+
+## 🔒 Sikkerhet
+
+- JWT-basert autentisering via Lovable Cloud
+- Row-Level Security (RLS) på alle databasetabeller
+- API-nøkler lagres sikkert med admin-only tilgang
+- Se [SECURITY.md](SECURITY.md) for detaljer
+
+## 📁 Prosjektstruktur
 
 ```
 jelly-stream-viewer/
 ├── src/
-│   ├── components/        # React components
-│   │   ├── ui/           # shadcn/ui components
-│   │   └── ...           # Feature components
-│   ├── pages/            # Page components
+│   ├── components/        # React-komponenter
+│   │   ├── ui/           # shadcn/ui-komponenter
+│   │   └── ...           # Feature-komponenter
+│   ├── pages/            # Sidekomponenter
 │   ├── hooks/            # Custom React hooks
-│   ├── lib/              # Utility functions
-│   └── integrations/     # External integrations
-│       └── supabase/     # Lovable Cloud client
+│   ├── lib/              # Hjelpefunksjoner
+│   └── integrations/     # Eksterne integrasjoner
 │
-├── supabase/             # Backend configuration
+├── supabase/             # Backend-konfigurasjon
 │   ├── functions/        # Edge Functions
-│   └── setup.sql         # Database schema
+│   └── setup.sql         # Databaseskjema
 │
-├── public/               # Static assets
-└── docs/                 # Documentation
+├── public/               # Statiske assets
+├── docs/                 # Dokumentasjon
+└── .github/              # GitHub Actions workflows
 ```
 
-## 🔍 Troubleshooting
+## 🔍 Feilsøking
 
-### Cannot Connect to Jellyfin
+### Kan ikke koble til Jellyfin
 
-**Check:**
-- Jellyfin server is running
-- Server URL is correct (include http:// or https://)
-- API key is valid
-- Server is accessible from your network
+**Sjekk:**
+- Jellyfin-server kjører
+- Server-URL er korrekt (inkluder http:// eller https://)
+- API-nøkkel er gyldig
+- Serveren er tilgjengelig fra nettverket ditt
 
-### Authentication Issues
+### Autentiseringsproblemer
 
-**Check:**
-- Lovable Cloud backend is accessible
-- Browser cookies are enabled
-- No browser extensions blocking requests
+**Sjekk:**
+- Lovable Cloud backend er tilgjengelig
+- Nettleser-cookies er aktivert
+- Ingen nettleserutvidelser blokkerer forespørsler
 
-### Video Won't Play
+### Video spiller ikke av
 
-**Check:**
-- Jellyfin server can transcode the media
-- Browser supports the video codec
-- Network connection is stable
-- CORS is properly configured on Jellyfin
+**Sjekk:**
+- Jellyfin-server kan transkode mediet
+- Nettleseren støtter video-codecen
+- Nettverkstilkoblingen er stabil
+- CORS er riktig konfigurert på Jellyfin
 
-### Content Requests Not Working
+## 🤝 Bidrag
 
-**Check:**
-- Jellyseerr URL and API key are correct
-- Jellyseerr is accessible
-- User has permission to request content
+Bidrag er velkommen! Vennligst:
 
-## 📝 Database Schema
+1. Fork repository
+2. Opprett en feature branch
+3. Gjør endringene dine
+4. Test grundig
+5. Send en pull request
 
-The application uses these main tables:
+## 📄 Lisens
 
-- `profiles` - User profile information
-- `user_roles` - Role assignments (admin/user)
-- `server_settings` - Jellyfin and Jellyseerr configuration
-- `site_settings` - Site customization
-- `user_favorites` - User's favorite items
-- `watch_history` - Viewing history with progress
-- `user_likes` - Liked content
-- `jellyseerr_requests` - Content requests
-- `news_posts` - News and announcements
-- `app_versions` - Version management
-- `update_status` - Update progress tracking
+MIT License - se [LICENSE](LICENSE) filen for detaljer.
 
-All tables have Row-Level Security (RLS) policies enforcing proper access control.
+## 🙏 Anerkjennelser
 
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-Built with:
+Bygget med:
 - [React](https://react.dev/)
 - [Lovable](https://lovable.dev/)
 - [Jellyfin](https://jellyfin.org/)
@@ -294,11 +220,11 @@ Built with:
 
 ## 📞 Support
 
-For issues or questions:
-- Create a [GitHub Issue](https://github.com/yourusername/jelly-stream-viewer/issues)
-- Check existing documentation
-- Review closed issues for solutions
+For problemer eller spørsmål:
+- Opprett en [GitHub Issue](https://github.com/gjerdet/jelly-stream-viewer/issues)
+- Sjekk eksisterende dokumentasjon
+- Gjennomgå lukkede issues for løsninger
 
 ---
 
-**Made with ❤️ for Jellyfin users**
+**Laget med ❤️ for Jellyfin-brukere**
