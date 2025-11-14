@@ -69,54 +69,52 @@ En moderne webapplikasjon for streaming fra Jellyfin-medieservere med et vakkert
    - Legg til favoritter
    - Start streaming
 
-## 💻 Lokal utvikling
+## 💻 Utvikling
 
-### Rask start (Ubuntu/Debian)
+### 🎯 Local Dev vs Production
+
+- **Local Dev** (`npm run dev`) - For utvikling og testing på din maskin
+- **Production** - Deployed til Lovable Cloud eller self-hosted med Nginx
+
+For full utviklingsguide, se [DEVELOPMENT.md](DEVELOPMENT.md)
+
+### ⚡ Quick Start (Local Dev)
 
 ```bash
-# Installer Node.js 18 eller nyere
+# 1. Installer Node.js 18+
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt install -y nodejs git
 
-# Klon repository
+# 2. Klon og installer
 git clone https://github.com/gjerdet/jelly-stream-viewer.git
 cd jelly-stream-viewer
-
-# Installer avhengigheter
 npm install
 
-# Opprett .env fil
+# 3. Konfigurer miljøvariabler
 cp .env.example .env
-# Rediger .env og fyll inn dine Lovable Cloud-verdier:
-# VITE_SUPABASE_URL=https://xxxxx.supabase.co
-# VITE_SUPABASE_PUBLISHABLE_KEY=eyJhbG...
-# VITE_SUPABASE_PROJECT_ID=xxxxx
+nano .env  # Fyll inn Lovable Cloud-verdier
 
-# Start utviklingsserver
+# 4. Start utviklingsserver
 npm run dev
 ```
 
-Besøk `http://localhost:5173`
+Besøk `http://localhost:5173` 🚀
 
-### Miljøvariabler
+### 🔐 Viktig om .env
 
-Opprett en `.env` fil (bruk `.env.example` som mal):
+⚠️ **KRITISK**: `.env` skal **ALDRI** committes til Git!
 
-```env
-VITE_SUPABASE_URL=din_supabase_url
-VITE_SUPABASE_PUBLISHABLE_KEY=din_supabase_anon_key
-VITE_SUPABASE_PROJECT_ID=ditt_project_id
-```
+Hvis `.env` allerede er i Git-historikken:
+1. Se [GIT_CLEANUP.md](GIT_CLEANUP.md) for instruksjoner
+2. Roter alle API-nøkler umiddelbart
 
-⚠️ **VIKTIG**: `.env` skal ALDRI committes til Git. Den er allerede i `.gitignore`.
-
-### Tilgjengelige kommandoer
+### 🛠️ Tilgjengelige kommandoer
 
 ```bash
-npm run dev      # Start utviklingsserver
-npm run build    # Bygg for produksjon
-npm run lint     # Kjør linter
-npm run preview  # Forhåndsvis produksjonsbygg
+npm run dev      # Start utviklingsserver (hot reload)
+npm run build    # Bygg for produksjon (output: dist/)
+npm run lint     # Kjør ESLint
+npm run preview  # Test produksjonsbygg lokalt
 ```
 
 ## 🚀 Deployment
@@ -196,13 +194,14 @@ jelly-stream-viewer/
 
 ## 🤝 Bidrag
 
-Bidrag er velkommen! Vennligst:
+Bidrag er velkommen! Se [CONTRIBUTING.md](CONTRIBUTING.md) for full guide.
 
+**Quick start**:
 1. Fork repository
-2. Opprett en feature branch
-3. Gjør endringene dine
-4. Test grundig
-5. Send en pull request
+2. Installer pre-commit hook: `cp .githooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit`
+3. Opprett feature branch: `git checkout -b feature/min-feature`
+4. Gjør endringer og commit: `git commit -m "feat: beskrivelse"`
+5. Send Pull Request mot `develop` branch
 
 ## 📄 Lisens
 
