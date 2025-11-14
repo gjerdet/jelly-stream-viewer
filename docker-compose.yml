@@ -1,5 +1,15 @@
 version: '3.8'
 
+# ⚠️ MERK: Dette er KUN for lokal PostgreSQL-testing!
+# Dette er IKKE en fullstendig backend-løsning.
+# Appen krever fortsatt Lovable Cloud/Supabase for:
+# - Authentication
+# - Edge Functions
+# - Storage
+# - RLS Policies
+# 
+# Bruk denne kun hvis du vil teste databaseskjemaet lokalt.
+
 services:
   # PostgreSQL database
   postgres:
