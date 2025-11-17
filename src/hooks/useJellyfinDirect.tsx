@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerSettings } from "./useServerSettings";
+import * as jellyfinClient from "@/lib/jellyfinClient";
 
 interface JellyfinRequest {
   endpoint: string;
@@ -8,8 +9,7 @@ interface JellyfinRequest {
 }
 
 /**
- * Direct connection to Jellyfin server - for local network deployments
- * No proxy, no edge functions, just straight HTTP to Jellyfin
+ * Direct connection to Jellyfin server - uses centralized jellyfinClient
  */
 export const useJellyfinDirect = <T,>(
   queryKey: string[],
@@ -21,12 +21,16 @@ export const useJellyfinDirect = <T,>(
   return useQuery<T>({
     queryKey,
     queryFn: async () => {
-      // Hent AccessToken fra localStorage (satt ved innlogging)
+      if (!serverUrl) {
+        throw new Error("Jellyfin server URL mangler");
+      }
+
+      // Get auth token from localStorage
       const jellyfinSession = localStorage.getItem('jellyfin_session');
       const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-
-      if (!serverUrl || !accessToken) {
-        throw new Error("Jellyfin server URL eller access token mangler");
+      
+      if (!accessToken) {
+        throw new Error("Ikke logget inn");
       }
 
       let normalizedUrl = serverUrl;

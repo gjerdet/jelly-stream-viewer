@@ -1,6 +1,13 @@
 # Jelly Stream Viewer
 
-En moderne webapplikasjon for streaming fra Jellyfin-medieservere med et vakkert, responsivt grensesnitt.
+> 🎬 En moderne, responsiv webapplikasjon for streaming fra Jellyfin-medieservere
+
+[![CI](https://github.com/gjerdet/jelly-stream-viewer/actions/workflows/ci.yml/badge.svg)](https://github.com/gjerdet/jelly-stream-viewer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.3-blue)](https://react.dev/)
+
+En fullstack media streaming-løsning med autentisering, brukerroller, innholdsforespørsler og sanntidsoppdateringer.
 
 ## 🌟 Funksjoner
 
@@ -167,6 +174,23 @@ jelly-stream-viewer/
 └── .github/              # GitHub Actions workflows
 ```
 
+## 🧪 Testing
+
+Prosjektet har omfattende test-dekning:
+
+```bash
+# Kjør enhetstester
+npm run test
+
+# Kjør E2E-tester
+npm run test:e2e
+
+# Se test coverage
+npm run test:coverage
+```
+
+Se [TESTING.md](TESTING.md) for full testguide.
+
 ## 🔍 Feilsøking
 
 ### Kan ikke koble til Jellyfin
@@ -191,6 +215,12 @@ jelly-stream-viewer/
 - Nettleseren støtter video-codecen
 - Nettverkstilkoblingen er stabil
 - CORS er riktig konfigurert på Jellyfin
+
+## 📦 Releases
+
+Vi følger [Semantic Versioning](https://semver.org/). Se [RELEASE_PROCESS.md](RELEASE_PROCESS.md) for detaljer.
+
+**Siste versjon**: [Se releases](https://github.com/gjerdet/jelly-stream-viewer/releases)
 
 ## 🤝 Bidrag
 

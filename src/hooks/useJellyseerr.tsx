@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as jellyseerrClient from "@/lib/jellyseerrClient";
 
 interface JellyseerrRequestParams {
   mediaType: 'movie' | 'tv';
@@ -16,26 +16,14 @@ export const useJellyseerrRequest = () => {
   
   return useMutation({
     mutationFn: async ({ mediaType, mediaId, seasons, mediaTitle, mediaPoster, mediaOverview }: JellyseerrRequestParams) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Du må være logget inn");
-
-      const { data, error } = await supabase
-        .from('jellyseerr_requests')
-        .insert({
-          user_id: user.id,
-          media_type: mediaType,
-          media_id: mediaId,
-          seasons: seasons ? JSON.stringify(seasons) : null,
-          media_title: mediaTitle,
-          media_poster: mediaPoster,
-          media_overview: mediaOverview,
-          status: 'pending'
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return jellyseerrClient.requestMedia({
+        mediaType,
+        mediaId,
+        mediaTitle,
+        mediaPoster,
+        mediaOverview,
+        seasons,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jellyseerr-requests'] });
