@@ -52,14 +52,58 @@ const Login = () => {
       }
     }
 
-    if (!serverUrl) {
-      toast.error("Server URL ikke konfigurert. Gå til /setup først.");
-      return;
-    }
-
     setLoading(true);
 
     try {
+      // Demo-modus: Logg inn uten Jellyfin-server
+      if (username.toLowerCase() === 'demo' && password === 'demo') {
+        const demoEmail = 'demo@jellyfin.local';
+        const demoPassword = 'demo_jellyfin_test_user_2024';
+
+        // Prøv å logge inn
+        let { error: signInError } = await supabase.auth.signInWithPassword({
+          email: demoEmail,
+          password: demoPassword,
+        });
+
+        // Hvis ikke eksisterer, opprett demo-bruker
+        if (signInError && signInError.message.includes('Invalid login credentials')) {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: demoEmail,
+            password: demoPassword,
+            options: {
+              data: {
+                jellyfin_user_id: 'demo-user-id',
+                jellyfin_username: 'Demo User',
+              },
+            },
+          });
+
+          if (signUpError) {
+            throw signUpError;
+          }
+
+          // Logg inn etter signup
+          const { error: loginError } = await supabase.auth.signInWithPassword({
+            email: demoEmail,
+            password: demoPassword,
+          });
+
+          if (loginError) {
+            throw loginError;
+          }
+        }
+
+        toast.success("Logget inn i demo-modus!");
+        navigate("/browse");
+        return;
+      }
+
+      // Normal Jellyfin-autentisering
+      if (!serverUrl) {
+        toast.error("Server URL ikke konfigurert. Gå til /setup først.");
+        return;
+      }
       // Autentiser direkte mot Jellyfin (lokal server)
       let jellyfinUrl = serverUrl.replace(/\/$/, '');
       
@@ -152,7 +196,10 @@ const Login = () => {
           <CardDescription className="text-base">
             Logg inn på din Jellyfin-server for å se innhold
           </CardDescription>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs text-success mt-2 font-medium">
+            💡 Testing uten server? Bruk <span className="font-bold">demo / demo</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
             Første gang? <a href="/setup" className="text-primary hover:underline">Sett opp serveren først</a>
           </p>
         </CardHeader>
@@ -196,7 +243,10 @@ const Login = () => {
           </form>
           
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Jellyfin server: {serverUrl || "Laster..."}
+            {username.toLowerCase() === 'demo' ? 
+              "Demo-modus (ingen server kreves)" : 
+              `Jellyfin server: ${serverUrl || "Ikke konfigurert"}`
+            }
           </p>
         </CardContent>
       </Card>
