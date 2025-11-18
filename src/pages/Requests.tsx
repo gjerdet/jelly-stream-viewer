@@ -9,6 +9,7 @@ import { Search, Film, Tv, Star, Calendar, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface SearchResult {
   id: number;
@@ -37,6 +38,8 @@ interface SearchResponse {
 const Requests = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const requests = t.requests as any;
   const [searchQuery, setSearchQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -51,7 +54,7 @@ const Requests = () => {
     e.preventDefault();
     
     if (!searchQuery.trim()) {
-      toast.error("Skriv inn et søkeord");
+      toast.error(requests.enterSearch);
       return;
     }
 

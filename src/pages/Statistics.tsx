@@ -13,6 +13,7 @@ import { Clock, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type TimeFilter = '7' | '30' | '365' | 'all';
 
@@ -21,6 +22,8 @@ const Statistics = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: role, isLoading: isLoadingRole } = useUserRole(user?.id);
+  const { t } = useLanguage();
+  const statistics = t.statistics as any;
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
@@ -31,14 +34,14 @@ const Statistics = () => {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Synkronisert ${data.totalSynced} elementer fra Jellyfin`);
+      toast.success(statistics.synced.replace('{count}', data.totalSynced));
       queryClient.invalidateQueries({ queryKey: ['most-watched'] });
       queryClient.invalidateQueries({ queryKey: ['user-watch-stats'] });
       queryClient.invalidateQueries({ queryKey: ['content-types'] });
     },
     onError: (error) => {
       console.error('Sync error:', error);
-      toast.error('Kunne ikke synkronisere historikk fra Jellyfin');
+      toast.error(statistics.couldNotSync);
     }
   });
 

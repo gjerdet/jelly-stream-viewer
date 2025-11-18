@@ -48,6 +48,14 @@ export const enTranslations = {
     noResults: 'No results',
     results: 'results',
     note: 'Note',
+    retry: 'Try again',
+    goToSetup: 'Go to setup',
+    playNow: 'Play now',
+    moreInfo: 'More info',
+    viewDetails: 'View details',
+    allGenres: 'All genres',
+    unknownTitle: 'Unknown title',
+    enterSearchTerm: 'Enter search term',
   },
 
   // Updates
@@ -444,6 +452,7 @@ export const enTranslations = {
     rollback: 'rollback',
     cancel: 'Cancel',
     confirm: 'Confirm',
+    invalidTime: 'Invalid time',
   },
 
   // System Logs
@@ -485,5 +494,18 @@ export const enTranslations = {
     status: 'Status',
     path: 'Path',
     couldNotFetch: 'Could not fetch {type} logs',
+  },
+
+  // Browse page
+  browse: {
+    demoMode: 'Demo Mode',
+    cannotConnect: 'Cannot connect to Jellyfin server',
+    demoModeDesc: 'You are logged in to demo mode. To see content, you must connect to a Jellyfin server.',
+    cannotConnectDesc: 'Cannot retrieve data from the Jellyfin server. Check that the server is running and available.',
+    whatCanYouDo: 'What can you do now?',
+    setupServer: 'Set up your Jellyfin server via Admin settings',
+    exploreApp: 'Explore app features and design',
+    whenConnected: 'When the server is connected, content will appear automatically',
+    continueExploring: 'Continue exploring',
   },
 } as const;

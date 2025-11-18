@@ -1,5 +1,6 @@
 import { Play, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface HeroProps {
   title: string;
@@ -10,6 +11,9 @@ interface HeroProps {
 }
 
 const Hero = ({ title, description, image, rating, year }: HeroProps) => {
+  const { t } = useLanguage();
+  const common = t.common as any;
+  
   return (
     <div className="relative h-[70vh] w-full overflow-hidden">
       {/* Backdrop with Enhanced Effects */}
@@ -51,11 +55,11 @@ const Hero = ({ title, description, image, rating, year }: HeroProps) => {
           <div className="flex items-center gap-4 pt-4">
             <Button size="lg" className="cinema-glow smooth-transition hover:scale-105">
               <Play className="mr-2 h-5 w-5 fill-current" />
-              Spill av
+              {common.playNow}
             </Button>
             <Button size="lg" variant="secondary" className="smooth-transition hover:scale-105">
               <Info className="mr-2 h-5 w-5" />
-              Mer info
+              {common.moreInfo}
             </Button>
           </div>
         </div>

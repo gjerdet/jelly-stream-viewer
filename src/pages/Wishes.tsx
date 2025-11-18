@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
 import { SeasonSelectDialog } from "@/components/SeasonSelectDialog";
 import { MediaDetailDialog } from "@/components/MediaDetailDialog";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface DiscoverResult {
   id: number;
@@ -33,6 +34,8 @@ interface DiscoverResult {
 const Wishes = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const wishes = t.wishes as any;
   const [jellyseerrUrl, setJellyseerrUrl] = useState<string>("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [movies, setMovies] = useState<DiscoverResult[]>([]);

@@ -48,6 +48,14 @@ export const noTranslations = {
     noResults: 'Ingen resultater',
     results: 'resultater',
     note: 'Merk',
+    retry: 'Prøv på nytt',
+    goToSetup: 'Gå til oppsett',
+    playNow: 'Spill av',
+    moreInfo: 'Mer info',
+    viewDetails: 'Se detaljer',
+    allGenres: 'Alle sjangre',
+    unknownTitle: 'Ukjent tittel',
+    enterSearchTerm: 'Skriv inn et søkeord',
   },
 
   // Updates
@@ -444,6 +452,7 @@ export const noTranslations = {
     rollback: 'tilbakerulles',
     cancel: 'Avbryt',
     confirm: 'Bekreft',
+    invalidTime: 'Ugyldig tid',
   },
 
   // System Logs
@@ -483,7 +492,20 @@ export const noTranslations = {
     openDashboard: 'Åpne Supabase Dashboard',
     invalidTime: 'Ugyldig tid',
     status: 'Status',
-    path: 'Path',
+    path: 'Sti',
     couldNotFetch: 'Kunne ikke hente {type}-logger',
+  },
+
+  // Browse page
+  browse: {
+    demoMode: 'Demo-modus',
+    cannotConnect: 'Kan ikke koble til Jellyfin-server',
+    demoModeDesc: 'Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.',
+    cannotConnectDesc: 'Kan ikke hente data fra Jellyfin-serveren. Kontroller at serveren kjører og er tilgjengelig.',
+    whatCanYouDo: 'Hva kan du gjøre nå?',
+    setupServer: 'Sett opp din Jellyfin-server via Admin-innstillinger',
+    exploreApp: 'Utforsk appens funksjoner og design',
+    whenConnected: 'Når serveren er koblet til, vil innhold vises automatisk',
+    continueExploring: 'Fortsett å utforske',
   },
 } as const;

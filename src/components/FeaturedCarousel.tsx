@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface CarouselItem {
   id: string;
@@ -15,6 +16,8 @@ interface FeaturedCarouselProps {
 }
 
 const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
+  const { t } = useLanguage();
+  const common = t.common as any;
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
@@ -62,7 +65,7 @@ const FeaturedCarousel = ({ items, onItemClick }: FeaturedCarouselProps) => {
           onClick={() => onItemClick(currentItem.id)}
           className="w-fit text-sm sm:text-base px-4 sm:px-6 h-10 sm:h-11"
         >
-          Se detaljer
+          {common.viewDetails}
         </Button>
       </div>
 
