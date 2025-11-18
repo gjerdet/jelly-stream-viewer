@@ -270,6 +270,23 @@ const Browse = () => {
             onItemClick={handleItemClick}
           />
         )}
+        
+        {/* Show message if no content in demo mode */}
+        {contentType === 'all' && !allItems?.Items?.length && user?.email?.includes('demo') && (
+          <div className="container mx-auto px-4">
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="p-6 rounded-xl bg-card border border-border max-w-md">
+                <h3 className="text-xl font-semibold mb-2">Demo-modus</h3>
+                <p className="text-muted-foreground mb-4">
+                  Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.
+                </p>
+                <Button onClick={() => navigate("/setup")} variant="outline">
+                  Sett opp Jellyfin-server
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Movies page with genre filter */}
         {contentType === 'movies' && (
@@ -290,12 +307,28 @@ const Browse = () => {
                 </SelectContent>
               </Select>
             </div>
-            {filteredMovies.length > 0 && (
+            {filteredMovies.length > 0 ? (
               <MediaGrid
                 title=""
                 items={mapJellyfinItems(filteredMovies)}
                 onItemClick={handleItemClick}
               />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="p-6 rounded-xl bg-card border border-border max-w-md">
+                  <h3 className="text-xl font-semibold mb-2">Ingen filmer funnet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {user?.email?.includes('demo') 
+                      ? 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se filmer.'
+                      : 'Ingen filmer tilgjengelige på serveren.'}
+                  </p>
+                  {user?.email?.includes('demo') && (
+                    <Button onClick={() => navigate("/setup")} variant="outline">
+                      Sett opp Jellyfin-server
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -319,12 +352,28 @@ const Browse = () => {
                 </SelectContent>
               </Select>
             </div>
-            {filteredSeries.length > 0 && (
+            {filteredSeries.length > 0 ? (
               <MediaGrid
                 title=""
                 items={mapJellyfinItems(filteredSeries)}
                 onItemClick={handleItemClick}
               />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="p-6 rounded-xl bg-card border border-border max-w-md">
+                  <h3 className="text-xl font-semibold mb-2">Ingen serier funnet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {user?.email?.includes('demo') 
+                      ? 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se serier.'
+                      : 'Ingen serier tilgjengelig på serveren.'}
+                  </p>
+                  {user?.email?.includes('demo') && (
+                    <Button onClick={() => navigate("/setup")} variant="outline">
+                      Sett opp Jellyfin-server
+                    </Button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
