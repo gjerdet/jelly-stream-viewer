@@ -122,6 +122,24 @@ serve(async (req) => {
         },
       });
 
+      // If user already exists with different password, that's okay - they're authenticated via Jellyfin
+      if (signUpResult.error && signUpResult.error.message.includes('User already registered')) {
+        console.log('User already exists, but Jellyfin auth succeeded. Continuing with Jellyfin session.');
+        // Return Jellyfin session only (user can still use the app)
+        return new Response(
+          JSON.stringify({
+            supabase_session: null,
+            jellyfin_session: {
+              AccessToken: jellyfinData.AccessToken,
+              UserId: jellyfinData.User.Id,
+              Username: jellyfinData.User.Name,
+              ServerId: jellyfinData.ServerId,
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       if (signUpResult.error || !signUpResult.data.session) {
         console.error('Failed to create Supabase user:', signUpResult.error);
         return new Response(
