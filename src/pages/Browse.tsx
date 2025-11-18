@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
+import { Film } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,9 @@ const Browse = () => {
   const { serverUrl } = useServerSettings();
   const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
+  // Check if user is in demo mode
+  const isDemoMode = user?.email?.includes('demo');
+
   // Determine what content type to show based on route
   const contentType = location.pathname === '/movies' ? 'movies' : 
                       location.pathname === '/series' ? 'series' : 
@@ -62,7 +66,7 @@ const Browse = () => {
 
   const userId = usersData?.[0]?.Id;
 
-  // Fetch all media items based on content type
+  // Fetch all media items based on content type (skip if demo mode)
   const includeItemTypes = contentType === 'movies' ? 'Movie' : 
                            contentType === 'series' ? 'Series' : 
                            'Movie,Series';
@@ -70,33 +74,33 @@ const Browse = () => {
   const { data: allItems, error: itemsError } = useJellyfinApi<JellyfinResponse>(
     ["all-items", userId || "", contentType],
     {
-      endpoint: userId 
+      endpoint: userId && !isDemoMode
         ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,Genres&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId
+    !!user && !!userId && !isDemoMode
   );
 
-  // Fetch resume items with user ID
+  // Fetch resume items with user ID (skip if demo mode)
   const { data: resumeItems, error: resumeError } = useJellyfinApi<JellyfinResponse>(
     ["resume-items", userId || ""],
     {
-      endpoint: userId
+      endpoint: userId && !isDemoMode
         ? `/Users/${userId}/Items/Resume?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId
+    !!user && !!userId && !isDemoMode
   );
 
-  // Fetch recommended items with Series and Season IDs for episodes
+  // Fetch recommended items with Series and Season IDs for episodes (skip if demo mode)
   const { data: recommendedItems } = useJellyfinApi<JellyfinResponse>(
     ["recommended-items", userId || ""],
     {
-      endpoint: userId
+      endpoint: userId && !isDemoMode
         ? `/Users/${userId}/Suggestions?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo,SeriesId,SeasonId&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId
+    !!user && !!userId && !isDemoMode
   );
 
   // Separate movies and series
@@ -157,7 +161,52 @@ const Browse = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Laster...</p>
+        <p className="text-foreground">Laster...</p>
+      </div>
+    );
+  }
+
+  // Show demo mode message immediately if in demo mode
+  if (isDemoMode) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-20">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            <div className="p-8 rounded-xl bg-card border border-border">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                <Film className="w-8 h-8 text-primary" />
+              </div>
+              <h2 className="text-2xl font-bold mb-3 text-foreground">Demo-modus</h2>
+              <p className="text-muted-foreground mb-6">
+                Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.
+              </p>
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => navigate("/setup")} 
+                  variant="default"
+                  className="w-full"
+                >
+                  Sett opp Jellyfin-server
+                </Button>
+                <Button 
+                  onClick={() => navigate("/browse")} 
+                  variant="outline"
+                  className="w-full"
+                >
+                  Gå til hjem
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p>Hva kan du gjøre nå?</p>
+              <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
+                <li>Sett opp din Jellyfin-server via Admin-innstillinger</li>
+                <li>Utforsk appens funksjoner og design</li>
+                <li>Når serveren er koblet til, vil innhold vises automatisk</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
