@@ -158,17 +158,15 @@ serve(async (req) => {
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-      }
-
-      if (signUpResult.error || !signUpResult.data.session) {
+      } else if (signUpResult.error || !signUpResult.data.session) {
         console.error('Failed to create Supabase user:', signUpResult.error);
         return new Response(
           JSON.stringify({ error: 'Failed to create user session' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+      } else {
+        supabaseSession = signUpResult.data.session;
       }
-
-      supabaseSession = signUpResult.data.session;
     } else if (signInResult.error) {
       console.error('Supabase sign in error:', signInResult.error);
       return new Response(
