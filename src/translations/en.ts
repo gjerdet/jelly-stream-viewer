@@ -295,6 +295,14 @@ export const enTranslations = {
     titleMax: 'Title cannot be longer than 200 characters',
     descMin: 'Description must be at least 10 characters',
     descMax: 'Description cannot be longer than 2000 characters',
+    statusUpdated: 'Status updated',
+    statusUpdateDesc: 'Feedback status has been updated.',
+    statusUpdateError: 'Could not update status.',
+    deleted: 'Deleted',
+    deletedDesc: 'Feedback has been deleted.',
+    deleteError: 'Could not delete feedback.',
+    deleteConfirm: 'Are you sure you want to delete this feedback?',
+    loadingFeedback: 'Loading feedback...',
   },
 
   // Requests page

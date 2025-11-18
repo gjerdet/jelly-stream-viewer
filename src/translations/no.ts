@@ -295,6 +295,14 @@ export const noTranslations = {
     titleMax: 'Tittel kan ikke være lengre enn 200 tegn',
     descMin: 'Beskrivelse må være minst 10 tegn',
     descMax: 'Beskrivelse kan ikke være lengre enn 2000 tegn',
+    statusUpdated: 'Status oppdatert',
+    statusUpdateDesc: 'Feedback-status er oppdatert.',
+    statusUpdateError: 'Kunne ikke oppdatere status.',
+    deleted: 'Slettet',
+    deletedDesc: 'Tilbakemelding er slettet.',
+    deleteError: 'Kunne ikke slette tilbakemelding.',
+    deleteConfirm: 'Er du sikker på at du vil slette denne tilbakemeldingen?',
+    loadingFeedback: 'Laster tilbakemeldinger...',
   },
 
   // Requests page
