@@ -122,22 +122,42 @@ serve(async (req) => {
         },
       });
 
-      // If user already exists with different password, that's okay - they're authenticated via Jellyfin
+      // If user already exists with different password, update it and sign them in
       if (signUpResult.error && signUpResult.error.message.includes('User already registered')) {
-        console.log('User already exists, but Jellyfin auth succeeded. Continuing with Jellyfin session.');
-        // Return Jellyfin session only (user can still use the app)
-        return new Response(
-          JSON.stringify({
-            supabase_session: null,
-            jellyfin_session: {
-              AccessToken: jellyfinData.AccessToken,
-              UserId: jellyfinData.User.Id,
-              Username: jellyfinData.User.Name,
-              ServerId: jellyfinData.ServerId,
-            },
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.log('User already exists. Updating password and signing in...');
+        
+        // Update the user's password using admin client
+        const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+        const existingUser = userData.users.find(u => u.email === userEmail);
+        
+        if (existingUser) {
+          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+            password: userPassword,
+          });
+          
+          // Now sign in with the updated password
+          const retrySignIn = await supabaseClient.auth.signInWithPassword({
+            email: userEmail,
+            password: userPassword,
+          });
+          
+          if (retrySignIn.data.session) {
+            supabaseSession = retrySignIn.data.session;
+            console.log('Successfully signed in existing user after password update');
+          } else {
+            console.error('Failed to sign in after password update:', retrySignIn.error);
+            return new Response(
+              JSON.stringify({ error: 'Failed to create user session' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        } else {
+          console.error('Could not find existing user to update');
+          return new Response(
+            JSON.stringify({ error: 'Failed to update user credentials' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
 
       if (signUpResult.error || !signUpResult.data.session) {
