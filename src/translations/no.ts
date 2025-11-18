@@ -332,6 +332,30 @@ export const noTranslations = {
     unknownTitle: 'Ukjent tittel',
   },
 
+  // Requests Admin page
+  requestsAdmin: {
+    title: 'Forespørsler',
+    subtitle: 'Administrer brukerforespørsler for innhold',
+    pending: 'Ventende',
+    approved: 'Godkjent',
+    rejected: 'Avvist',
+    noPending: 'Ingen ventende forespørsler',
+    noApproved: 'Ingen godkjente forespørsler',
+    noRejected: 'Ingen avviste forespørsler',
+    requestedBy: 'Forespurt av',
+    approve: 'Godkjenn',
+    reject: 'Avvis',
+    delete: 'Slett',
+    approvedMsg: 'Forespørsel godkjent og sendt til Jellyseerr!',
+    rejectedMsg: 'Forespørsel avvist',
+    deletedMsg: 'Forespørsel slettet',
+    errorApprove: 'Kunne ikke godkjenne forespørsel',
+    errorReject: 'Kunne ikke avvise forespørsel',
+    errorDelete: 'Kunne ikke slette forespørsel',
+    requestNotFound: 'Forespørsel ikke funnet',
+    unknownUser: 'Ukjent bruker',
+  },
+
   // Statistics page
   statistics: {
     title: 'Statistikk',
