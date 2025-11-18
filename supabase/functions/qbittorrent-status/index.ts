@@ -85,7 +85,7 @@ serve(async (req) => {
             hint: 'Change your qBittorrent URL from https:// to http:// if it\'s a local server'
           }),
           { 
-            status: 500, 
+            status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
@@ -98,7 +98,7 @@ serve(async (req) => {
           details: errorMessage
         }),
         { 
-          status: 500, 
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
