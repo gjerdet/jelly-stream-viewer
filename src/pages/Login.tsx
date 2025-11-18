@@ -99,78 +99,18 @@ const Login = () => {
         return;
       }
 
-      // Normal Jellyfin-autentisering
-      if (!serverUrl) {
-        toast.error("Server URL ikke konfigurert. Gå til /setup først.");
-        return;
-      }
-      // Autentiser direkte mot Jellyfin (lokal server)
-      let jellyfinUrl = serverUrl.replace(/\/$/, '');
-      
-      // Legg til http:// hvis protokoll mangler
-      if (!jellyfinUrl.startsWith('http://') && !jellyfinUrl.startsWith('https://')) {
-        jellyfinUrl = `http://${jellyfinUrl}`;
-      }
-      
-      const authUrl = `${jellyfinUrl}/Users/AuthenticateByName`;
-      
-      const response = await fetch(authUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Emby-Authorization': 'MediaBrowser Client="Jellyfin Web", Device="Browser", DeviceId="browser-' + Date.now() + '", Version="1.0.0"',
-        },
-        body: JSON.stringify({
-          Username: username.trim(),
-          Pw: password,
-        }),
+      // Normal Jellyfin-autentisering via edge function
+      const { data: authData, error: authError } = await supabase.functions.invoke('jellyfin-authenticate', {
+        body: { username: username.trim(), password },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Jellyfin auth failed:', response.status, errorText);
-        throw new Error(`Autentisering feilet: ${response.status}`);
+      if (authError || !authData) {
+        console.error('Authentication error:', authError);
+        throw new Error(authData?.error || 'Autentisering feilet');
       }
-
-      const jellyfinData = await response.json();
 
       // Lagre Jellyfin-sesjon i localStorage
-      const jellyfinSession = {
-        AccessToken: jellyfinData.AccessToken,
-        UserId: jellyfinData.User.Id,
-        Username: jellyfinData.User.Name,
-        ServerId: jellyfinData.ServerId,
-      };
-      localStorage.setItem('jellyfin_session', JSON.stringify(jellyfinSession));
-
-      // Opprett eller logg inn Supabase-bruker
-      const userEmail = `${jellyfinData.User.Id}@jellyfin.local`;
-      const userPassword = `jellyfin_${jellyfinData.User.Id}`;
-
-      // Prøv å logge inn først
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: userEmail,
-        password: userPassword,
-      });
-
-      // Hvis bruker ikke eksisterer, opprett dem
-      if (signInError && signInError.message.includes('Invalid login credentials')) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: userEmail,
-          password: userPassword,
-          options: {
-            data: {
-              jellyfin_user_id: jellyfinData.User.Id,
-              jellyfin_username: jellyfinData.User.Name,
-            },
-          },
-        });
-
-        if (signUpError) {
-          console.error('Supabase signup error:', signUpError);
-          // Fortsett likevel hvis Jellyfin-autentisering var vellykket
-        }
-      }
+      localStorage.setItem('jellyfin_session', JSON.stringify(authData.jellyfinSession));
       
       toast.success("Logget inn!");
       navigate("/browse");
