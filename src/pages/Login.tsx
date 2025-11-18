@@ -127,7 +127,9 @@ const Login = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Autentisering feilet');
+        const errorText = await response.text();
+        console.error('Jellyfin auth failed:', response.status, errorText);
+        throw new Error(`Autentisering feilet: ${response.status}`);
       }
 
       const jellyfinData = await response.json();
@@ -174,7 +176,15 @@ const Login = () => {
       navigate("/browse");
     } catch (error) {
       console.error('Login error:', error);
-      toast.error("Feil brukernavn eller passord");
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          toast.error("Kunne ikke koble til Jellyfin-serveren. Sjekk at URL er korrekt.");
+        } else {
+          toast.error(error.message || "Feil brukernavn eller passord");
+        }
+      } else {
+        toast.error("Feil brukernavn eller passord");
+      }
     } finally {
       setLoading(false);
     }
