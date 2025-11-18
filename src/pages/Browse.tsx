@@ -260,7 +260,7 @@ const Browse = () => {
       <div className="space-y-12 py-12">
         {contentType === 'all' && recommendedItems?.Items && recommendedItems.Items.length > 0 && (
           <MediaRow
-            title="Anbefalt for deg"
+            title={browse.recommendedForYou}
             items={mapJellyfinItems(recommendedItems.Items)}
             onItemClick={(id) => {
               const item = recommendedItems.Items.find(i => i.Id === id);
@@ -270,7 +270,7 @@ const Browse = () => {
         )}
         {contentType === 'all' && resumeItems?.Items && resumeItems.Items.length > 0 && (
           <MediaRow
-            title="Fortsett å se"
+            title={browse.continueWatching}
             items={mapJellyfinItems(resumeItems.Items)}
             onItemClick={handleItemClick}
           />
@@ -280,7 +280,7 @@ const Browse = () => {
         {contentType === 'all' && Object.entries(moviesByGenre).map(([genre, genreMovies]) => (
           <MediaRow
             key={genre}
-            title={`${genre} filmer`}
+            title={`${genre} ${browse.movies}`}
             items={mapJellyfinItems(genreMovies)}
             onItemClick={handleItemClick}
           />
@@ -288,7 +288,7 @@ const Browse = () => {
         
         {contentType === 'all' && series.length > 0 && (
           <MediaRow
-            title="Serier"
+            title={browse.series}
             items={mapJellyfinItems(series)}
             onItemClick={handleItemClick}
           />
@@ -299,12 +299,12 @@ const Browse = () => {
           <div className="container mx-auto px-4">
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                <h3 className="text-xl font-semibold mb-2">Demo-modus</h3>
+                <h3 className="text-xl font-semibold mb-2">{browse.demoMode}</h3>
                 <p className="text-muted-foreground mb-4">
-                  Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.
+                  {browse.demoModeDesc}
                 </p>
                 <Button onClick={() => navigate("/setup")} variant="outline">
-                  Sett opp Jellyfin-server
+                  {browse.setupJellyfinServer}
                 </Button>
               </div>
             </div>
@@ -315,13 +315,13 @@ const Browse = () => {
         {contentType === 'movies' && (
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Filmer</h2>
+              <h2 className="text-2xl font-bold">{browse.movies}</h2>
               <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Velg sjanger" />
+                  <SelectValue placeholder={browse.selectGenre} />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="all">Alle sjangere</SelectItem>
+                  <SelectItem value="all">{browse.allGenres}</SelectItem>
                   {genres.map((genre) => (
                     <SelectItem key={genre} value={genre}>
                       {genre}
@@ -339,15 +339,15 @@ const Browse = () => {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                  <h3 className="text-xl font-semibold mb-2">Ingen filmer funnet</h3>
+                  <h3 className="text-xl font-semibold mb-2">{browse.noMoviesFound}</h3>
                   <p className="text-muted-foreground mb-4">
                     {user?.email?.includes('demo') 
-                      ? 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se filmer.'
-                      : 'Ingen filmer tilgjengelige på serveren.'}
+                      ? browse.noMoviesDemo
+                      : browse.noMoviesServer}
                   </p>
                   {user?.email?.includes('demo') && (
                     <Button onClick={() => navigate("/setup")} variant="outline">
-                      Sett opp Jellyfin-server
+                      {browse.setupJellyfinServer}
                     </Button>
                   )}
                 </div>
@@ -360,13 +360,13 @@ const Browse = () => {
         {contentType === 'series' && (
           <div className="container mx-auto px-4">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">Serier</h2>
+              <h2 className="text-2xl font-bold">{browse.series}</h2>
               <Select value={selectedGenre} onValueChange={setSelectedGenre}>
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Velg sjanger" />
+                  <SelectValue placeholder={browse.selectGenre} />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
-                  <SelectItem value="all">Alle sjangere</SelectItem>
+                  <SelectItem value="all">{browse.allGenres}</SelectItem>
                   {genres.map((genre) => (
                     <SelectItem key={genre} value={genre}>
                       {genre}
@@ -384,15 +384,15 @@ const Browse = () => {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                  <h3 className="text-xl font-semibold mb-2">Ingen serier funnet</h3>
+                  <h3 className="text-xl font-semibold mb-2">{browse.noSeriesFound}</h3>
                   <p className="text-muted-foreground mb-4">
                     {user?.email?.includes('demo') 
-                      ? 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se serier.'
-                      : 'Ingen serier tilgjengelig på serveren.'}
+                      ? browse.noSeriesDemo
+                      : browse.noSeriesServer}
                   </p>
                   {user?.email?.includes('demo') && (
                     <Button onClick={() => navigate("/setup")} variant="outline">
-                      Sett opp Jellyfin-server
+                      {browse.setupJellyfinServer}
                     </Button>
                   )}
                 </div>
