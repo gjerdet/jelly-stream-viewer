@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Newspaper, Pin, MessageSquare, Send, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Newspaper, Pin, MessageSquare, Send, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -42,11 +44,14 @@ const feedbackSchema = z.object({
 const News = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { data: role } = useUserRole(user?.id);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [feedbackTitle, setFeedbackTitle] = useState("");
   const [feedbackDescription, setFeedbackDescription] = useState("");
   const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
+
+  const isAdmin = role === "admin";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -115,6 +120,56 @@ const News = () => {
       toast({
         title: "Feil",
         description: "Kunne ikke sende tilbakemelding. Prøv igjen.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateFeedbackStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase
+        .from("user_feedback")
+        .update({ status })
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-feedbacks"] });
+      toast({
+        title: "Status oppdatert",
+        description: "Feedback-status er oppdatert.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Feil",
+        description: "Kunne ikke oppdatere status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteFeedbackMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("user_feedback")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-feedbacks"] });
+      toast({
+        title: "Slettet",
+        description: "Tilbakemelding er slettet.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Feil",
+        description: "Kunne ikke slette tilbakemelding.",
         variant: "destructive",
       });
     },
@@ -296,8 +351,64 @@ const News = () => {
                             <div className="flex-1">
                               <CardTitle className="text-xl">{feedback.title}</CardTitle>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                              {getStatusBadge(feedback.status)}
+                            <div className="flex items-center gap-2">
+                              {isAdmin && (
+                                <>
+                                  <Select
+                                    value={feedback.status}
+                                    onValueChange={(value) =>
+                                      updateFeedbackStatusMutation.mutate({ id: feedback.id, status: value })
+                                    }
+                                  >
+                                    <SelectTrigger className="w-[140px] h-8">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="pending">
+                                        <div className="flex items-center gap-2">
+                                          <Clock className="h-3 w-3" />
+                                          Venter
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="in_progress">
+                                        <div className="flex items-center gap-2">
+                                          <MessageSquare className="h-3 w-3" />
+                                          Pågår
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="completed">
+                                        <div className="flex items-center gap-2">
+                                          <CheckCircle className="h-3 w-3" />
+                                          Fullført
+                                        </div>
+                                      </SelectItem>
+                                      <SelectItem value="rejected">
+                                        <div className="flex items-center gap-2">
+                                          <XCircle className="h-3 w-3" />
+                                          Avvist
+                                        </div>
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => {
+                                      if (confirm("Er du sikker på at du vil slette denne tilbakemeldingen?")) {
+                                        deleteFeedbackMutation.mutate(feedback.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </>
+                              )}
+                              {!isAdmin && (
+                                <div className="flex flex-col items-end gap-2">
+                                  {getStatusBadge(feedback.status)}
+                                </div>
+                              )}
                               <time className="text-xs text-muted-foreground whitespace-nowrap">
                                 {format(new Date(feedback.created_at), "d. MMM yyyy", { locale: nb })}
                               </time>
