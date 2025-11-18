@@ -6,6 +6,59 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// URL validation function - prevents SSRF attacks
+function isValidWebhookUrl(url: string): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    
+    // Only allow HTTP/HTTPS
+    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+      return false;
+    }
+    
+    // Block internal IPs (SSRF prevention)
+    const hostname = parsedUrl.hostname;
+    const internalPatterns = [
+      /^localhost$/i,
+      /^127\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+      /^192\.168\./,
+      /^169\.254\./,
+    ];
+    
+    // Allow localhost for development
+    const isDevelopment = Deno.env.get('ENVIRONMENT') === 'development';
+    if (!isDevelopment && internalPatterns.some(pattern => pattern.test(hostname))) {
+      return false;
+    }
+    
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// HMAC signature generation
+async function generateSignature(payload: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(payload);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, messageData);
+  return Array.from(new Uint8Array(signature))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -84,6 +137,34 @@ serve(async (req) => {
     const webhookUrl = webhookData.setting_value;
     const webhookSecret = secretData?.setting_value || '';
 
+    // Validate webhook URL
+    if (!isValidWebhookUrl(webhookUrl)) {
+      console.error('Invalid webhook URL:', webhookUrl);
+      
+      if (updateId) {
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'failed',
+            error: 'Ugyldig webhook URL',
+            current_step: 'Feil: Ugyldig URL',
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', updateId);
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          error: 'Konfigurasjonsfeil',
+          message: 'Webhook URL må være en gyldig HTTP/HTTPS URL'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     console.log('Sending update request to:', webhookUrl);
 
     // Update status to in progress
@@ -103,17 +184,25 @@ serve(async (req) => {
         .eq('id', updateId);
     }
 
-    // Trigger the update webhook
+    // Prepare webhook payload with timestamp
+    const timestamp = new Date().toISOString();
+    const payload = JSON.stringify({
+      action: 'update',
+      timestamp
+    });
+
+    // Generate HMAC signature
+    const signature = await generateSignature(payload, webhookSecret);
+
+    // Trigger the update webhook with HMAC signature
     const webhookResponse = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Update-Secret': webhookSecret
+        'X-Signature': signature,
+        'X-Timestamp': timestamp
       },
-      body: JSON.stringify({
-        action: 'update',
-        timestamp: new Date().toISOString()
-      })
+      body: payload
     });
 
     if (!webhookResponse.ok) {

@@ -1,10 +1,25 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
+import { z } from 'https://deno.land/x/zod@v3.21.4/mod.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation schema
+const RequestSchema = z.object({
+  mediaType: z.enum(['movie', 'tv'], {
+    errorMap: () => ({ message: "mediaType must be 'movie' or 'tv'" })
+  }),
+  mediaId: z.number().int().positive({
+    message: "mediaId must be a positive integer"
+  }),
+  seasons: z.union([
+    z.array(z.number().int().positive()),
+    z.literal('all')
+  ]).optional()
+});
 
 interface RequestBody {
   mediaType: 'movie' | 'tv';
@@ -18,7 +33,25 @@ serve(async (req) => {
   }
 
   try {
-    const { mediaType, mediaId, seasons }: RequestBody = await req.json();
+    const rawBody = await req.json();
+    
+    // Validate input
+    const validationResult = RequestSchema.safeParse(rawBody);
+    if (!validationResult.success) {
+      console.error('Validation error:', validationResult.error);
+      return new Response(
+        JSON.stringify({ 
+          error: 'Ugyldig forespørsel',
+          details: validationResult.error.errors.map(e => e.message).join(', ')
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    const { mediaType, mediaId, seasons }: RequestBody = validationResult.data;
     
     console.log('Jellyseerr request:', { mediaType, mediaId, seasons });
 
