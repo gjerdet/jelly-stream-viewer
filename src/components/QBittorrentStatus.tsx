@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Download, Upload, HardDrive, AlertCircle, ArrowDown, ArrowUp } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Torrent {
   name: string;
@@ -38,6 +39,8 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
+  const { t } = useLanguage();
+  const qb = t.qbittorrent as any;
 
   useEffect(() => {
     // Check if qBittorrent is configured
@@ -61,15 +64,29 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
         return;
       }
 
+      // Handle "not configured" response gracefully
+      if (result?.configured === false) {
+        setIsConfigured(false);
+        setIsLoading(false);
+        return;
+      }
+
       if (result?.error) {
-        setError(result.error + (result.details ? ` - ${result.details}` : ''));
+        // Don't show error if it's just "not configured"
+        if (result.error === 'NOT_CONFIGURED') {
+          setIsConfigured(false);
+          setIsLoading(false);
+          return;
+        }
+        setError(result.message || result.error);
         return;
       }
 
       setData(result);
       setError(null);
+      setIsConfigured(true);
     } catch (err: any) {
-      setError(err.message || "Kunne ikke hente qBittorrent status");
+      setError(err.message || qb.couldNotFetch);
     } finally {
       setIsLoading(false);
     }
@@ -113,17 +130,17 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
 
   const getStateText = (state: string) => {
     const stateTexts: Record<string, string> = {
-      downloading: "Laster ned",
-      uploading: "Deler",
-      pausedDL: "Pauset",
-      pausedUP: "Pauset",
-      stalledDL: "Står fast",
-      stalledUP: "Står fast",
-      queuedDL: "I kø",
-      queuedUP: "I kø",
-      checkingDL: "Sjekker",
-      checkingUP: "Sjekker",
-      error: "Feil",
+      downloading: qb.downloading,
+      uploading: qb.uploading,
+      pausedDL: qb.paused,
+      pausedUP: qb.paused,
+      stalledDL: qb.stalled,
+      stalledUP: qb.stalled,
+      queuedDL: qb.queued,
+      queuedUP: qb.queued,
+      checkingDL: qb.checking,
+      checkingUP: qb.checking,
+      error: qb.error,
     };
     return stateTexts[state] || state;
   };
@@ -134,7 +151,7 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            qBittorrent Status
+            {qb.status}
           </CardTitle>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
@@ -150,22 +167,22 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            qBittorrent Status
+            {qb.status}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              {error || 'qBittorrent er ikke konfigurert'}
+              {error || qb.notConfigured}
             </AlertDescription>
           </Alert>
           <div className="mt-4 p-4 bg-muted rounded-lg">
-            <p className="text-sm font-medium mb-2">Slik kobler du til qBittorrent:</p>
+            <p className="text-sm font-medium mb-2">{qb.howToConnect}</p>
             <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
-              <li>Gå til qBittorrent innstillinger → Web UI</li>
-              <li>Aktiver Web UI (vanligvis på port 8080)</li>
-              <li>Gå til Server Innstillinger under og konfigurer qBittorrent URL, brukernavn og passord</li>
+              <li>{qb.step1}</li>
+              <li>{qb.step2}</li>
+              <li>{qb.step3}</li>
             </ol>
           </div>
         </CardContent>
@@ -183,10 +200,10 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
-            qBittorrent Status
+            {qb.status}
           </CardTitle>
           <CardDescription>
-            Nedlastninger og torrent status
+            {qb.downloads}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -195,14 +212,14 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
             <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
               <ArrowDown className="h-5 w-5 text-blue-500" />
               <div>
-                <p className="text-xs text-muted-foreground">Nedlasting</p>
+                <p className="text-xs text-muted-foreground">{qb.download}</p>
                 <p className="text-lg font-semibold">{formatSpeed(totalSpeed)}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-secondary/20 rounded-lg">
               <ArrowUp className="h-5 w-5 text-green-500" />
               <div>
-                <p className="text-xs text-muted-foreground">Opplasting</p>
+                <p className="text-xs text-muted-foreground">{qb.upload}</p>
                 <p className="text-lg font-semibold">{formatSpeed(totalUpSpeed)}</p>
               </div>
             </div>
@@ -212,7 +229,7 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
           {activeTorrents.length > 0 && (
             <div>
               <h4 className="text-sm font-medium mb-3">
-                Aktive nedlastninger ({activeTorrents.length})
+                {qb.activeDownloads} ({activeTorrents.length})
               </h4>
               <ScrollArea className="h-[300px] pr-4">
                 <div className="space-y-3">
@@ -261,7 +278,7 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
           {data && data.torrents.length > 0 && (
             <div className="pt-4 border-t">
               <p className="text-sm text-muted-foreground">
-                Totalt {data.torrents.length} torrent{data.torrents.length !== 1 ? 'er' : ''}
+                {qb.totalTorrents} {data.torrents.length} {data.torrents.length !== 1 ? qb.torrents : qb.torrent}
               </p>
             </div>
           )}

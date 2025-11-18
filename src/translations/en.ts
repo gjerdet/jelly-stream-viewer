@@ -255,6 +255,31 @@ export const enTranslations = {
     pinToTop: 'Pin to top',
   },
 
+  // qBittorrent Status
+  qbittorrent: {
+    status: 'qBittorrent Status',
+    downloads: 'Downloads and torrent status',
+    downloading: 'Downloading',
+    uploading: 'Uploading',
+    download: 'Download',
+    upload: 'Upload',
+    paused: 'Paused',
+    stalled: 'Stalled',
+    queued: 'Queued',
+    checking: 'Checking',
+    error: 'Error',
+    notConfigured: 'qBittorrent is not configured',
+    howToConnect: 'How to connect to qBittorrent:',
+    step1: 'Go to qBittorrent settings → Web UI',
+    step2: 'Enable Web UI (usually on port 8080)',
+    step3: 'Go to Server Settings below and configure qBittorrent URL, username and password',
+    activeDownloads: 'Active downloads',
+    totalTorrents: 'Total',
+    torrent: 'torrent',
+    torrents: 'torrents',
+    couldNotFetch: 'Could not fetch qBittorrent status',
+  },
+
   // Health Check
   health: {
     systemHealth: 'System Health',
