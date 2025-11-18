@@ -40,6 +40,7 @@ const Admin = () => {
   const [jellyseerrApiKey, setJellyseerrApiKey] = useState("");
   const [monitoringUrl, setMonitoringUrl] = useState("");
   const [qbittorrentUrl, setQbittorrentUrl] = useState("");
+  const [qbittorrentPort, setQbittorrentPort] = useState("8080");
   const [qbittorrentUsername, setQbittorrentUsername] = useState("");
   const [qbittorrentPassword, setQbittorrentPassword] = useState("");
   
@@ -254,6 +255,7 @@ const Admin = () => {
         .in("setting_key", [
           "monitoring_url", 
           "qbittorrent_url", 
+          "qbittorrent_port",
           "qbittorrent_username", 
           "qbittorrent_password", 
           "github_repo_url", 
@@ -270,6 +272,7 @@ const Admin = () => {
       data?.forEach(setting => {
         if (setting.setting_key === "monitoring_url") setMonitoringUrl(setting.setting_value || "");
         if (setting.setting_key === "qbittorrent_url") setQbittorrentUrl(setting.setting_value || "");
+        if (setting.setting_key === "qbittorrent_port") setQbittorrentPort(setting.setting_value || "8080");
         if (setting.setting_key === "qbittorrent_username") setQbittorrentUsername(setting.setting_value || "");
         if (setting.setting_key === "qbittorrent_password") setQbittorrentPassword(setting.setting_value || "");
         if (setting.setting_key === "github_repo_url") setGithubRepoUrl(setting.setting_value || "");
@@ -1235,15 +1238,29 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="qbittorrent-url">{admin.qbittorrentUrlLabel || "qBittorrent Web UI URL"}</Label>
+                    <Label htmlFor="qbittorrent-url">{admin.qbittorrentUrlLabel || "qBittorrent Host/IP"}</Label>
                     <Input
                       id="qbittorrent-url"
-                      type="url"
-                      placeholder="http://localhost:8080"
+                      type="text"
+                      placeholder="http://localhost eller http://192.168.1.100"
                       value={qbittorrentUrl}
                       onChange={(e) => setQbittorrentUrl(e.target.value)}
                       className="bg-secondary/50 border-border/50"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="qbittorrent-port">{admin.qbittorrentPortLabel || "Port"}</Label>
+                    <Input
+                      id="qbittorrent-port"
+                      type="number"
+                      placeholder="8080"
+                      value={qbittorrentPort}
+                      onChange={(e) => setQbittorrentPort(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {admin.qbittorrentPortHint || "For Docker: ofte 30000-30100 range (f.eks. 30024)"}
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="qbittorrent-username">{admin.qbittorrentUsername || "Username"}</Label>
@@ -1271,6 +1288,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     onClick={async () => {
                       const updates = [
                         { setting_key: "qbittorrent_url", setting_value: qbittorrentUrl },
+                        { setting_key: "qbittorrent_port", setting_value: qbittorrentPort },
                         { setting_key: "qbittorrent_username", setting_value: qbittorrentUsername },
                         { setting_key: "qbittorrent_password", setting_value: qbittorrentPassword },
                       ];
@@ -1295,7 +1313,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                 </CardContent>
               </Card>
 
-              <QBittorrentStatus qbUrl={qbittorrentUrl} />
+              <QBittorrentStatus qbUrl={qbittorrentUrl && qbittorrentPort ? `${qbittorrentUrl}:${qbittorrentPort}` : ""} />
             </TabsContent>
 
             <TabsContent value="news" className="space-y-6">
