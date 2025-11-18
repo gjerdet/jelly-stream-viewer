@@ -1201,10 +1201,16 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     onClick={async () => {
                       const { error } = await supabase
                         .from("server_settings")
-                        .upsert({ setting_key: "monitoring_url", setting_value: monitoringUrl });
+                        .upsert({ 
+                          setting_key: "monitoring_url", 
+                          setting_value: monitoringUrl 
+                        }, { 
+                          onConflict: 'setting_key' 
+                        });
                       
                       if (error) {
-                        toast.error(admin.couldNotUpdateMonitoring || "Could not update monitoring URL");
+                        console.error('Monitoring URL update error:', error);
+                        toast.error(`${admin.couldNotUpdateMonitoring || "Could not update monitoring URL"}: ${error.message}`);
                       } else {
                         toast.success(admin.monitoringUpdated || "Monitoring URL updated!");
                       }
@@ -1269,12 +1275,15 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         { setting_key: "qbittorrent_password", setting_value: qbittorrentPassword },
                       ];
                       
+                      console.log('Updating qBittorrent settings:', updates);
+                      
                       const { error } = await supabase
                         .from("server_settings")
-                        .upsert(updates);
+                        .upsert(updates, { onConflict: 'setting_key' });
                       
                       if (error) {
-                        toast.error(admin.couldNotUpdateQbittorrent || "Could not update qBittorrent settings");
+                        console.error('qBittorrent settings update error:', error);
+                        toast.error(`${admin.couldNotUpdateQbittorrent || "Could not update qBittorrent settings"}: ${error.message}`);
                       } else {
                         toast.success(admin.qbittorrentUpdated || "qBittorrent settings updated!");
                       }
