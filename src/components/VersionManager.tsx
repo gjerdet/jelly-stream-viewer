@@ -9,7 +9,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useVersions } from "@/hooks/useVersions";
 import { GitBranch, Plus, CheckCircle, Clock, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { enUS, nb } from "date-fns/locale";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const compareVersions = (v1: string, v2: string): number => {
   const parts1 = v1.split('.').map(Number);
@@ -28,6 +29,9 @@ const compareVersions = (v1: string, v2: string): number => {
 
 export const VersionManager = () => {
   const { versions, currentVersion, setCurrentVersion, addVersion } = useVersions();
+  const { t, language } = useLanguage();
+  const vm = t.versionManager as any;
+  const dateLocale = language === 'no' ? nb : enUS;
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newVersion, setNewVersion] = useState({
     version_number: "",

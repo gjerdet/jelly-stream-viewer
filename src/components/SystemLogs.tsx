@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Terminal, Database, Shield, Globe, Search, X, Filter, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { enUS, nb } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface LogEntry {
   timestamp: number;
@@ -22,6 +23,9 @@ interface LogEntry {
 }
 
 export const SystemLogs = () => {
+  const { t, language } = useLanguage();
+  const logs = t.systemLogs as any;
+  const dateLocale = language === 'no' ? nb : enUS;
   const [searchQuery, setSearchQuery] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("all");
   const [timeFilter, setTimeFilter] = useState<string>("all");

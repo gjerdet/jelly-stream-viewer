@@ -8,6 +8,7 @@ import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSetting
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { Button } from "@/components/ui/button";
 import { Film } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import {
   Select,
   SelectContent,
@@ -39,6 +40,9 @@ const Browse = () => {
   const location = useLocation();
   const { user, loading } = useAuth();
   const { serverUrl } = useServerSettings();
+  const { t } = useLanguage();
+  const common = t.common as any;
+  const browse = t.browse as any;
   const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
   // Check if user is in demo mode
@@ -162,7 +166,7 @@ const Browse = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-foreground">Laster...</p>
+        <p className="text-foreground">{common.loading}</p>
       </div>
     );
   }
@@ -178,12 +182,12 @@ const Browse = () => {
                 <Film className="w-8 h-8 text-destructive" />
               </div>
               <h2 className="text-2xl font-bold mb-3 text-foreground">
-                {isDemoMode ? "Demo-modus" : "Kan ikke koble til Jellyfin-server"}
+                {isDemoMode ? browse.demoMode : browse.cannotConnect}
               </h2>
               <p className="text-muted-foreground mb-6">
                 {isDemoMode 
-                  ? "Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server."
-                  : "Kan ikke hente data fra Jellyfin-serveren. Kontroller at serveren kjører og er tilgjengelig."}
+                  ? browse.demoModeDesc
+                  : browse.cannotConnectDesc}
               </p>
               <div className="space-y-3">
                 <Button 
@@ -191,23 +195,23 @@ const Browse = () => {
                   variant="default"
                   className="w-full"
                 >
-                  Gå til oppsett
+                  {common.goToSetup}
                 </Button>
                 <Button 
                   onClick={() => window.location.reload()} 
                   variant="outline"
                   className="w-full"
                 >
-                  Prøv på nytt
+                  {common.retry}
                 </Button>
               </div>
             </div>
             <div className="text-sm text-muted-foreground space-y-2">
-              <p>Hva kan du gjøre nå?</p>
+              <p>{browse.whatCanYouDo}</p>
               <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
-                <li>Sett opp din Jellyfin-server via Admin-innstillinger</li>
-                <li>Utforsk appens funksjoner og design</li>
-                <li>Når serveren er koblet til, vil innhold vises automatisk</li>
+                <li>{browse.setupServer}</li>
+                <li>{browse.exploreApp}</li>
+                <li>{browse.whenConnected}</li>
               </ul>
             </div>
           </div>
