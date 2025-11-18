@@ -124,9 +124,9 @@ const Requests = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold mb-2">Søk og be om</h1>
+            <h1 className="text-4xl font-bold mb-2">{requests.title}</h1>
             <p className="text-muted-foreground">
-              Søk etter filmer og serier du vil se
+              {requests.subtitle}
             </p>
           </div>
 
@@ -135,7 +135,7 @@ const Requests = () => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Søk etter filmer eller serier..."
+                placeholder={requests.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-12 pr-4 h-14 text-lg bg-secondary/50 border-border/50"
@@ -146,7 +146,7 @@ const Requests = () => {
                 className="absolute right-2 top-1/2 -translate-y-1/2"
                 size="lg"
               >
-                {isSearching ? "Søker..." : "Søk"}
+                {isSearching ? requests.searching : requests.searchButton}
               </Button>
             </div>
           </form>
@@ -189,9 +189,9 @@ const Requests = () => {
                               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                 <span className="flex items-center gap-1">
                                   {result.mediaType === 'movie' ? (
-                                    <><Film className="h-4 w-4" /> Film</>
+                                    <><Film className="h-4 w-4" /> {requests.movie}</>
                                   ) : (
-                                    <><Tv className="h-4 w-4" /> Serie</>
+                                    <><Tv className="h-4 w-4" /> {requests.series}</>
                                   )}
                                 </span>
                                 {year && (
@@ -243,7 +243,7 @@ const Requests = () => {
             <div className="text-center py-12">
               <Search className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">
-                Søk etter filmer og serier for å be om innhold
+                {requests.noResults}
               </p>
             </div>
           )}

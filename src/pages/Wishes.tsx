@@ -538,9 +538,9 @@ const Wishes = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Ønsker</h1>
+            <h1 className="text-4xl font-bold mb-2">{wishes.title}</h1>
             <p className="text-muted-foreground">
-              Søk etter eller oppdag nytt innhold
+              {wishes.discover}
             </p>
           </div>
 
@@ -550,7 +550,7 @@ const Wishes = () => {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Søk etter filmer og serier..."
+                  placeholder={wishes.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -560,15 +560,15 @@ const Wishes = () => {
                 {isSearching ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Søker...
+                    {wishes.search}...
                   </>
                 ) : (
-                  'Søk'
+                  wishes.search
                 )}
               </Button>
               {searchResults.length > 0 && (
                 <Button type="button" variant="outline" onClick={clearSearch}>
-                  Tøm søk
+                  {wishes.clearSearch}
                 </Button>
               )}
             </div>
@@ -658,14 +658,14 @@ const Wishes = () => {
               <TabsList className="grid w-full max-w-4xl mx-auto mb-8 grid-cols-4">
                 <TabsTrigger value="popular-movies">
                   <TrendingUp className="h-4 w-4 mr-2" />
-                  Populære filmer
+                  {wishes.popularMovies}
                 </TabsTrigger>
                 <TabsTrigger value="popular-series">
                   <TrendingUp className="h-4 w-4 mr-2" />
-                  Populære serier
+                  {wishes.popularSeries}
                 </TabsTrigger>
-                <TabsTrigger value="movies">Alle filmer</TabsTrigger>
-                <TabsTrigger value="series">Alle serier</TabsTrigger>
+                <TabsTrigger value="movies">{wishes.discoverMovies}</TabsTrigger>
+                <TabsTrigger value="series">{wishes.discoverSeries}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="popular-movies">
@@ -681,10 +681,10 @@ const Wishes = () => {
                       {isLoadingPopularMovies ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Laster...
+                          {wishes.loadMore}...
                         </>
                       ) : (
-                        'Last inn mer'
+                        wishes.loadMore
                       )}
                     </Button>
                   </div>
@@ -704,10 +704,10 @@ const Wishes = () => {
                       {isLoadingPopularSeries ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Laster...
+                          {wishes.loadMore}...
                         </>
                       ) : (
-                        'Last inn mer'
+                        wishes.loadMore
                       )}
                     </Button>
                   </div>
@@ -727,10 +727,10 @@ const Wishes = () => {
                       {isLoadingMovies ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Laster...
+                          {wishes.loadMore}...
                         </>
                       ) : (
-                        'Last inn mer'
+                        wishes.loadMore
                       )}
                     </Button>
                   </div>
@@ -750,10 +750,10 @@ const Wishes = () => {
                       {isLoadingSeries ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Laster...
+                          {wishes.loadMore}...
                         </>
                       ) : (
-                        'Last inn mer'
+                        wishes.loadMore
                       )}
                     </Button>
                   </div>

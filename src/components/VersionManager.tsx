@@ -55,29 +55,29 @@ export const VersionManager = () => {
           <div>
             <CardTitle className="flex items-center gap-2">
               <GitBranch className="h-5 w-5" />
-              Versjonshåndtering
+              {vm.title}
             </CardTitle>
             <CardDescription>
-              Administrer app-versjoner og oppgraderinger
+              {vm.description}
             </CardDescription>
           </div>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <Plus className="h-4 w-4 mr-2" />
-                Ny versjon
+                {vm.newVersion}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Legg til ny versjon</DialogTitle>
+                <DialogTitle>{vm.addVersion}</DialogTitle>
                 <DialogDescription>
-                  Opprett en ny versjon av applikasjonen
+                  {vm.addVersionDesc}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm font-medium">Versjonsnummer</label>
+                  <label className="text-sm font-medium">{vm.versionNumber}</label>
                   <Input
                     placeholder="1.2.0"
                     value={newVersion.version_number}
@@ -85,24 +85,24 @@ export const VersionManager = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Beskrivelse</label>
+                  <label className="text-sm font-medium">{vm.versionDescription}</label>
                   <Input
-                    placeholder="Kort beskrivelse av versjonen"
+                    placeholder={vm.versionPlaceholder}
                     value={newVersion.description}
                     onChange={(e) => setNewVersion({ ...newVersion, description: e.target.value })}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Endringslogg</label>
+                  <label className="text-sm font-medium">{vm.changelog}</label>
                   <Textarea
-                    placeholder="- Ny funksjon X&#10;- Forbedret Y&#10;- Fikset bug Z"
+                    placeholder={vm.changelogPlaceholder}
                     value={newVersion.changelog}
                     onChange={(e) => setNewVersion({ ...newVersion, changelog: e.target.value })}
                     rows={5}
                   />
                 </div>
                 <Button onClick={handleAddVersion} className="w-full">
-                  Legg til versjon
+                  {vm.addButton}
                 </Button>
               </div>
             </DialogContent>
@@ -117,10 +117,10 @@ export const VersionManager = () => {
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-primary" />
                   <span className="font-semibold text-lg">v{currentVersion.version_number}</span>
-                  <Badge variant="default">Aktiv</Badge>
+                  <Badge variant="default">{vm.active}</Badge>
                 </div>
                 <span className="text-sm text-muted-foreground">
-                  {format(new Date(currentVersion.release_date), "d. MMM yyyy", { locale: nb })}
+                  {format(new Date(currentVersion.release_date), "d. MMM yyyy", { locale: dateLocale })}
                 </span>
               </div>
               {currentVersion.description && (
@@ -128,7 +128,7 @@ export const VersionManager = () => {
               )}
               {currentVersion.changelog && (
                 <div className="mt-3 p-3 bg-background rounded text-sm">
-                  <p className="font-medium mb-1">Endringer:</p>
+                  <p className="font-medium mb-1">{vm.changes}</p>
                   <pre className="whitespace-pre-wrap text-muted-foreground">{currentVersion.changelog}</pre>
                 </div>
               )}
@@ -138,11 +138,11 @@ export const VersionManager = () => {
           <div className="space-y-2">
             <h3 className="font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Tilgjengelige versjoner
+              {vm.availableVersions}
             </h3>
             {versions?.filter((v) => !v.is_current).map((version) => {
               const isNewer = currentVersion && compareVersions(version.version_number, currentVersion.version_number) > 0;
-              const actionText = isNewer ? "Oppgrader til" : "Tilbakerull til";
+              const actionText = isNewer ? vm.upgradeTo : vm.rollbackTo;
               const ActionIcon = isNewer ? ArrowUp : ArrowDown;
               
               return (
@@ -150,11 +150,11 @@ export const VersionManager = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">v{version.version_number}</span>
-                      {isNewer && <Badge variant="secondary">Nyere</Badge>}
+                      {isNewer && <Badge variant="secondary">{vm.newer}</Badge>}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground">
-                        {format(new Date(version.release_date), "d. MMM yyyy", { locale: nb })}
+                        {format(new Date(version.release_date), "d. MMM yyyy", { locale: dateLocale })}
                       </span>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
