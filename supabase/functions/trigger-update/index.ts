@@ -123,9 +123,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ 
-          error: 'Update webhook ikke konfigurert',
-          needsSetup: true,
-          message: 'Sett opp update_webhook_url i Server Innstillinger'
+          error: 'Tjenesten er midlertidig utilgjengelig'
         }),
         { 
           status: 400, 

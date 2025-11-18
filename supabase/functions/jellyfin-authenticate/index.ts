@@ -44,8 +44,8 @@ serve(async (req) => {
     if (serverUrlError || apiKeyError || !serverUrlData || !apiKeyData) {
       console.error('Failed to fetch server settings:', { serverUrlError, apiKeyError });
       return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -83,7 +83,7 @@ serve(async (req) => {
       console.error('Jellyfin authentication failed:', jellyfinResponse.status, errorText);
       console.error('Request details:', { authUrl, username });
       return new Response(
-        JSON.stringify({ error: 'Invalid credentials', details: errorText }),
+        JSON.stringify({ error: 'Ugyldig brukernavn eller passord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
