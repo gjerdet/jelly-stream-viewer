@@ -332,6 +332,30 @@ export const enTranslations = {
     unknownTitle: 'Unknown title',
   },
 
+  // Requests Admin page
+  requestsAdmin: {
+    title: 'Requests',
+    subtitle: 'Manage user requests for content',
+    pending: 'Pending',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    noPending: 'No pending requests',
+    noApproved: 'No approved requests',
+    noRejected: 'No rejected requests',
+    requestedBy: 'Requested by',
+    approve: 'Approve',
+    reject: 'Reject',
+    delete: 'Delete',
+    approvedMsg: 'Request approved and sent to Jellyseerr!',
+    rejectedMsg: 'Request rejected',
+    deletedMsg: 'Request deleted',
+    errorApprove: 'Could not approve request',
+    errorReject: 'Could not reject request',
+    errorDelete: 'Could not delete request',
+    requestNotFound: 'Request not found',
+    unknownUser: 'Unknown user',
+  },
+
   // Statistics page
   statistics: {
     title: 'Statistics',

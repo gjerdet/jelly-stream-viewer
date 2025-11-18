@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface JellyseerrRequest {
   id: string;
@@ -34,6 +35,9 @@ const RequestsAdmin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: role, isLoading: roleLoading } = useUserRole(user?.id);
   const queryClient = useQueryClient();
+  const { t } = useLanguage();
+  const requestsAdmin = t.requestsAdmin as any;
+  const requestsT = t.requests as any;
 
   useEffect(() => {
     if (!authLoading && !roleLoading) {
@@ -68,7 +72,7 @@ const RequestsAdmin = () => {
       const profileMap = new Map(profiles?.map(p => [p.id, p.email]) || []);
       const requestsWithEmails = data.map(req => ({
         ...req,
-        userEmail: profileMap.get(req.user_id) || 'Ukjent bruker'
+        userEmail: profileMap.get(req.user_id) || requestsAdmin.unknownUser
       }));
 
       return requestsWithEmails as JellyseerrRequest[];
@@ -79,7 +83,7 @@ const RequestsAdmin = () => {
   const approveMutation = useMutation({
     mutationFn: async (requestId: string) => {
       const request = requests?.find(r => r.id === requestId);
-      if (!request) throw new Error("Forespørsel ikke funnet");
+      if (!request) throw new Error(requestsAdmin.requestNotFound);
 
       // Send to Jellyseerr
       const { data, error } = await supabase.functions.invoke("jellyseerr-request", {
@@ -108,11 +112,11 @@ const RequestsAdmin = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jellyseerr-requests'] });
-      toast.success("Forespørsel godkjent og sendt til Jellyseerr!");
+      toast.success(requestsAdmin.approvedMsg);
     },
     onError: (error: any) => {
       console.error('Approve error:', error);
-      toast.error(error.message || "Kunne ikke godkjenne forespørsel");
+      toast.error(error.message || requestsAdmin.errorApprove);
     },
   });
 
@@ -131,11 +135,11 @@ const RequestsAdmin = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jellyseerr-requests'] });
-      toast.success("Forespørsel avvist");
+      toast.success(requestsAdmin.rejectedMsg);
     },
     onError: (error: any) => {
       console.error('Reject error:', error);
-      toast.error("Kunne ikke avvise forespørsel");
+      toast.error(requestsAdmin.errorReject);
     },
   });
 
@@ -150,11 +154,11 @@ const RequestsAdmin = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['jellyseerr-requests'] });
-      toast.success("Forespørsel slettet");
+      toast.success(requestsAdmin.deletedMsg);
     },
     onError: (error: any) => {
       console.error('Delete error:', error);
-      toast.error("Kunne ikke slette forespørsel");
+      toast.error(requestsAdmin.errorDelete);
     },
   });
 
@@ -199,9 +203,9 @@ const RequestsAdmin = () => {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                   <span className="flex items-center gap-1">
                     {request.media_type === 'movie' ? (
-                      <><Film className="h-4 w-4" /> Film</>
+                      <><Film className="h-4 w-4" /> {requestsT.movie}</>
                     ) : (
-                      <><Tv className="h-4 w-4" /> Serie</>
+                      <><Tv className="h-4 w-4" /> {requestsT.series}</>
                     )}
                   </span>
                   <span className="flex items-center gap-1">
@@ -218,19 +222,19 @@ const RequestsAdmin = () => {
               {request.status === 'pending' && (
                 <Badge variant="outline" className="border-yellow-500 text-yellow-500">
                   <Clock className="h-3 w-3 mr-1" />
-                  Venter
+                  {requestsAdmin.pending}
                 </Badge>
               )}
               {request.status === 'approved' && (
                 <Badge variant="outline" className="border-green-500 text-green-500">
                   <Check className="h-3 w-3 mr-1" />
-                  Godkjent
+                  {requestsAdmin.approved}
                 </Badge>
               )}
               {request.status === 'rejected' && (
                 <Badge variant="outline" className="border-red-500 text-red-500">
                   <X className="h-3 w-3 mr-1" />
-                  Avvist
+                  {requestsAdmin.rejected}
                 </Badge>
               )}
             </div>
@@ -250,7 +254,7 @@ const RequestsAdmin = () => {
                   className="gap-2"
                 >
                   <Check className="h-4 w-4" />
-                  Godkjenn
+                  {requestsAdmin.approve}
                 </Button>
                 <Button
                   onClick={() => rejectMutation.mutate(request.id)}
@@ -260,7 +264,7 @@ const RequestsAdmin = () => {
                   className="gap-2"
                 >
                   <X className="h-4 w-4" />
-                  Avvis
+                  {requestsAdmin.reject}
                 </Button>
               </div>
             )}
@@ -274,7 +278,7 @@ const RequestsAdmin = () => {
                 className="gap-2"
               >
                 <X className="h-4 w-4" />
-                Slett
+                {requestsAdmin.delete}
               </Button>
             )}
           </div>
@@ -288,22 +292,22 @@ const RequestsAdmin = () => {
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-6xl mx-auto">
           <div className="mb-8">
-            <h1 className="text-4xl font-bold mb-2">Forespørsler</h1>
+            <h1 className="text-4xl font-bold mb-2">{requestsAdmin.title}</h1>
             <p className="text-muted-foreground">
-              Administrer brukerforespørsler for innhold
+              {requestsAdmin.subtitle}
             </p>
           </div>
 
           <Tabs defaultValue="pending" className="w-full">
             <TabsList className="grid w-full max-w-md mb-8 grid-cols-3">
               <TabsTrigger value="pending">
-                Ventende ({pendingRequests.length})
+                {requestsAdmin.pending} ({pendingRequests.length})
               </TabsTrigger>
               <TabsTrigger value="approved">
-                Godkjent ({approvedRequests.length})
+                {requestsAdmin.approved} ({approvedRequests.length})
               </TabsTrigger>
               <TabsTrigger value="rejected">
-                Avvist ({rejectedRequests.length})
+                {requestsAdmin.rejected} ({rejectedRequests.length})
               </TabsTrigger>
             </TabsList>
 
@@ -311,7 +315,7 @@ const RequestsAdmin = () => {
               {pendingRequests.length === 0 ? (
                 <Alert>
                   <AlertDescription>
-                    Ingen ventende forespørsler
+                    {requestsAdmin.noPending}
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -325,7 +329,7 @@ const RequestsAdmin = () => {
               {approvedRequests.length === 0 ? (
                 <Alert>
                   <AlertDescription>
-                    Ingen godkjente forespørsler
+                    {requestsAdmin.noApproved}
                   </AlertDescription>
                 </Alert>
               ) : (
@@ -339,7 +343,7 @@ const RequestsAdmin = () => {
               {rejectedRequests.length === 0 ? (
                 <Alert>
                   <AlertDescription>
-                    Ingen avviste forespørsler
+                    {requestsAdmin.noRejected}
                   </AlertDescription>
                 </Alert>
               ) : (
