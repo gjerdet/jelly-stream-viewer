@@ -272,7 +272,7 @@ export const noTranslations = {
     howToConnect: 'Slik kobler du til qBittorrent:',
     step1: 'Gå til qBittorrent innstillinger → Web UI',
     step2: 'Aktiver Web UI (vanligvis på port 8080)',
-    step3: 'Gå til Server Innstillinger under og konfigurer qBittorrent URL, brukernavn og passord',
+    step3: 'Gå til Server Innstillinger under og konfigurer qBittorrent URL (bruk http:// ikke https:// for lokale servere), brukernavn og passord',
     activeDownloads: 'Aktive nedlastninger',
     totalTorrents: 'Totalt',
     torrent: 'torrent',

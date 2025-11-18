@@ -272,7 +272,7 @@ export const enTranslations = {
     howToConnect: 'How to connect to qBittorrent:',
     step1: 'Go to qBittorrent settings → Web UI',
     step2: 'Enable Web UI (usually on port 8080)',
-    step3: 'Go to Server Settings below and configure qBittorrent URL, username and password',
+    step3: 'Go to Server Settings below and configure qBittorrent URL (use http:// not https:// for local servers), username and password',
     activeDownloads: 'Active downloads',
     totalTorrents: 'Total',
     torrent: 'torrent',

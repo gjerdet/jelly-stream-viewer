@@ -61,13 +61,48 @@ serve(async (req) => {
 
     // Login to qBittorrent
     console.log('Logging in to qBittorrent:', baseUrl);
-    const loginResponse = await fetch(`${baseUrl}/api/v2/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `username=${encodeURIComponent(qbUsername)}&password=${encodeURIComponent(qbPassword)}`,
-    });
+    
+    let loginResponse;
+    try {
+      loginResponse = await fetch(`${baseUrl}/api/v2/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `username=${encodeURIComponent(qbUsername)}&password=${encodeURIComponent(qbPassword)}`,
+      });
+    } catch (fetchError) {
+      console.error('qBittorrent connection error:', fetchError);
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      
+      // Check for SSL certificate errors
+      if (errorMessage.includes('certificate') || errorMessage.includes('SSL') || errorMessage.includes('TLS')) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'SSL_CERTIFICATE_ERROR',
+            message: 'SSL certificate error connecting to qBittorrent',
+            details: 'The SSL certificate is invalid. Try using HTTP instead of HTTPS, or fix the certificate configuration.',
+            hint: 'Change your qBittorrent URL from https:// to http:// if it\'s a local server'
+          }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'CONNECTION_FAILED',
+          message: 'Could not connect to qBittorrent',
+          details: errorMessage
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
     if (!loginResponse.ok) {
       console.error('qBittorrent login failed:', loginResponse.status);
