@@ -74,7 +74,7 @@ export const SystemLogs = () => {
 
     } catch (error) {
       console.error(`Error fetching ${logType} logs:`, error);
-      toast.error(`Kunne ikke hente ${logType}-logger`);
+      toast.error(logs.couldNotFetch.replace('{type}', logType));
     } finally {
       const setLoading = logType === 'auth' ? setLoadingAuth : 
                          logType === 'database' ? setLoadingDb : setLoadingEdge;
@@ -95,9 +95,9 @@ export const SystemLogs = () => {
 
   const formatTimestamp = (timestamp: number) => {
     try {
-      return format(new Date(timestamp / 1000), "dd.MM.yyyy HH:mm:ss", { locale: nb });
+      return format(new Date(timestamp / 1000), "dd.MM.yyyy HH:mm:ss", { locale: dateLocale });
     } catch {
-      return "Ugyldig tid";
+      return logs.invalidTime;
     }
   };
 
@@ -231,10 +231,10 @@ export const SystemLogs = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Terminal className="h-5 w-5" />
-          System-logger
+          {logs.title}
         </CardTitle>
         <CardDescription>
-          Vis logger fra forskjellige deler av systemet for feilsøking
+          {logs.description}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -242,7 +242,7 @@ export const SystemLogs = () => {
         <div className="space-y-4 mb-4 p-4 rounded-lg bg-secondary/30 border border-border/50">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Filtre og søk</span>
+            <span className="text-sm font-medium">{logs.filtersAndSearch}</span>
             {hasActiveFilters && (
               <Button
                 variant="ghost"
@@ -251,7 +251,7 @@ export const SystemLogs = () => {
                 className="ml-auto h-7 gap-1 text-xs"
               >
                 <X className="h-3 w-3" />
-                Nullstill
+                {logs.reset}
               </Button>
             )}
           </div>
@@ -261,7 +261,7 @@ export const SystemLogs = () => {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Søk i logger..."
+                placeholder={logs.searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 bg-background/50"
@@ -271,46 +271,46 @@ export const SystemLogs = () => {
             {/* Level filter */}
             <Select value={levelFilter} onValueChange={setLevelFilter}>
               <SelectTrigger className="bg-background/50">
-                <SelectValue placeholder="Velg nivå" />
+                <SelectValue placeholder={logs.level} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle nivåer</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warn">Warning</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
+                <SelectItem value="all">{logs.allLevels}</SelectItem>
+                <SelectItem value="info">{logs.info}</SelectItem>
+                <SelectItem value="warn">{logs.warning}</SelectItem>
+                <SelectItem value="error">{logs.error}</SelectItem>
               </SelectContent>
             </Select>
 
             {/* Time filter */}
             <Select value={timeFilter} onValueChange={setTimeFilter}>
               <SelectTrigger className="bg-background/50">
-                <SelectValue placeholder="Velg tidsperiode" />
+                <SelectValue placeholder={logs.time} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle tidspunkter</SelectItem>
-                <SelectItem value="1h">Siste time</SelectItem>
-                <SelectItem value="24h">Siste 24 timer</SelectItem>
-                <SelectItem value="7d">Siste 7 dager</SelectItem>
+                <SelectItem value="all">{logs.allTimes}</SelectItem>
+                <SelectItem value="1h">{logs.lastHour}</SelectItem>
+                <SelectItem value="24h">{logs.last24Hours}</SelectItem>
+                <SelectItem value="7d">{logs.last7Days}</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {hasActiveFilters && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>Aktive filtre:</span>
+              <span>{logs.activeFilters}</span>
               {searchQuery && (
                 <Badge variant="secondary" className="text-xs">
-                  Søk: {searchQuery}
+                  {logs.search}: {searchQuery}
                 </Badge>
               )}
               {levelFilter !== "all" && (
                 <Badge variant="secondary" className="text-xs">
-                  Nivå: {levelFilter}
+                  {logs.level}: {levelFilter}
                 </Badge>
               )}
               {timeFilter !== "all" && (
                 <Badge variant="secondary" className="text-xs">
-                  Tid: {timeFilter === "1h" ? "Siste time" : timeFilter === "24h" ? "Siste 24t" : "Siste 7d"}
+                  {logs.time}: {timeFilter === "1h" ? logs.lastHour : timeFilter === "24h" ? logs.last24Hours : logs.last7Days}
                 </Badge>
               )}
             </div>

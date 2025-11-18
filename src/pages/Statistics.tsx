@@ -197,7 +197,7 @@ const Statistics = () => {
       if (error) throw error;
 
       const counts = data.reduce((acc: any, item) => {
-        const type = item.jellyfin_item_type === 'Movie' ? 'Filmer' : 'Episoder';
+        const type = item.jellyfin_item_type === 'Movie' ? statistics.movies : statistics.episodes;
         acc[type] = (acc[type] || 0) + 1;
         return acc;
       }, {});
@@ -211,7 +211,7 @@ const Statistics = () => {
   if (isLoadingRole) {
     return (
       <div className="container mx-auto p-6 space-y-6">
-        <h1 className="text-3xl font-bold">Statistikk</h1>
+        <h1 className="text-3xl font-bold">{statistics.title}</h1>
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -243,7 +243,7 @@ const Statistics = () => {
   if (isLoadingMostWatched || isLoadingUserStats || isLoadingContentTypes) {
     return (
       <div className="container mx-auto p-6 space-y-6">
-        <h1 className="text-3xl font-bold">Statistikk</h1>
+        <h1 className="text-3xl font-bold">{statistics.title}</h1>
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
             <CardHeader>
@@ -263,7 +263,7 @@ const Statistics = () => {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Statistikk</h1>
+        <h1 className="text-3xl font-bold">{statistics.title}</h1>
         <div className="flex gap-2">
           <Button
             onClick={() => syncHistory.mutate()}
@@ -272,17 +272,17 @@ const Statistics = () => {
             size="sm"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncHistory.isPending ? 'animate-spin' : ''}`} />
-            Synkroniser fra Jellyfin
+            {statistics.syncFromJellyfin}
           </Button>
           <Select value={timeFilter} onValueChange={(value: TimeFilter) => setTimeFilter(value)}>
             <SelectTrigger className="w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">Siste 7 dager</SelectItem>
-              <SelectItem value="30">Siste 30 dager</SelectItem>
-              <SelectItem value="365">Siste år</SelectItem>
-              <SelectItem value="all">Alle</SelectItem>
+              <SelectItem value="7">{statistics.last7Days}</SelectItem>
+              <SelectItem value="30">{statistics.last30Days}</SelectItem>
+              <SelectItem value="365">{statistics.lastYear}</SelectItem>
+              <SelectItem value="all">{statistics.all}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -294,9 +294,9 @@ const Statistics = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Visningstid per Bruker
+              {statistics.watchTimePerUser}
             </CardTitle>
-            <CardDescription>Total sett tid i timer - Klikk for detaljer</CardDescription>
+            <CardDescription>{statistics.watchTimeDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -330,9 +330,9 @@ const Statistics = () => {
                             <span className="font-medium">{stat.username}</span>
                           </div>
                           <div className="flex gap-6 text-sm text-muted-foreground">
-                            <span>{stat.totalHours}t</span>
-                            <span>{stat.movies} filmer</span>
-                            <span>{stat.episodes} episoder</span>
+                            <span>{stat.totalHours}{statistics.hours}</span>
+                            <span>{stat.movies} {statistics.movies}</span>
+                            <span>{stat.episodes} {statistics.episodes}</span>
                           </div>
                         </div>
                       </Button>
@@ -342,9 +342,9 @@ const Statistics = () => {
                         <Table>
                           <TableHeader>
                             <TableRow>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Tittel</TableHead>
-                              <TableHead>Sett</TableHead>
+                              <TableHead>{statistics.type}</TableHead>
+                              <TableHead>{statistics.itemTitle}</TableHead>
+                              <TableHead>{statistics.watched}</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -387,8 +387,8 @@ const Statistics = () => {
         {/* Content Type Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Innholdstype</CardTitle>
-            <CardDescription>Fordeling mellom filmer og episoder</CardDescription>
+            <CardTitle>{statistics.contentType}</CardTitle>
+            <CardDescription>{statistics.contentTypeDesc}</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center">
             <ResponsiveContainer width="100%" height={250}>
@@ -416,8 +416,8 @@ const Statistics = () => {
         {/* Most Watched Chart */}
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Mest Sette Filmer & Serier</CardTitle>
-            <CardDescription>Top 10 mest sette innhold</CardDescription>
+            <CardTitle>{statistics.mostWatched}</CardTitle>
+            <CardDescription>{statistics.mostWatchedDesc}</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
