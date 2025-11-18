@@ -4,10 +4,6 @@ project_id = "ypjihlfhxqyrpfjfmjdm"
 verify_jwt = false
 # Note: Public authentication endpoint - no JWT required
 
-[functions.jellyfin-setup]
-verify_jwt = false
-# Note: Public setup endpoint - no JWT required for initial setup
-
 [functions.jellyfin-proxy]
 verify_jwt = true
 
