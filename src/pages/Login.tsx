@@ -241,13 +241,6 @@ const Login = () => {
               {loading ? "Logger inn..." : "Logg inn"}
             </Button>
           </form>
-          
-          <p className="text-xs text-muted-foreground text-center mt-4">
-            {username.toLowerCase() === 'demo' ? 
-              "Demo-modus (ingen server kreves)" : 
-              `Jellyfin server: ${serverUrl || "Ikke konfigurert"}`
-            }
-          </p>
         </CardContent>
       </Card>
     </div>
