@@ -80,8 +80,14 @@ serve(async (req) => {
 
     if (!jellyfinResponse.ok) {
       const errorText = await jellyfinResponse.text();
-      console.error('Jellyfin authentication failed:', jellyfinResponse.status, errorText);
-      console.error('Request details:', { authUrl, username });
+      console.error('Jellyfin authentication failed:', {
+        status: jellyfinResponse.status,
+        statusText: jellyfinResponse.statusText,
+        error: errorText,
+        username,
+        serverUrl,
+        apiKeyPrefix: jellyfinApiKey.slice(0, 8)
+      });
       return new Response(
         JSON.stringify({ error: 'Ugyldig brukernavn eller passord' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
