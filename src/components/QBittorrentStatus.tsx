@@ -78,6 +78,14 @@ export const QBittorrentStatus = ({ qbUrl }: QBittorrentStatusProps) => {
           setIsLoading(false);
           return;
         }
+        
+        // Handle SSL certificate errors with helpful message
+        if (result.error === 'SSL_CERTIFICATE_ERROR') {
+          setError(`${result.message}. ${result.hint || ''}`);
+          setIsConfigured(true);
+          return;
+        }
+        
         setError(result.message || result.error);
         return;
       }
