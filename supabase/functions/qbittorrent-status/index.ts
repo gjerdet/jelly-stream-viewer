@@ -45,9 +45,13 @@ serve(async (req) => {
     if (!qbUrl || !qbPassword) {
       console.error('Missing qBittorrent configuration');
       return new Response(
-        JSON.stringify({ error: 'qBittorrent er ikke konfigurert' }),
+        JSON.stringify({ 
+          error: 'NOT_CONFIGURED',
+          message: 'qBittorrent is not configured',
+          configured: false 
+        }),
         { 
-          status: 500, 
+          status: 200, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -69,7 +73,8 @@ serve(async (req) => {
       console.error('qBittorrent login failed:', loginResponse.status);
       return new Response(
         JSON.stringify({ 
-          error: 'Kunne ikke logge inn på qBittorrent',
+          error: 'LOGIN_FAILED',
+          message: 'Could not log in to qBittorrent',
           details: `Status: ${loginResponse.status}`
         }),
         { 
@@ -83,7 +88,10 @@ serve(async (req) => {
     const setCookie = loginResponse.headers.get('set-cookie');
     if (!setCookie) {
       return new Response(
-        JSON.stringify({ error: 'Ingen session cookie mottatt' }),
+        JSON.stringify({ 
+          error: 'NO_SESSION_COOKIE',
+          message: 'No session cookie received'
+        }),
         { 
           status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -102,7 +110,10 @@ serve(async (req) => {
     if (!torrentsResponse.ok) {
       console.error('Failed to fetch torrents:', torrentsResponse.status);
       return new Response(
-        JSON.stringify({ error: 'Kunne ikke hente torrents' }),
+        JSON.stringify({ 
+          error: 'FETCH_FAILED',
+          message: 'Could not fetch torrents'
+        }),
         { 
           status: torrentsResponse.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

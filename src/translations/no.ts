@@ -255,6 +255,31 @@ export const noTranslations = {
     pinToTop: 'Fest til toppen',
   },
 
+  // qBittorrent Status
+  qbittorrent: {
+    status: 'qBittorrent Status',
+    downloads: 'Nedlastninger og torrent status',
+    downloading: 'Laster ned',
+    uploading: 'Deler',
+    download: 'Nedlasting',
+    upload: 'Opplasting',
+    paused: 'Pauset',
+    stalled: 'Står fast',
+    queued: 'I kø',
+    checking: 'Sjekker',
+    error: 'Feil',
+    notConfigured: 'qBittorrent er ikke konfigurert',
+    howToConnect: 'Slik kobler du til qBittorrent:',
+    step1: 'Gå til qBittorrent innstillinger → Web UI',
+    step2: 'Aktiver Web UI (vanligvis på port 8080)',
+    step3: 'Gå til Server Innstillinger under og konfigurer qBittorrent URL, brukernavn og passord',
+    activeDownloads: 'Aktive nedlastninger',
+    totalTorrents: 'Totalt',
+    torrent: 'torrent',
+    torrents: 'torrenter',
+    couldNotFetch: 'Kunne ikke hente qBittorrent status',
+  },
+
   // Health Check
   health: {
     systemHealth: 'System Health',
