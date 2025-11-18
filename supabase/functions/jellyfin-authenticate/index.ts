@@ -102,15 +102,23 @@ serve(async (req) => {
     );
 
     // Try to sign in first
+    console.log('Attempting to sign in Supabase user:', userEmail);
     const signInResult = await supabaseClient.auth.signInWithPassword({
       email: userEmail,
       password: userPassword,
+    });
+
+    console.log('Sign in result:', { 
+      hasSession: !!signInResult.data.session, 
+      hasError: !!signInResult.error,
+      errorMessage: signInResult.error?.message 
     });
 
     let supabaseSession = signInResult.data.session;
 
     // If user doesn't exist, create them
     if (signInResult.error && signInResult.error.message.includes('Invalid login credentials')) {
+      console.log('User does not exist, creating new user...');
       const signUpResult = await supabaseClient.auth.signUp({
         email: userEmail,
         password: userPassword,
@@ -173,8 +181,19 @@ serve(async (req) => {
         JSON.stringify({ error: 'Failed to create user session' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } else {
+      console.log('Sign in successful, session exists:', !!supabaseSession);
     }
 
+    if (!supabaseSession) {
+      console.error('No Supabase session after authentication flow');
+      return new Response(
+        JSON.stringify({ error: 'Failed to create user session' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Returning successful authentication response');
     // Return both Jellyfin and Supabase session data
     return new Response(
       JSON.stringify({
