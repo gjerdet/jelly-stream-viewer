@@ -109,8 +109,21 @@ const Login = () => {
         throw new Error(authData?.error || 'Autentisering feilet');
       }
 
+      // Sett Supabase session først
+      if (authData.supabase_session) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: authData.supabase_session.access_token,
+          refresh_token: authData.supabase_session.refresh_token,
+        });
+
+        if (sessionError) {
+          console.error('Failed to set Supabase session:', sessionError);
+          throw new Error('Kunne ikke sette brukerøkt');
+        }
+      }
+
       // Lagre Jellyfin-sesjon i localStorage
-      localStorage.setItem('jellyfin_session', JSON.stringify(authData.jellyfinSession));
+      localStorage.setItem('jellyfin_session', JSON.stringify(authData.jellyfin_session));
       
       toast.success("Logget inn!");
       navigate("/browse");
