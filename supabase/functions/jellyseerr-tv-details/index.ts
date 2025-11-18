@@ -50,9 +50,9 @@ serve(async (req) => {
     if (!rawUrl || !jellyseerrApiKey) {
       console.error('Missing Jellyseerr configuration');
       return new Response(
-        JSON.stringify({ error: 'Jellyseerr er ikke konfigurert' }),
+        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
         { 
-          status: 500, 
+          status: 503, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -75,10 +75,7 @@ serve(async (req) => {
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Kunne ikke koble til Jellyseerr',
-          details: fetchError instanceof Error ? fetchError.message : 'Ukjent tilkoblingsfeil'
-        }),
+        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -90,10 +87,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Jellyseerr error:', response.status, errorText);
       return new Response(
-        JSON.stringify({ 
-          error: 'Kunne ikke hente TV detaljer',
-          details: errorText
-        }),
+        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
         { 
           status: response.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -115,9 +109,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in jellyseerr-tv-details:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Ukjent feil' 
-      }),
+      JSON.stringify({ error: 'Det oppsto en feil' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

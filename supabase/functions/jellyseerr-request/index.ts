@@ -80,9 +80,9 @@ serve(async (req) => {
     if (!jellyseerrUrl || !jellyseerrApiKey) {
       console.error('Missing Jellyseerr configuration');
       return new Response(
-        JSON.stringify({ error: 'Jellyseerr er ikke konfigurert. Gå til Admin for å sette opp.' }),
+        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
         { 
-          status: 500, 
+          status: 503, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -115,10 +115,7 @@ serve(async (req) => {
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
       return new Response(
-        JSON.stringify({ 
-          error: 'Kunne ikke koble til Jellyseerr. Dette kan skyldes et ugyldig SSL-sertifikat. Vennligst bruk lokal IP-adresse (f.eks. http://192.168.x.x:5055) i stedet for domenenavn, eller fiks SSL-sertifikatet.',
-          details: fetchError instanceof Error ? fetchError.message : 'Ukjent tilkoblingsfeil'
-        }),
+        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -132,10 +129,7 @@ serve(async (req) => {
     if (!response.ok) {
       console.error('Jellyseerr error:', response.status, responseData);
       return new Response(
-        JSON.stringify({ 
-          error: responseData.message || 'Kunne ikke sende forespørsel til Jellyseerr',
-          details: responseData 
-        }),
+        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
         { 
           status: response.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -158,9 +152,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in jellyseerr-request:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Ukjent feil oppstod' 
-      }),
+      JSON.stringify({ error: 'Det oppsto en feil' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
