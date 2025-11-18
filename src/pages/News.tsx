@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Newspaper, Pin, MessageSquare, Send, Clock, CheckCircle, XCircle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { nb } from "date-fns/locale";
+import { nb, enUS } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 import { z } from "zod";
 
@@ -45,6 +46,7 @@ const News = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { data: role } = useUserRole(user?.id);
+  const { t, language } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [feedbackTitle, setFeedbackTitle] = useState("");
@@ -52,6 +54,15 @@ const News = () => {
   const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
 
   const isAdmin = role === "admin";
+  const dateLocale = language === 'en' ? enUS : nb;
+  const news = t.news as any;
+  const common = t.common as any;
+
+  // Dynamiske oversettelser for zod
+  const feedbackSchema = z.object({
+    title: z.string().trim().min(3, news.titleMin as string).max(200, news.titleMax as string),
+    description: z.string().trim().min(10, news.descMin as string).max(2000, news.descMax as string),
+  });
 
   useEffect(() => {
     if (!loading && !user) {
@@ -112,14 +123,14 @@ const News = () => {
       setFeedbackDescription("");
       setErrors({});
       toast({
-        title: "Tilbakemelding sendt",
-        description: "Takk for din tilbakemelding!",
+        title: news.feedbackSent,
+        description: news.feedbackThanks,
       });
     },
     onError: (error) => {
       toast({
-        title: "Feil",
-        description: "Kunne ikke sende tilbakemelding. Prøv igjen.",
+        title: common.error,
+        description: news.feedbackError,
         variant: "destructive",
       });
     },
@@ -137,14 +148,14 @@ const News = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-feedbacks"] });
       toast({
-        title: "Status oppdatert",
-        description: "Feedback-status er oppdatert.",
+        title: news.statusUpdated,
+        description: news.statusUpdateDesc,
       });
     },
     onError: () => {
       toast({
-        title: "Feil",
-        description: "Kunne ikke oppdatere status.",
+        title: common.error,
+        description: news.statusUpdateError,
         variant: "destructive",
       });
     },
@@ -162,14 +173,14 @@ const News = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-feedbacks"] });
       toast({
-        title: "Slettet",
-        description: "Tilbakemelding er slettet.",
+        title: news.deleted,
+        description: news.deletedDesc,
       });
     },
     onError: () => {
       toast({
-        title: "Feil",
-        description: "Kunne ikke slette tilbakemelding.",
+        title: common.error,
+        description: news.deleteError,
         variant: "destructive",
       });
     },
@@ -198,13 +209,13 @@ const News = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" />Venter</Badge>;
+        return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" />{news.statusPending}</Badge>;
       case "in_progress":
-        return <Badge variant="default" className="gap-1 bg-blue-600"><MessageSquare className="h-3 w-3" />Pågår</Badge>;
+        return <Badge variant="default" className="gap-1 bg-blue-600"><MessageSquare className="h-3 w-3" />{news.statusInProgress}</Badge>;
       case "completed":
-        return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" />Fullført</Badge>;
+        return <Badge variant="default" className="gap-1 bg-green-600"><CheckCircle className="h-3 w-3" />{news.statusCompleted}</Badge>;
       case "rejected":
-        return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />Avvist</Badge>;
+        return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />{news.statusRejected}</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -214,7 +225,7 @@ const News = () => {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-12">
-          <p className="text-center text-muted-foreground">Laster...</p>
+          <p className="text-center text-muted-foreground">{common.loading}</p>
         </div>
       </div>
     );
@@ -229,15 +240,15 @@ const News = () => {
               <Newspaper className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">Info & Nyheter</h1>
-              <p className="text-muted-foreground">Siste oppdateringer og informasjon</p>
+              <h1 className="text-3xl font-bold">{news.title}</h1>
+              <p className="text-muted-foreground">{news.subtitle}</p>
             </div>
           </div>
 
           <Tabs defaultValue="news" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="news">Nyheter</TabsTrigger>
-              <TabsTrigger value="feedback">Tilbakemeldinger</TabsTrigger>
+              <TabsTrigger value="news">{news.tabNews}</TabsTrigger>
+              <TabsTrigger value="feedback">{news.tabFeedback}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="news" className="mt-6">
@@ -245,7 +256,7 @@ const News = () => {
                 <Card className="border-border/50">
                   <CardContent className="py-12 text-center">
                     <Newspaper className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-lg text-muted-foreground">Ingen nyheter ennå</p>
+                    <p className="text-lg text-muted-foreground">{news.noNews}</p>
                   </CardContent>
                 </Card>
               ) : (
@@ -263,7 +274,7 @@ const News = () => {
                             </div>
                           </div>
                           <time className="text-sm text-muted-foreground whitespace-nowrap">
-                            {format(new Date(post.created_at), "d. MMMM yyyy", { locale: nb })}
+                            {format(new Date(post.created_at), "d. MMMM yyyy", { locale: dateLocale })}
                           </time>
                         </div>
                       </CardHeader>
@@ -285,16 +296,16 @@ const News = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <MessageSquare className="h-5 w-5" />
-                      Legg inn forbedringsforslag
+                      {news.addFeedback}
                     </CardTitle>
                     <CardDescription>
-                      Del dine tanker om hva som kan forbedres
+                      {news.addFeedbackDesc}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <Input
-                        placeholder="Tittel på forslag"
+                        placeholder={news.feedbackTitle}
                         value={feedbackTitle}
                         onChange={(e) => setFeedbackTitle(e.target.value)}
                         maxLength={200}
@@ -306,7 +317,7 @@ const News = () => {
                     </div>
                     <div className="space-y-2">
                       <Textarea
-                        placeholder="Beskriv forslaget ditt..."
+                        placeholder={news.feedbackDescription}
                         value={feedbackDescription}
                         onChange={(e) => setFeedbackDescription(e.target.value)}
                         rows={4}
@@ -317,7 +328,7 @@ const News = () => {
                         <p className="text-sm text-destructive">{errors.description}</p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        {feedbackDescription.length}/2000 tegn
+                        {feedbackDescription.length}/2000 {news.characters}
                       </p>
                     </div>
                     <Button
@@ -326,20 +337,20 @@ const News = () => {
                       className="w-full"
                     >
                       <Send className="h-4 w-4 mr-2" />
-                      {createFeedbackMutation.isPending ? "Sender..." : "Send tilbakemelding"}
+                      {createFeedbackMutation.isPending ? news.feedbackSending : news.feedbackSend}
                     </Button>
                   </CardContent>
                 </Card>
 
                 {/* Display feedbacks */}
                 {isLoadingFeedbacks ? (
-                  <p className="text-center text-muted-foreground">Laster tilbakemeldinger...</p>
+                  <p className="text-center text-muted-foreground">{news.loadingFeedback}</p>
                 ) : !feedbacks || feedbacks.length === 0 ? (
                   <Card className="border-border/50">
                     <CardContent className="py-12 text-center">
                       <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <p className="text-lg text-muted-foreground">Ingen tilbakemeldinger ennå</p>
-                      <p className="text-sm text-muted-foreground mt-2">Vær den første til å dele dine forslag!</p>
+                      <p className="text-lg text-muted-foreground">{news.noFeedback}</p>
+                      <p className="text-sm text-muted-foreground mt-2">{news.beFirstFeedback}</p>
                     </CardContent>
                   </Card>
                 ) : (
@@ -367,25 +378,25 @@ const News = () => {
                                       <SelectItem value="pending">
                                         <div className="flex items-center gap-2">
                                           <Clock className="h-3 w-3" />
-                                          Venter
+                                          {news.statusPending}
                                         </div>
                                       </SelectItem>
                                       <SelectItem value="in_progress">
                                         <div className="flex items-center gap-2">
                                           <MessageSquare className="h-3 w-3" />
-                                          Pågår
+                                          {news.statusInProgress}
                                         </div>
                                       </SelectItem>
                                       <SelectItem value="completed">
                                         <div className="flex items-center gap-2">
                                           <CheckCircle className="h-3 w-3" />
-                                          Fullført
+                                          {news.statusCompleted}
                                         </div>
                                       </SelectItem>
                                       <SelectItem value="rejected">
                                         <div className="flex items-center gap-2">
                                           <XCircle className="h-3 w-3" />
-                                          Avvist
+                                          {news.statusRejected}
                                         </div>
                                       </SelectItem>
                                     </SelectContent>
@@ -395,7 +406,7 @@ const News = () => {
                                     size="icon"
                                     className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                                     onClick={() => {
-                                      if (confirm("Er du sikker på at du vil slette denne tilbakemeldingen?")) {
+                                      if (confirm(news.deleteConfirm)) {
                                         deleteFeedbackMutation.mutate(feedback.id);
                                       }
                                     }}
@@ -410,7 +421,7 @@ const News = () => {
                                 </div>
                               )}
                               <time className="text-xs text-muted-foreground whitespace-nowrap">
-                                {format(new Date(feedback.created_at), "d. MMM yyyy", { locale: nb })}
+                                {format(new Date(feedback.created_at), "d. MMM yyyy", { locale: dateLocale })}
                               </time>
                             </div>
                           </div>
