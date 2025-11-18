@@ -132,6 +132,7 @@ const Browse = () => {
   }, {} as Record<string, JellyfinItem[]>);
 
   const hasApiError = itemsError || resumeError;
+  const hasNoData = !allItems || allItems.Items?.length === 0;
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items || !serverUrl) return [];
@@ -166,19 +167,23 @@ const Browse = () => {
     );
   }
 
-  // Show demo mode message immediately if in demo mode
-  if (isDemoMode) {
+  // Show error message if server is not available or no data
+  if (isDemoMode || hasApiError || (hasNoData && !loading)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-2xl mx-auto text-center space-y-6">
             <div className="p-8 rounded-xl bg-card border border-border">
-              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Film className="w-8 h-8 text-primary" />
+              <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+                <Film className="w-8 h-8 text-destructive" />
               </div>
-              <h2 className="text-2xl font-bold mb-3 text-foreground">Demo-modus</h2>
+              <h2 className="text-2xl font-bold mb-3 text-foreground">
+                {isDemoMode ? "Demo-modus" : "Kan ikke koble til Jellyfin-server"}
+              </h2>
               <p className="text-muted-foreground mb-6">
-                Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.
+                {isDemoMode 
+                  ? "Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server."
+                  : "Kan ikke hente data fra Jellyfin-serveren. Kontroller at serveren kjører og er tilgjengelig."}
               </p>
               <div className="space-y-3">
                 <Button 
@@ -186,14 +191,14 @@ const Browse = () => {
                   variant="default"
                   className="w-full"
                 >
-                  Sett opp Jellyfin-server
+                  Gå til oppsett
                 </Button>
                 <Button 
-                  onClick={() => navigate("/browse")} 
+                  onClick={() => window.location.reload()} 
                   variant="outline"
                   className="w-full"
                 >
-                  Gå til hjem
+                  Prøv på nytt
                 </Button>
               </div>
             </div>
@@ -203,41 +208,6 @@ const Browse = () => {
                 <li>Sett opp din Jellyfin-server via Admin-innstillinger</li>
                 <li>Utforsk appens funksjoner og design</li>
                 <li>Når serveren er koblet til, vil innhold vises automatisk</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error message if API key is not configured
-  if (hasApiError && !loading) {
-    const errorMessage = itemsError?.message || resumeError?.message || 'Ukjent feil';
-    
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-20">
-          <div className="max-w-2xl mx-auto text-center space-y-6">
-            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
-              <h2 className="text-2xl font-bold mb-2">Kunne ikke koble til Jellyfin</h2>
-              <p className="text-muted-foreground mb-4">
-                {errorMessage}
-              </p>
-              <button
-                onClick={() => navigate("/admin")}
-                className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Gå til Admin-innstillinger
-              </button>
-            </div>
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p>Mulige årsaker:</p>
-              <ul className="list-disc list-inside text-left max-w-md mx-auto space-y-1">
-                <li>Jellyfin API-nøkkel er feil eller mangler</li>
-                <li>Jellyfin server URL er feil</li>
-                <li>Jellyfin-serveren er ikke tilgjengelig</li>
-                <li>API-nøkkelen har ikke riktige tilganger</li>
               </ul>
             </div>
           </div>
