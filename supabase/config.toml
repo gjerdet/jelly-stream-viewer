@@ -35,8 +35,35 @@ verify_jwt = true
 [functions.jellyseerr-tv-details]
 verify_jwt = true
 
+[functions.jellyseerr-movie-details]
+verify_jwt = true
+
+[functions.jellyseerr-season-details]
+verify_jwt = true
+
 [functions.jellyseerr-popular]
 verify_jwt = true
 
+[functions.jellyseerr-test]
+verify_jwt = true
+
 [functions.sync-jellyfin-history]
+verify_jwt = true
+
+[functions.check-updates]
+verify_jwt = true
+
+[functions.trigger-update]
+verify_jwt = true
+
+[functions.qbittorrent-status]
+verify_jwt = true
+
+[functions.server-stats]
+verify_jwt = true
+
+[functions.fetch-system-logs]
+verify_jwt = true
+
+[functions.setup-netdata]
 verify_jwt = true

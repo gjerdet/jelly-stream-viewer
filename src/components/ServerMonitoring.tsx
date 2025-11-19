@@ -206,6 +206,31 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Netdata Dashboard iframe */}
+      {monitoringUrl && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Netdata Dashboard
+            </CardTitle>
+            <CardDescription>
+              Full server overvåking med sanntidsdata
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="w-full" style={{ height: '600px' }}>
+              <iframe 
+                src={monitoringUrl}
+                className="w-full h-full border-0 rounded-b-lg"
+                title="Netdata Dashboard"
+                sandbox="allow-scripts allow-same-origin"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
