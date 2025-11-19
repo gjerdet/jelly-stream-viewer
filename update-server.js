@@ -75,11 +75,106 @@ function checkRateLimit(ip) {
   return true;
 }
 
+// Setup nginx configuration for webhook
+async function setupNginxWebhook() {
+  log('Setting up nginx webhook configuration...');
+  
+  const nginxConfig = `# Webhook endpoint for auto-updates
+location /update-webhook {
+    proxy_pass http://127.0.0.1:3001;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Webhook-Signature $http_x_webhook_signature;
+    proxy_set_header X-Webhook-Timestamp $http_x_webhook_timestamp;
+    
+    # Security
+    allow all;
+    
+    # Timeouts
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 10s;
+    proxy_read_timeout 10s;
+}
+`;
+
+  const configPath = '/etc/nginx/conf.d/webhook.conf';
+  
+  try {
+    // Write nginx config
+    await execAsync(`echo '${nginxConfig}' | sudo tee ${configPath}`);
+    log('Nginx webhook config created');
+    
+    // Test nginx config
+    await execAsync('sudo nginx -t');
+    log('Nginx config valid');
+    
+    // Reload nginx
+    await execAsync('sudo systemctl reload nginx');
+    log('Nginx reloaded successfully');
+    
+    return true;
+  } catch (error) {
+    log('Warning: Could not setup nginx webhook config (may need manual setup):', error.message);
+    return false;
+  }
+}
+
+// Setup systemd service for webhook server
+async function setupWebhookService() {
+  log('Setting up webhook systemd service...');
+  
+  const serviceFile = `[Unit]
+Description=Jelly Stream Viewer Update Webhook
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=${APP_DIR}
+Environment="WEBHOOK_PORT=3001"
+Environment="WEBHOOK_SECRET=${UPDATE_SECRET}"
+Environment="PROJECT_PATH=${APP_DIR}"
+ExecStart=/usr/bin/node ${APP_DIR}/server/update-webhook.js
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+  try {
+    // Write service file
+    await execAsync(`echo '${serviceFile}' | sudo tee /etc/systemd/system/jelly-webhook.service`);
+    log('Systemd service file created');
+    
+    // Reload systemd
+    await execAsync('sudo systemctl daemon-reload');
+    
+    // Enable and start service
+    await execAsync('sudo systemctl enable jelly-webhook.service');
+    await execAsync('sudo systemctl restart jelly-webhook.service');
+    
+    log('Webhook service enabled and started');
+    return true;
+  } catch (error) {
+    log('Warning: Could not setup webhook service (may need manual setup):', error.message);
+    return false;
+  }
+}
+
 // Update function
 async function performUpdate() {
   log('Starting update process...');
   
   try {
+    // Step 0: Setup nginx and webhook service (first time setup)
+    await setupNginxWebhook();
+    await setupWebhookService();
+    
     // Step 1: Git pull
     log('Pulling latest changes from GitHub...');
     const { stdout: gitOutput } = await execAsync('git pull', { cwd: APP_DIR });
