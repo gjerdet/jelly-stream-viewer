@@ -646,8 +646,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-12">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="max-w-full md:max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-2 sm:px-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-primary/10">
                 <Settings className="h-8 w-8 text-primary" />
@@ -668,28 +668,28 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="health" className="w-full">
-            <TabsList className="grid w-full grid-cols-10">
-              <TabsTrigger value="health">
-                <Activity className="h-4 w-4 mr-2" />
-                Health
+            <TabsList className="w-full overflow-x-auto flex md:grid md:grid-cols-10 justify-start">
+              <TabsTrigger value="health" className="flex-shrink-0">
+                <Activity className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Health</span>
               </TabsTrigger>
-              <TabsTrigger value="servers">{admin.servers || "Servers"}</TabsTrigger>
-              <TabsTrigger value="database">{admin.database || "Database"}</TabsTrigger>
-              <TabsTrigger value="site">{language === 'no' ? 'Side' : 'Site'}</TabsTrigger>
-              <TabsTrigger value="monitoring">
-                <Server className="h-4 w-4 mr-2" />
-                {language === 'no' ? 'Status' : 'Status'}
+              <TabsTrigger value="servers" className="flex-shrink-0">{admin.servers || "Servers"}</TabsTrigger>
+              <TabsTrigger value="database" className="flex-shrink-0">{admin.database || "Database"}</TabsTrigger>
+              <TabsTrigger value="site" className="flex-shrink-0">{language === 'no' ? 'Side' : 'Site'}</TabsTrigger>
+              <TabsTrigger value="monitoring" className="flex-shrink-0">
+                <Server className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{language === 'no' ? 'Status' : 'Status'}</span>
               </TabsTrigger>
-              <TabsTrigger value="qbittorrent">
-                <Download className="h-4 w-4 mr-2" />
-                qBittorrent
+              <TabsTrigger value="qbittorrent" className="flex-shrink-0">
+                <Download className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">qBittorrent</span>
               </TabsTrigger>
-              <TabsTrigger value="users">{admin.users || "Users"}</TabsTrigger>
-              <TabsTrigger value="news">{language === 'no' ? 'Nyheter' : 'News'}</TabsTrigger>
-              <TabsTrigger value="versions">{admin.versions || "Versions"}</TabsTrigger>
-              <TabsTrigger value="logs">
-                <FileText className="h-4 w-4 mr-2" />
-                {admin.logs || "Logs"}
+              <TabsTrigger value="users" className="flex-shrink-0">{admin.users || "Users"}</TabsTrigger>
+              <TabsTrigger value="news" className="flex-shrink-0">{language === 'no' ? 'Nyheter' : 'News'}</TabsTrigger>
+              <TabsTrigger value="versions" className="flex-shrink-0">{admin.versions || "Versions"}</TabsTrigger>
+              <TabsTrigger value="logs" className="flex-shrink-0">
+                <FileText className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{admin.logs || "Logs"}</span>
               </TabsTrigger>
             </TabsList>
 
@@ -1200,28 +1200,63 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       {admin.monitoringInstructions || "Install Netdata on your server for live statistics. Default port is 19999."}
                     </p>
                   </div>
-                  <Button 
-                    onClick={async () => {
-                      const { error } = await supabase
-                        .from("server_settings")
-                        .upsert({ 
-                          setting_key: "monitoring_url", 
-                          setting_value: monitoringUrl 
-                        }, { 
-                          onConflict: 'setting_key' 
-                        });
-                      
-                      if (error) {
-                        console.error('Monitoring URL update error:', error);
-                        toast.error(`${admin.couldNotUpdateMonitoring || "Could not update monitoring URL"}: ${error.message}`);
-                      } else {
-                        toast.success(admin.monitoringUpdated || "Monitoring URL updated!");
-                      }
-                    }}
-                    className="cinema-glow"
-                  >
-                    {admin.saveMonitoringUrl || "Save Monitoring URL"}
-                  </Button>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button 
+                      onClick={async () => {
+                        const { error } = await supabase
+                          .from("server_settings")
+                          .upsert({ 
+                            setting_key: "monitoring_url", 
+                            setting_value: monitoringUrl 
+                          }, { 
+                            onConflict: 'setting_key' 
+                          });
+                        
+                        if (error) {
+                          console.error('Monitoring URL update error:', error);
+                          toast.error(`${admin.couldNotUpdateMonitoring || "Could not update monitoring URL"}: ${error.message}`);
+                        } else {
+                          toast.success(admin.monitoringUpdated || "Monitoring URL updated!");
+                        }
+                      }}
+                      className="cinema-glow"
+                    >
+                      {admin.saveMonitoringUrl || "Save Monitoring URL"}
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={async () => {
+                        toast.loading("Setter opp Netdata...");
+                        try {
+                          const { data, error } = await supabase.functions.invoke("setup-netdata");
+                          
+                          if (error) throw error;
+                          
+                          if (data.success) {
+                            toast.success("Netdata er satt opp! Vennligst vent noen minutter før du bruker det.");
+                            // Auto-set the URL
+                            setMonitoringUrl("http://localhost:19999");
+                            await supabase
+                              .from("server_settings")
+                              .upsert({ 
+                                setting_key: "monitoring_url", 
+                                setting_value: "http://localhost:19999" 
+                              }, { 
+                                onConflict: 'setting_key' 
+                              });
+                          } else {
+                            toast.error(data.message || "Kunne ikke sette opp Netdata");
+                          }
+                        } catch (err: any) {
+                          toast.error(err.message || "Kunne ikke sette opp Netdata");
+                        }
+                      }}
+                      className="gap-2"
+                    >
+                      <Server className="h-4 w-4" />
+                      Setup Netdata
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
