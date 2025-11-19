@@ -47,6 +47,7 @@ const Admin = () => {
   // GitHub settings state
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
+  const [updateWebhookSecret, setUpdateWebhookSecret] = useState("");
   
   // Database settings state
   const [deploymentType, setDeploymentType] = useState("");
@@ -198,10 +199,11 @@ const Admin = () => {
 
   // GitHub settings mutations
   const updateGithubSettings = useMutation({
-    mutationFn: async ({ repoUrl, webhookUrl }: { repoUrl: string; webhookUrl: string }) => {
+    mutationFn: async ({ repoUrl, webhookUrl, webhookSecret }: { repoUrl: string; webhookUrl: string; webhookSecret: string }) => {
       const updates = [
         { setting_key: "github_repo_url", setting_value: repoUrl, updated_at: new Date().toISOString() },
-        { setting_key: "update_webhook_url", setting_value: webhookUrl, updated_at: new Date().toISOString() }
+        { setting_key: "update_webhook_url", setting_value: webhookUrl, updated_at: new Date().toISOString() },
+        { setting_key: "update_webhook_secret", setting_value: webhookSecret, updated_at: new Date().toISOString() }
       ];
 
       for (const update of updates) {
@@ -260,6 +262,7 @@ const Admin = () => {
           "qbittorrent_password", 
           "github_repo_url", 
           "update_webhook_url",
+          "update_webhook_secret",
           "deployment_type",
           "db_host",
           "db_port",
@@ -277,6 +280,7 @@ const Admin = () => {
         if (setting.setting_key === "qbittorrent_password") setQbittorrentPassword(setting.setting_value || "");
         if (setting.setting_key === "github_repo_url") setGithubRepoUrl(setting.setting_value || "");
         if (setting.setting_key === "update_webhook_url") setUpdateWebhookUrl(setting.setting_value || "");
+        if (setting.setting_key === "update_webhook_secret") setUpdateWebhookSecret(setting.setting_value || "");
         if (setting.setting_key === "deployment_type") setDeploymentType(setting.setting_value || "");
         if (setting.setting_key === "db_host") setDbHost(setting.setting_value || "");
         if (setting.setting_key === "db_port") setDbPort(setting.setting_value || "");
@@ -812,7 +816,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     <Input
                       id="update-webhook-url"
                       type="url"
-                      placeholder="http://localhost:3001/update"
+                      placeholder="https://jellyfin.gjerdet.casa/webhook/update"
                       value={updateWebhookUrl}
                       onChange={(e) => setUpdateWebhookUrl(e.target.value)}
                       className="bg-secondary/50 border-border/50"
@@ -821,13 +825,36 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       {admin.webhookDescription || "Webhook URL to your server to install updates"}
                     </p>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="update-webhook-secret">{admin.webhookSecretOptional || "Webhook Secret (Optional)"}</Label>
+                    <Input
+                      id="update-webhook-secret"
+                      type="password"
+                      placeholder="Generate using: openssl rand -hex 32"
+                      value={updateWebhookSecret}
+                      onChange={(e) => setUpdateWebhookSecret(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {admin.webhookSecretDescription || "Secret key for authenticating webhook requests"}
+                    </p>
+                  </div>
                   <Button 
-                    onClick={() => updateGithubSettings.mutate({ repoUrl: githubRepoUrl, webhookUrl: updateWebhookUrl })}
+                    onClick={() => updateGithubSettings.mutate({ repoUrl: githubRepoUrl, webhookUrl: updateWebhookUrl, webhookSecret: updateWebhookSecret })}
                     disabled={updateGithubSettings.isPending || !githubRepoUrl}
                     className="cinema-glow"
                   >
                     {updateGithubSettings.isPending ? (admin.saving || "Saving...") : (admin.saveGithubSettings || "Save GitHub Settings")}
                   </Button>
+                  <div className="mt-4 p-4 bg-muted/30 rounded-lg text-sm space-y-2">
+                    <p className="font-medium">📖 {admin.webhookSetupGuide || "Setup Guide"}:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Start webhook server på serveren: <code className="bg-background px-1 rounded">node server/update-webhook.js</code></li>
+                      <li>Sett webhook URL til server endpoint (f.eks. https://dittdomene.com/webhook/update)</li>
+                      <li>Generer secret: <code className="bg-background px-1 rounded">openssl rand -hex 32</code></li>
+                      <li>Se <code className="bg-background px-1 rounded">docs/UPDATE_SETUP.md</code> for detaljert oppsett</li>
+                    </ol>
+                  </div>
                 </CardContent>
               </Card>
 
