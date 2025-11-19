@@ -75,7 +75,7 @@ const Browse = () => {
                            contentType === 'series' ? 'Series' : 
                            'Movie,Series';
 
-  const { data: allItems, error: itemsError } = useJellyfinApi<JellyfinResponse>(
+  const { data: allItems, error: itemsError, isLoading: itemsLoading } = useJellyfinApi<JellyfinResponse>(
     ["all-items", userId || "", contentType],
     {
       endpoint: userId && !isDemoMode
@@ -86,7 +86,7 @@ const Browse = () => {
   );
 
   // Fetch resume items with user ID (skip if demo mode)
-  const { data: resumeItems, error: resumeError } = useJellyfinApi<JellyfinResponse>(
+  const { data: resumeItems, error: resumeError, isLoading: resumeLoading } = useJellyfinApi<JellyfinResponse>(
     ["resume-items", userId || ""],
     {
       endpoint: userId && !isDemoMode
@@ -136,7 +136,8 @@ const Browse = () => {
   }, {} as Record<string, JellyfinItem[]>);
 
   const hasApiError = itemsError || resumeError;
-  const hasNoData = !allItems || allItems.Items?.length === 0;
+  const isDataLoading = itemsLoading || resumeLoading || !userId;
+  const hasNoData = !isDataLoading && (!allItems || allItems.Items?.length === 0);
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items || !serverUrl) return [];
@@ -163,7 +164,7 @@ const Browse = () => {
     }
   };
 
-  if (loading) {
+  if (loading || isDataLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-foreground">{common.loading}</p>
@@ -172,7 +173,7 @@ const Browse = () => {
   }
 
   // Show error message if server is not available or no data
-  if (isDemoMode || hasApiError || (hasNoData && !loading)) {
+  if (isDemoMode || (hasApiError && !isDataLoading) || (hasNoData && !loading && !isDataLoading)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
