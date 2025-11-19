@@ -197,8 +197,8 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Signature': signature,
-        'X-Timestamp': timestamp
+        'X-Webhook-Signature': signature,
+        'X-Webhook-Timestamp': timestamp
       },
       body: payload
     });
