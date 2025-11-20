@@ -175,18 +175,17 @@ export const UpdateManager = () => {
   }, [updateStatus?.id]);
 
   const installUpdate = async () => {
+    // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
+    if (window.location.hostname.endsWith('lovableproject.com')) {
+      toast.info('Installer oppdatering virker kun på selvhostede installasjoner. Dette vil fungere når appen kjører på din egen server.');
+      return;
+    }
+
     setUpdating(true);
     setUpdateStatus(null);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
     try {
-      // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
-      if (window.location.hostname.endsWith('lovableproject.com')) {
-        toast.info('Installer oppdatering virker kun på selvhostede installasjoner.');
-        setUpdating(false);
-        return;
-      }
-
       // Create initial update status entry
       const { data: statusData, error: statusError } = await supabase
         .from('update_status')
