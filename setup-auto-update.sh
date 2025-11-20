@@ -99,14 +99,14 @@ log_success "Webhook secret generert"
 echo ""
 log_info "Steg 4: Domene-konfigurasjon"
 echo ""
-echo "Hvis du har et domene med HTTPS-sertifikat (f.eks. jellyfin.gjerdet.casa),"
+echo "Hvis du har et domene med HTTPS-sertifikat (f.eks. yourdomain.com),"
 echo "kan du motta webhooks fra internett for automatiske oppdateringer."
 echo ""
 read -p "Har du et domene du vil bruke? (y/n): " HAS_DOMAIN
 
 if [[ "$HAS_DOMAIN" =~ ^[Yy]$ ]]; then
-    read -p "Skriv inn domenet (f.eks. jellyfin.gjerdet.casa): " DOMAIN
-    read -p "Skriv inn stien for webhook (f.eks. /update-webhook): " WEBHOOK_PATH
+    read -p "Skriv inn domenet (f.eks. yourdomain.com): " DOMAIN
+    read -p "Skriv inn stien for webhook (starter med /, f.eks. /update-webhook): " WEBHOOK_PATH
     WEBHOOK_URL="https://${DOMAIN}${WEBHOOK_PATH}"
     SETUP_NGINX=true
 else
@@ -171,7 +171,6 @@ location ${WEBHOOK_PATH} {
 }
 EOF
     
-    log_success "Nginx-konfigurasjon opprettet: $NGINX_CONF"
     log_warning "VIKTIG: Du må manuelt inkludere denne filen i din nginx server-blokk for $DOMAIN"
     log_warning "Legg til denne linjen i server-blokken: include $NGINX_CONF;"
 fi
