@@ -15,10 +15,20 @@
 const http = require('http');
 const { exec } = require('child_process');
 const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
 
 const PORT = process.env.GIT_PULL_PORT || 3002;
 const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
 const APP_DIR = process.env.APP_DIR || process.cwd();
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Initialize Supabase client if credentials are available
+let supabase = null;
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  console.log('✅ Supabase client initialized');
+}
 
 console.log('🚀 Git Pull Server starting...');
 console.log(`📁 Working directory: ${APP_DIR}`);
@@ -36,30 +46,121 @@ function verifySignature(payload, signature, secret) {
 }
 
 /**
- * Execute git pull and related commands
+ * Update status in Supabase
  */
-function executeGitPull(callback) {
-  const commands = [
-    'git stash',
-    'git pull origin main',
-    'npm install --production',
-    'npm run build',
-  ].join(' && ');
+async function updateStatus(updateId, status, progress, currentStep, logs, error = null) {
+  if (!supabase || !updateId) return;
+  
+  try {
+    await supabase
+      .from('update_status')
+      .update({
+        status,
+        progress,
+        current_step: currentStep,
+        logs: JSON.stringify(logs),
+        error,
+        updated_at: new Date().toISOString(),
+        ...(status === 'completed' && { completed_at: new Date().toISOString() })
+      })
+      .eq('id', updateId);
+  } catch (err) {
+    console.error('Failed to update status:', err);
+  }
+}
 
-  console.log('⚙️  Executing update commands...');
-
-  exec(commands, { cwd: APP_DIR }, (error, stdout, stderr) => {
-    if (error) {
-      console.error('❌ Update failed:', error.message);
-      callback({ success: false, error: error.message, stderr });
-      return;
-    }
-
-    console.log('✅ Update completed successfully!');
-    console.log('📝 Output:', stdout);
-
-    callback({ success: true, output: stdout });
+/**
+ * Add log entry
+ */
+function addLog(logs, message, level = 'info') {
+  logs.push({
+    timestamp: new Date().toISOString(),
+    message,
+    level
   });
+  console.log(`[${level.toUpperCase()}] ${message}`);
+}
+
+/**
+ * Execute command and capture output
+ */
+function execCommand(command, cwd, logs) {
+  return new Promise((resolve, reject) => {
+    exec(command, { cwd }, (error, stdout, stderr) => {
+      if (error) {
+        addLog(logs, `Command failed: ${command}`, 'error');
+        addLog(logs, error.message, 'error');
+        if (stderr) addLog(logs, stderr, 'error');
+        reject(error);
+      } else {
+        if (stdout) addLog(logs, stdout, 'success');
+        if (stderr) addLog(logs, stderr, 'warning');
+        resolve(stdout);
+      }
+    });
+  });
+}
+
+/**
+ * Execute git pull and related commands with live updates
+ */
+async function executeGitPull(updateId) {
+  const logs = [];
+  
+  try {
+    addLog(logs, '🚀 Starting update process...', 'info');
+    await updateStatus(updateId, 'running', 10, 'Stashing changes...', logs);
+
+    // Step 1: Git stash
+    addLog(logs, '📦 Stashing local changes...', 'info');
+    await execCommand('git stash', APP_DIR, logs);
+    await updateStatus(updateId, 'running', 25, 'Pulling latest changes...', logs);
+
+    // Step 2: Git pull
+    addLog(logs, '⬇️ Pulling latest changes from GitHub...', 'info');
+    await execCommand('git pull origin main', APP_DIR, logs);
+    await updateStatus(updateId, 'running', 40, 'Getting commit SHA...', logs);
+
+    // Step 3: Get new commit SHA
+    addLog(logs, '🔍 Getting current commit SHA...', 'info');
+    const commitSha = await execCommand('git rev-parse HEAD', APP_DIR, logs);
+    const trimmedSha = commitSha.trim();
+    addLog(logs, `Current commit: ${trimmedSha.slice(0, 7)}`, 'success');
+    
+    // Step 4: Update installed_commit_sha in database
+    if (supabase) {
+      addLog(logs, '💾 Updating installed version in database...', 'info');
+      await supabase
+        .from('server_settings')
+        .upsert({
+          setting_key: 'installed_commit_sha',
+          setting_value: trimmedSha,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'setting_key' });
+      addLog(logs, '✅ Database updated with new version', 'success');
+    }
+    
+    await updateStatus(updateId, 'running', 55, 'Installing dependencies...', logs);
+
+    // Step 5: npm install
+    addLog(logs, '📦 Installing dependencies...', 'info');
+    await execCommand('npm install --production', APP_DIR, logs);
+    await updateStatus(updateId, 'running', 75, 'Building application...', logs);
+
+    // Step 6: npm build
+    addLog(logs, '🔨 Building application...', 'info');
+    await execCommand('npm run build', APP_DIR, logs);
+    await updateStatus(updateId, 'running', 90, 'Finalizing...', logs);
+
+    addLog(logs, '✅ Update completed successfully!', 'success');
+    await updateStatus(updateId, 'completed', 100, 'Update completed', logs);
+
+    return { success: true };
+  } catch (error) {
+    addLog(logs, `❌ Update failed: ${error.message}`, 'error');
+    await updateStatus(updateId, 'failed', 0, 'Update failed', logs, error.message);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
@@ -97,7 +198,7 @@ const server = http.createServer((req, res) => {
       body += chunk.toString();
     });
 
-    req.on('end', () => {
+    req.on('end', async () => {
       // Verify signature if secret is set
       const signature = req.headers['x-update-signature'];
 
@@ -108,22 +209,34 @@ const server = http.createServer((req, res) => {
         return;
       }
 
-      console.log('🔄 Git pull triggered');
+      // Parse request body to get updateId
+      let updateId = null;
+      try {
+        const data = JSON.parse(body || '{}');
+        updateId = data.updateId;
+      } catch (err) {
+        console.error('Failed to parse request body:', err);
+      }
+
+      console.log('🔄 Git pull triggered', updateId ? `(Update ID: ${updateId})` : '');
 
       // Send immediate response
       res.writeHead(202, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         status: 'accepted',
         message: 'Update started',
+        updateId
       }));
 
       // Execute git pull in background
-      executeGitPull((result) => {
+      executeGitPull(updateId).then((result) => {
         if (result.success) {
           console.log('✅ Update completed successfully');
         } else {
           console.error('❌ Update failed:', result.error);
         }
+      }).catch((err) => {
+        console.error('❌ Unexpected error during update:', err);
       });
     });
 
