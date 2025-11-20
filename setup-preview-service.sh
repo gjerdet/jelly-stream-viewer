@@ -30,10 +30,10 @@ systemctl stop jelly-webhook 2>/dev/null || true
 
 echo -e "${GREEN}[2/6]${NC} Installing dependencies..."
 cd "$APP_DIR"
-sudo -u "$ACTUAL_USER" npm install
+su - "$ACTUAL_USER" -c "cd '$APP_DIR' && npm install"
 
 echo -e "${GREEN}[3/6]${NC} Building application..."
-sudo -u "$ACTUAL_USER" npm run build
+su - "$ACTUAL_USER" -c "cd '$APP_DIR' && npm run build"
 
 echo -e "${GREEN}[4/6]${NC} Creating systemd service for preview (port 4173)..."
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
