@@ -290,9 +290,9 @@ app.post('/update', async (req, res) => {
   }
   
   try {
-    // Get signature and timestamp from headers
-    const signature = req.headers['x-signature'];
-    const timestamp = req.headers['x-timestamp'];
+    // Get signature and timestamp from headers (support both legacy and new names)
+    const signature = req.headers['x-webhook-signature'] || req.headers['x-signature'];
+    const timestamp = req.headers['x-webhook-timestamp'] || req.headers['x-timestamp'];
     
     if (!signature || !timestamp) {
       log('Missing signature or timestamp');
