@@ -70,6 +70,14 @@ else
     echo -e "${GREEN}Generert ny UPDATE_SECRET${NC}"
 fi
 
+# Get server IP
+SERVER_IP=$(hostname -I | awk '{print $1}')
+if [ -z "$SERVER_IP" ]; then
+    SERVER_IP="192.168.9.24"  # Fallback
+fi
+GIT_PULL_URL="http://${SERVER_IP}:3002/git-pull"
+echo -e "${BLUE}Git Pull Server URL: ${GIT_PULL_URL}${NC}"
+
 # Get current user (the one who ran sudo)
 ACTUAL_USER=${SUDO_USER:-$(whoami)}
 echo -e "${BLUE}Service vil kjøre som bruker: ${ACTUAL_USER}${NC}"
@@ -128,6 +136,16 @@ sleep 2
 if systemctl is-active --quiet jelly-git-pull.service; then
     echo -e "${GREEN}✓ Service kjører!${NC}"
     systemctl status jelly-git-pull.service --no-pager
+    
+    # Update database settings
+    echo -e "${BLUE}Oppdaterer database settings...${NC}"
+    if [ -f "${APP_DIR}/node_modules/@supabase/supabase-js/package.json" ]; then
+        cd "${APP_DIR}"
+        node update-database-settings.cjs "${GIT_PULL_URL}" "${UPDATE_SECRET}" 2>&1 || echo -e "${YELLOW}⚠️  Kunne ikke oppdatere database automatisk${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Supabase pakke ikke funnet, hopper over database oppdatering${NC}"
+        echo -e "${YELLOW}   Du må sette Git Pull Server URL og Secret manuelt i Admin Panel${NC}"
+    fi
 else
     echo -e "${RED}✗ Service startet ikke. Sjekk logs:${NC}"
     journalctl -u jelly-git-pull.service -n 50 --no-pager
@@ -141,13 +159,15 @@ cat > "$SUMMARY_FILE" << EOF
 Generert: $(date)
 
 UPDATE_SECRET: ${UPDATE_SECRET}
-Git Pull Server URL: http://localhost:3002/git-pull
-Health Check URL: http://localhost:3002/health
+Git Pull Server URL: ${GIT_PULL_URL}
+Health Check URL: http://${SERVER_IP}:3002/health
+Local Health Check: http://localhost:3002/health
 
 === Admin Panel Konfigurasjon ===
-Gå til Admin → Server Settings og sett:
+Innstillingene er automatisk oppdatert i databasen.
+Hvis ikke, gå til Admin → Server Settings og sett manuelt:
 
-Git Pull Server URL: http://localhost:3002/git-pull
+Git Pull Server URL: ${GIT_PULL_URL}
 Git Pull Secret: ${UPDATE_SECRET}
 
 === Systemd Kommandoer ===
@@ -158,14 +178,16 @@ Restart: sudo systemctl restart jelly-git-pull
 Logs:    sudo journalctl -u jelly-git-pull -f
 
 === Test Git Pull Server ===
-curl http://localhost:3002/health
+Fra serveren:  curl http://localhost:3002/health
+Fra LAN:       curl http://${SERVER_IP}:3002/health
 
 === Hvordan det fungerer ===
-1. Admin panel sender request til localhost:3002/git-pull
+1. Admin panel sender request til ${GIT_PULL_URL}
 2. Serveren kjører: git stash && git pull && npm install && npm run build
 3. Applikasjonen er oppdatert!
+4. Serveren lytter på alle nettverksinterfaces (0.0.0.0)
 
-Ingen webhook, domene eller proxy nødvendig! 🎉
+Tilgjengelig fra hele LAN! 🎉
 EOF
 
 echo ""
@@ -174,12 +196,15 @@ echo ""
 echo -e "${BLUE}📝 Konfigurasjon lagret i: ${SUMMARY_FILE}${NC}"
 echo ""
 echo -e "${YELLOW}Neste steg:${NC}"
-echo "1. Gå til Admin → Server Settings i Jelly Stream"
-echo "2. Sett Git Pull Server URL: http://localhost:3002/git-pull"
-echo "3. Sett Git Pull Secret: ${UPDATE_SECRET}"
+echo "1. Git Pull Server er klar og kjører på ${GIT_PULL_URL}"
+echo "2. Database settings er oppdatert (hvis Supabase er konfigurert)"
+echo "3. Gå til Admin → Server Settings i Jelly Stream for å verifisere"
 echo "4. Klikk 'Installer oppdatering' for å teste!"
+echo ""
+echo -e "${BLUE}Preview server:${NC}"
+echo "Kjør 'sudo bash fix-preview-service.sh' for å fikse preview auto-start"
 echo ""
 echo -e "${GREEN}Service kjører nå og starter automatisk ved oppstart${NC}"
 echo ""
 echo -e "${BLUE}Test med:${NC}"
-echo "curl http://localhost:3002/health"
+echo "curl http://${SERVER_IP}:3002/health"
