@@ -60,23 +60,28 @@ serve(async (req) => {
 
     const updateId = statusEntry?.id;
 
-    // Get git pull server settings from database
+    // Get git pull server settings from database (supports both new and legacy keys)
     console.log('Fetching git pull server settings from database');
-    const { data: gitPullUrlData } = await supabase
+    const { data: gitPullSettings } = await supabase
       .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'git_pull_server_url')
-      .maybeSingle();
+      .select('setting_key, setting_value')
+      .in('setting_key', [
+        'update_webhook_url',
+        'update_webhook_secret',
+        'git_pull_server_url',
+        'git_pull_secret',
+      ]);
 
-    const { data: gitPullSecretData } = await supabase
-      .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'git_pull_secret')
-      .maybeSingle();
+    const settingsMap = new Map<string, string>(
+      (gitPullSettings || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
+    );
 
-    // Default to localhost:3002 if not configured
-    const gitPullUrl = gitPullUrlData?.setting_value || 'http://localhost:3002/git-pull';
-    const gitPullSecret = gitPullSecretData?.setting_value || '';
+    const primaryUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url');
+    const primarySecret = settingsMap.get('update_webhook_secret') || settingsMap.get('git_pull_secret');
+
+    // Default to localhost:3002 if not configured anywhere
+    const gitPullUrl = primaryUrl || 'http://localhost:3002/git-pull';
+    const gitPullSecret = primarySecret || '';
 
     console.log(`Using git pull server: ${gitPullUrl}`);
 
