@@ -12,9 +12,9 @@
  * 3. Or use systemd service (see setup script)
  */
 
-const http = require('http');
-const { exec } = require('child_process');
-const crypto = require('crypto');
+import http from 'http';
+import { exec } from 'child_process';
+import crypto from 'crypto';
 
 const PORT = process.env.GIT_PULL_PORT || 3002;
 const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
