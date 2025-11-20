@@ -270,9 +270,37 @@ export const UpdateManager = () => {
       
     } catch (err: any) {
       console.error('Install update error:', err);
-      toast.error(err.message || 'Kunne ikke installere oppdatering');
+      
+      // Update status in UI to show error - keep terminal open!
+      if (updateStatus?.id) {
+        const errorLogs = [...(updateStatus.logs || []), {
+          timestamp: new Date().toISOString(),
+          message: `FEIL: ${err.message || 'Kunne ikke starte oppdatering'}`,
+          level: 'error' as const
+        }];
+        
+        setUpdateStatus({
+          ...updateStatus,
+          status: 'failed',
+          error: err.message || 'Kunne ikke installere oppdatering',
+          logs: errorLogs
+        });
+
+        // Also update in database
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'failed',
+            error: err.message || 'Kunne ikke installere oppdatering',
+            logs: JSON.stringify(errorLogs),
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', updateStatus.id);
+      }
+      
+      toast.error('Oppdatering feilet - se terminal for detaljer');
       setUpdating(false);
-      setShowLogs(false);
+      // Don't close the logs dialog - let user see what went wrong!
     }
   };
 
