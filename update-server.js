@@ -17,11 +17,11 @@
  * - RESTART_COMMAND: Kommando for å restarte appen (default: pm2 restart jelly-stream)
  */
 
-import express from 'express';
-import crypto from 'crypto';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import https from 'https';
+const express = require('express');
+const crypto = require('crypto');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const https = require('https');
 const execAsync = promisify(exec);
 
 const app = express();
