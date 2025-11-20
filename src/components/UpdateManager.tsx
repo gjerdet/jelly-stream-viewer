@@ -220,21 +220,23 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Get git_pull_secret and git_pull_server_url for HMAC signature and endpoint
-      const { data: secretData } = await supabase
+      // Get webhook settings (supports both new and legacy keys)
+      const { data: settingsData } = await supabase
         .from('server_settings')
-        .select('setting_value')
-        .eq('setting_key', 'git_pull_secret')
-        .maybeSingle();
+        .select('setting_key, setting_value')
+        .in('setting_key', [
+          'update_webhook_url',
+          'update_webhook_secret',
+          'git_pull_server_url',
+          'git_pull_secret',
+        ]);
 
-      const { data: serverUrlData } = await supabase
-        .from('server_settings')
-        .select('setting_value')
-        .eq('setting_key', 'git_pull_server_url')
-        .maybeSingle();
+      const settingsMap = new Map<string, string>(
+        (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
+      );
 
-      const secret = secretData?.setting_value || '';
-      const serverUrl = serverUrlData?.setting_value || 'http://192.168.9.24:3002/git-pull';
+      const secret = settingsMap.get('update_webhook_secret') || settingsMap.get('git_pull_secret') || '';
+      const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
 
       // Add log about contacting git-pull server
       const contactingLog = [...(statusData.logs ? JSON.parse(statusData.logs as any) : []), {
