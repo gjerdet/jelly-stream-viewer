@@ -130,6 +130,29 @@ Se [DEPLOYMENT.md](DEPLOYMENT.md) for detaljerte instruksjoner om:
 - Lovable Cloud deployment (anbefalt)
 - Self-hosted deployment (Ubuntu med Nginx)
 
+### 🔄 Auto-Update Setup
+
+For selvhostede installasjoner med automatiske oppdateringer:
+
+```bash
+cd ~/jelly-stream-viewer
+chmod +x setup-auto-update.sh
+./setup-auto-update.sh
+```
+
+Dette scriptet setter opp:
+- ✅ Webhook-server for automatiske oppdateringer
+- ✅ Systemd-service som starter automatisk
+- ✅ Nginx-konfigurasjon (hvis du har domene)
+- ✅ Sikkerhetsgenerering (webhook secret)
+- ✅ Health checks og testing
+
+**Etter oppsett:**
+1. Lim inn webhook secret og URL i admin-panelet
+2. (Valgfritt) Konfigurer GitHub webhook for automatiske deployments
+
+Se [WEBHOOK_SETUP.md](WEBHOOK_SETUP.md) for detaljert dokumentasjon.
+
 ## 👥 Brukerroller
 
 ### Admin
