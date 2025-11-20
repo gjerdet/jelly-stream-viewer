@@ -184,9 +184,6 @@ export const UpdateManager = () => {
     setUpdating(true);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
-    // Declare serverUrl outside try-catch so it's available in catch block
-    let serverUrl = 'http://localhost:3002/git-pull'; // default
-    
     try {
       // Create initial update status entry
       const { data: statusData, error: statusError } = await supabase
@@ -223,70 +220,14 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Get webhook settings (supports both new and legacy keys)
-      const { data: settingsData } = await supabase
-        .from('server_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', [
-          'update_webhook_url',
-          'update_webhook_secret',
-          'git_pull_server_url',
-          'git_pull_secret',
-        ]);
-
-      const settingsMap = new Map<string, string>(
-        (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
-      );
-
-      const secret = settingsMap.get('update_webhook_secret') || settingsMap.get('git_pull_secret') || '';
-      serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
-
-      // Add log about contacting git-pull server
-      const contactingLog = [...(statusData.logs ? JSON.parse(statusData.logs as any) : []), {
-        timestamp: new Date().toISOString(),
-        message: `Kontakter git-pull server på ${serverUrl}...`,
-        level: 'info'
-      }];
-      
-      setUpdateStatus(prev => prev ? {
-        ...prev,
-        logs: contactingLog
-      } : null);
-
-      // Prepare request body
-      const requestBody = JSON.stringify({ updateId });
-
-      // Generate HMAC signature if secret is configured
-      let signature = '';
-      if (secret) {
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(secret);
-        const messageData = encoder.encode(requestBody);
-        const cryptoKey = await crypto.subtle.importKey(
-          'raw',
-          keyData,
-          { name: 'HMAC', hash: 'SHA-256' },
-          false,
-          ['sign']
-        );
-        const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
-        signature = Array.from(new Uint8Array(signatureBuffer))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-      }
-
-      // Call git-pull server using configured URL
-      const response = await fetch(serverUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(signature && { 'X-Update-Signature': signature })
-        },
-        body: requestBody
+      // Call trigger-update edge function which handles signature generation server-side
+      // This avoids crypto.subtle issues in non-HTTPS contexts
+      const { data, error } = await supabase.functions.invoke('trigger-update', {
+        body: { updateId }
       });
 
-      if (!response.ok) {
-        throw new Error(`Git pull server returned ${response.status}`);
+      if (error) {
+        throw error;
       }
 
       toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
@@ -295,7 +236,6 @@ export const UpdateManager = () => {
       console.error('Install update error:', err);
       
       const errorMessage = err.message || 'Kunne ikke starte oppdatering';
-      const isConnectionError = errorMessage.includes('fetch') || errorMessage.includes('NetworkError');
       
       // Create detailed error logs
       const errorLogs = [
@@ -306,33 +246,10 @@ export const UpdateManager = () => {
         },
         {
           timestamp: new Date().toISOString(),
-          message: `Kontakter git-pull server på ${serverUrl}...`,
-          level: 'info' as const
-        },
-        {
-          timestamp: new Date().toISOString(),
           message: `❌ FEIL: ${errorMessage}`,
           level: 'error' as const
         }
       ];
-      
-      if (isConnectionError) {
-        errorLogs.push({
-          timestamp: new Date().toISOString(),
-          message: '💡 TIP: Sjekk at git-pull-server kjører på serveren:',
-          level: 'info' as const
-        });
-        errorLogs.push({
-          timestamp: new Date().toISOString(),
-          message: '   sudo systemctl status jelly-git-pull',
-          level: 'info' as const
-        });
-        errorLogs.push({
-          timestamp: new Date().toISOString(),
-          message: '   sudo systemctl start jelly-git-pull',
-          level: 'info' as const
-        });
-      }
       
       // Update status in UI to show error - keep terminal open!
       setUpdateStatus({
