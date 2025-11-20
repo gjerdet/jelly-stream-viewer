@@ -192,97 +192,56 @@ serve(async (req) => {
     // Generate HMAC signature
     const signature = await generateSignature(payload, webhookSecret);
 
-    // Trigger the update webhook with HMAC signature
-    let webhookResponse;
-    let finalWebhookUrl = webhookUrl;
+  // Trigger git pull on local server
+  let gitPullResponse;
+  
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
     
-    try {
-      webhookResponse = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Webhook-Signature': signature,
-          'X-Webhook-Timestamp': timestamp
-        },
-        body: payload
-      });
-    } catch (fetchError) {
-      console.error('Failed to reach webhook server:', fetchError);
-      
-      // Check if it's an SSL error and URL is HTTPS
-      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-      const isSSLError = errorMessage.includes('UnrecognisedName') || 
-                        errorMessage.includes('certificate') ||
-                        errorMessage.includes('SSL') ||
-                        errorMessage.includes('TLS') ||
-                        errorMessage.includes('NotValidForName');
-      
-      // If SSL error and HTTPS URL, automatically try HTTP fallback
-      if (isSSLError && webhookUrl.startsWith('https://')) {
-        const httpUrl = webhookUrl.replace('https://', 'http://');
-        console.log(`SSL error detected, retrying with HTTP: ${httpUrl}`);
-        
-        // Update logs
-        if (updateId) {
-          await supabase
-            .from('update_status')
-            .update({
-              current_step: 'SSL-feil oppdaget, prøver HTTP...',
-              logs: JSON.stringify([{
-                timestamp: new Date().toISOString(),
-                message: 'SSL-sertifikat feil. Prøver HTTP i stedet...',
-                level: 'warning'
-              }])
-            })
-            .eq('id', updateId);
-        }
-        
-        try {
-          // Retry with HTTP
-          webhookResponse = await fetch(httpUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Webhook-Signature': signature,
-              'X-Webhook-Timestamp': timestamp
-            },
-            body: payload
-          });
-          finalWebhookUrl = httpUrl;
-        } catch (httpError) {
-          console.error('HTTP fallback also failed:', httpError);
-          throw httpError;
-        }
-      } else {
-        throw fetchError;
-      }
+    if (gitPullSecret) {
+      headers['X-Update-Signature'] = signature;
     }
     
-    // If we still don't have a response, something went wrong
-    if (!webhookResponse) {
-      const errorMsg = 'Kunne ikke nå webhook-serveren';
-      
-      if (updateId) {
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'failed',
-            error: errorMsg,
-            current_step: 'Feil: Kunne ikke koble til webhook',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', updateId);
-      }
-      
-      return new Response(
-        JSON.stringify({ error: errorMsg }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    gitPullResponse = await fetch(gitPullUrl, {
+      method: 'POST',
+      headers,
+      body: payload
+    });
+  } catch (fetchError) {
+    console.error('Failed to reach git pull server:', fetchError);
+    const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+    
+    if (updateId) {
+      await supabase
+        .from('update_status')
+        .update({
+          status: 'failed',
+          error: 'Kunne ikke nå git pull server på localhost',
+          current_step: 'Feil: Git pull server er ikke tilgjengelig',
+          completed_at: new Date().toISOString(),
+          logs: JSON.stringify([{
+            timestamp: new Date().toISOString(),
+            message: `Feil: ${errorMessage}. Sjekk at git-pull-server.js kjører på serveren.`,
+            level: 'error'
+          }])
+        })
+        .eq('id', updateId);
     }
+    
+    return new Response(
+      JSON.stringify({ 
+        error: 'Git pull server er ikke tilgjengelig',
+        details: 'Sjekk at git-pull-server.js kjører på serveren (port 3002)'
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 
-    if (!webhookResponse.ok) {
-      console.error('Webhook failed:', webhookResponse.status);
-      const errorText = await webhookResponse.text();
+  if (!gitPullResponse.ok) {
+    console.error('Git pull failed:', gitPullResponse.status);
+    const errorText = await gitPullResponse.text();
       
       // Update status to failed
       if (updateId) {
