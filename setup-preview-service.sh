@@ -37,8 +37,12 @@ su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; cd '$APP_DIR' &
 
 echo -e "${GREEN}[4/6]${NC} Creating systemd service for preview (port 4173)..."
 
-# Find npm path
-NPM_PATH=$(su - "$ACTUAL_USER" -c "which npm" 2>/dev/null || echo "/usr/bin/npm")
+# Find npm path for the actual user
+NPM_PATH=$(su - "$ACTUAL_USER" -c "which npm" 2>/dev/null)
+if [ -z "$NPM_PATH" ]; then
+    echo -e "${RED}Error: npm not found for user $ACTUAL_USER${NC}"
+    exit 1
+fi
 echo "Using npm at: $NPM_PATH"
 
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
@@ -54,7 +58,6 @@ ExecStart=$NPM_PATH run preview -- --host 0.0.0.0 --port 4173
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
-Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/$ACTUAL_USER/.nvm/versions/node/$(su - "$ACTUAL_USER" -c "node -v" 2>/dev/null | sed 's/v//')/bin
 
 [Install]
 WantedBy=multi-user.target
