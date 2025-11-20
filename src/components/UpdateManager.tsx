@@ -171,135 +171,40 @@ export const UpdateManager = () => {
     setUpdateStatus(null);
     
     try {
-      // Create initial status entry
-      const { data: statusEntry, error: statusError } = await supabase
-        .from('update_status')
-        .insert({
+      // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
+      // Avoid calling the backend here and just show an info message instead.
+      if (window.location.hostname.endsWith('lovableproject.com')) {
+        toast.info('Installer oppdatering virker kun på selvhostede installasjoner.');
+        setUpdating(false);
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('trigger-update');
+      
+      if (error) {
+        throw error;
+      }
+
+      if (data?.needsSetup) {
+        toast.error(data.message);
+        setError(data.error);
+        setUpdating(false);
+        return;
+      }
+
+      // Set initial status
+      if (data?.updateId) {
+        setUpdateStatus({
+          id: data.updateId,
           status: 'starting',
           progress: 0,
-          current_step: 'Initialiserer git pull...',
-          logs: JSON.stringify([{
-            timestamp: new Date().toISOString(),
-            message: 'Git pull oppdatering startet',
-            level: 'info'
-          }])
-        })
-        .select()
-        .single();
-
-      if (statusError) {
-        throw new Error('Kunne ikke opprette status-entry');
+          current_step: 'Starter oppdatering...',
+          logs: []
+        });
       }
 
-      const updateId = statusEntry.id;
-
-      setUpdateStatus({
-        id: updateId,
-        status: 'starting',
-        progress: 10,
-        current_step: 'Kontakter git pull server...',
-        logs: []
-      });
-
-      // Get git pull secret from server_settings
-      const { data: secretData } = await supabase
-        .from('server_settings')
-        .select('setting_value')
-        .eq('setting_key', 'git_pull_secret')
-        .maybeSingle();
-
-      const gitPullSecret = secretData?.setting_value || '';
-
-      // Call git-pull server directly from frontend (localhost:3002)
-      const gitPullUrl = 'http://localhost:3002/git-pull';
-      const timestamp = Date.now().toString();
-      const payload = JSON.stringify({ timestamp, action: 'git-pull' });
-
-      // Generate HMAC signature if secret is provided
-      let signature = '';
-      if (gitPullSecret) {
-        const encoder = new TextEncoder();
-        const keyData = encoder.encode(gitPullSecret);
-        const messageData = encoder.encode(payload);
-        
-        const key = await crypto.subtle.importKey(
-          'raw',
-          keyData,
-          { name: 'HMAC', hash: 'SHA-256' },
-          false,
-          ['sign']
-        );
-        
-        const signatureBuffer = await crypto.subtle.sign('HMAC', key, messageData);
-        signature = Array.from(new Uint8Array(signatureBuffer))
-          .map(b => b.toString(16).padStart(2, '0'))
-          .join('');
-      }
-
-      // Update status before calling
-      await supabase
-        .from('update_status')
-        .update({
-          status: 'in_progress',
-          current_step: 'Kjører git pull på serveren...',
-          progress: 30
-        })
-        .eq('id', updateId);
-
-      // Call git-pull server
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      toast.success(data.message);
       
-      if (gitPullSecret) {
-        headers['X-Update-Signature'] = signature;
-      }
-
-      const response = await fetch(gitPullUrl, {
-        method: 'POST',
-        headers,
-        body: payload
-      });
-
-      if (!response.ok) {
-        throw new Error(`Git pull feilet: ${response.status}`);
-      }
-
-      toast.success('Git pull startet på serveren');
-
-      // Simulate progress updates
-      setTimeout(async () => {
-        await supabase
-          .from('update_status')
-          .update({
-            current_step: 'Installerer dependencies...',
-            progress: 60
-          })
-          .eq('id', updateId);
-      }, 5000);
-
-      setTimeout(async () => {
-        await supabase
-          .from('update_status')
-          .update({
-            current_step: 'Bygger applikasjon...',
-            progress: 80
-          })
-          .eq('id', updateId);
-      }, 10000);
-
-      setTimeout(async () => {
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'completed',
-            current_step: 'Oppdatering fullført! Refresh siden for å se endringene.',
-            progress: 100,
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', updateId);
-      }, 20000);
-
     } catch (err: any) {
       console.error('Install update error:', err);
       toast.error(err.message || 'Kunne ikke installere oppdatering');
