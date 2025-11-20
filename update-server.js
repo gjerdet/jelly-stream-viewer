@@ -21,6 +21,7 @@ const express = require('express');
 const crypto = require('crypto');
 const { exec } = require('child_process');
 const { promisify } = require('util');
+const https = require('https');
 const execAsync = promisify(exec);
 
 const app = express();
@@ -31,6 +32,8 @@ const PORT = process.env.PORT || 3001;
 const UPDATE_SECRET = process.env.UPDATE_SECRET || 'change-me-in-production';
 const APP_DIR = process.env.APP_DIR || '/var/www/jelly-stream-viewer';
 const RESTART_COMMAND = process.env.RESTART_COMMAND || 'pm2 restart jelly-stream';
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Rate limiting: Track request timestamps per IP
 const requestTracker = new Map();
@@ -166,6 +169,57 @@ WantedBy=multi-user.target
   }
 }
 
+// Update database with new commit SHA
+async function updateDatabaseVersion(commitSha) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    log('Warning: Supabase credentials not configured, skipping database update');
+    return false;
+  }
+
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify({
+      setting_key: 'installed_commit_sha',
+      setting_value: commitSha,
+      updated_at: new Date().toISOString()
+    });
+
+    const url = new URL(`${SUPABASE_URL}/rest/v1/server_settings`);
+    url.searchParams.append('setting_key', 'eq.installed_commit_sha');
+
+    const options = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Prefer': 'resolution=merge-duplicates'
+      }
+    };
+
+    const req = https.request(url, options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          log('Database version updated successfully');
+          resolve(true);
+        } else {
+          log('Failed to update database version:', res.statusCode, body);
+          resolve(false);
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      log('Error updating database version:', error);
+      resolve(false);
+    });
+
+    req.write(data);
+    req.end();
+  });
+}
+
 // Update function
 async function performUpdate() {
   log('Starting update process...');
@@ -194,6 +248,9 @@ async function performUpdate() {
     const { stdout: shaOutput } = await execAsync('git rev-parse HEAD', { cwd: APP_DIR });
     const commitSha = shaOutput.trim();
     log('New version SHA:', commitSha);
+    
+    // Step 4.5: Update database with new commit SHA
+    await updateDatabaseVersion(commitSha);
     
     // Step 5: Restart application
     log('Restarting application...');
