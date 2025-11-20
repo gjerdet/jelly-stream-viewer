@@ -66,7 +66,7 @@ Environment="NODE_ENV=production"
 Environment="GIT_PULL_PORT=3002"
 Environment="APP_DIR=${APP_DIR}"
 EnvironmentFile=${APP_DIR}/.env
-ExecStart=/usr/bin/node ${APP_DIR}/git-pull-server.js
+ExecStart=/usr/bin/node ${APP_DIR}/git-pull-server.cjs
 Restart=always
 RestartSec=10
 StandardOutput=journal
