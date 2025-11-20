@@ -85,22 +85,39 @@ serve(async (req) => {
 
     console.log(`Using git pull server: ${gitPullUrl}`);
 
+    // Get updateId from request body if provided
+    const { updateId: providedUpdateId } = await req.json().catch(() => ({}));
+    const finalUpdateId = providedUpdateId || updateId;
+
     // Create HMAC signature if secret is provided
-    const timestamp = Date.now().toString();
-    const payload = JSON.stringify({ timestamp, action: 'git-pull' });
-    const signature = gitPullSecret ? await generateSignature(payload, gitPullSecret) : '';
+    const requestBody = JSON.stringify({ updateId: finalUpdateId });
+    const signature = gitPullSecret ? await generateSignature(requestBody, gitPullSecret) : '';
 
     console.log('Triggering git pull on server');
 
     // Update status to show we're attempting git pull
-    if (updateId) {
+    if (finalUpdateId) {
+      const { data: currentStatus } = await supabase
+        .from('update_status')
+        .select('logs')
+        .eq('id', finalUpdateId)
+        .single();
+
+      const existingLogs = currentStatus?.logs ? JSON.parse(currentStatus.logs as any) : [];
+      const updatedLogs = [...existingLogs, {
+        timestamp: new Date().toISOString(),
+        message: `Kontakter git-pull server på ${gitPullUrl}...`,
+        level: 'info'
+      }];
+
       await supabase
         .from('update_status')
         .update({
           current_step: 'Kontakter git pull server...',
-          progress: 10
+          progress: 10,
+          logs: JSON.stringify(updatedLogs)
         })
-        .eq('id', updateId);
+        .eq('id', finalUpdateId);
     }
 
     // Trigger git pull on local server
@@ -118,13 +135,13 @@ serve(async (req) => {
       gitPullResponse = await fetch(gitPullUrl, {
         method: 'POST',
         headers,
-        body: payload
+        body: requestBody
       });
     } catch (fetchError) {
       console.error('Failed to reach git pull server:', fetchError);
       const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
       
-      if (updateId) {
+      if (finalUpdateId) {
         await supabase
           .from('update_status')
           .update({
@@ -138,7 +155,7 @@ serve(async (req) => {
               level: 'error'
             }])
           })
-          .eq('id', updateId);
+          .eq('id', finalUpdateId);
       }
       
       return new Response(
@@ -156,7 +173,7 @@ serve(async (req) => {
       const errorText = await gitPullResponse.text();
       
       // Update status to failed
-      if (updateId) {
+      if (finalUpdateId) {
         await supabase
           .from('update_status')
           .update({
@@ -170,7 +187,7 @@ serve(async (req) => {
               level: 'error'
             }])
           })
-          .eq('id', updateId);
+          .eq('id', finalUpdateId);
       }
 
       return new Response(
@@ -187,7 +204,7 @@ serve(async (req) => {
     console.log('Git pull triggered successfully on local server');
     
     // Update status to show it's in progress
-    if (updateId) {
+    if (finalUpdateId) {
       await supabase
         .from('update_status')
         .update({
@@ -200,7 +217,7 @@ serve(async (req) => {
             level: 'info'
           }])
         })
-        .eq('id', updateId);
+        .eq('id', finalUpdateId);
       
       // Simulate progress updates
       setTimeout(async () => {
@@ -215,7 +232,7 @@ serve(async (req) => {
               level: 'info'
             }])
           })
-          .eq('id', updateId);
+          .eq('id', finalUpdateId);
       }, 5000);
 
       setTimeout(async () => {
@@ -230,7 +247,7 @@ serve(async (req) => {
               level: 'info'
             }])
           })
-          .eq('id', updateId);
+          .eq('id', finalUpdateId);
       }, 10000);
       
       // Mark as completed
@@ -248,7 +265,7 @@ serve(async (req) => {
               level: 'success'
             }])
           })
-          .eq('id', updateId);
+          .eq('id', finalUpdateId);
       }, 20000);
     }
 
@@ -256,7 +273,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: 'Git pull startet på serveren',
-        updateId,
+        updateId: finalUpdateId,
         info: 'Oppdateringen kjører nå lokalt med: git stash && git pull && npm install && npm run build'
       }),
       { 
