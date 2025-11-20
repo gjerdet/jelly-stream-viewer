@@ -220,14 +220,58 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Call trigger-update edge function which handles signature generation server-side
-      // This avoids crypto.subtle issues in non-HTTPS contexts
-      const { data, error } = await supabase.functions.invoke('trigger-update', {
-        body: { updateId }
+      // Get git-pull server URL from database
+      const { data: settingsData } = await supabase
+        .from('server_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', [
+          'update_webhook_url',
+          'git_pull_server_url',
+        ]);
+
+      const settingsMap = new Map<string, string>(
+        (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
+      );
+
+      const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
+
+      // Add log about contacting git-pull server
+      const contactingLog = [{
+        timestamp: new Date().toISOString(),
+        message: 'Oppdatering startet...',
+        level: 'info' as const
+      }, {
+        timestamp: new Date().toISOString(),
+        message: `Kontakter git-pull server på ${serverUrl}...`,
+        level: 'info' as const
+      }];
+      
+      setUpdateStatus(prev => prev ? {
+        ...prev,
+        logs: contactingLog
+      } : null);
+
+      // Update status in database with contacting log
+      await supabase
+        .from('update_status')
+        .update({
+          logs: JSON.stringify(contactingLog)
+        })
+        .eq('id', updateId);
+
+      // Call git-pull server directly from browser (works on LAN)
+      // No HMAC signature needed since we're calling directly
+      const response = await fetch(serverUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updateId })
       });
 
-      if (error) {
-        throw error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Git pull server returned ${response.status}: ${errorText}`);
       }
 
       toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
