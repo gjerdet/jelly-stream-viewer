@@ -445,13 +445,24 @@ export const UpdateManager = () => {
                     {updates?.viewLogs || 'View logs'}
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
+                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>{updates?.logsTitle || 'Update logs'}</DialogTitle>
                     <DialogDescription>
                       {updates?.logsDescription || 'Detailed log of the update process'}
                     </DialogDescription>
                   </DialogHeader>
+
+                  {/* Progress bar inside dialog */}
+                  <div className="space-y-1 mb-4">
+                    <p className="text-xs text-muted-foreground">
+                      {language === 'no'
+                        ? `Fremdrift: ${updateStatus.progress}%`
+                        : `Progress: ${updateStatus.progress}%`}
+                    </p>
+                    <Progress value={updateStatus.progress} className="h-1.5" />
+                  </div>
+
                   <ScrollArea className="h-96 w-full rounded-md border p-4">
                     <div className="space-y-2">
                       {updateStatus.logs.map((log, idx) => (
@@ -471,6 +482,13 @@ export const UpdateManager = () => {
                       ))}
                     </div>
                   </ScrollArea>
+
+                  {/* Hint for manuelt kjørt oppdatering */}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    {language === 'no'
+                      ? 'Hvis du har kjørt oppdateringen manuelt på serveren, klikk «Sjekk etter oppdatering» under for å oppdatere statusen.'
+                      : 'If you ran the update manually on the server, click "Check for updates" below to refresh the status.'}
+                  </p>
                 </DialogContent>
               </Dialog>
             </div>
