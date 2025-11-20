@@ -124,26 +124,31 @@ location /update-webhook {
   }
 }
 
-// Setup systemd service for webhook server
-async function setupWebhookService() {
-  log('Setting up webhook systemd service...');
+// Setup systemd service for update server
+async function setupUpdateServerService() {
+  log('Setting up update server systemd service...');
   
   const serviceFile = `[Unit]
-Description=Jelly Stream Viewer Update Webhook
+Description=Jelly Stream Viewer Auto-Update Server
 After=network.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=www-data
 WorkingDirectory=${APP_DIR}
-Environment="WEBHOOK_PORT=3001"
-Environment="WEBHOOK_SECRET=${UPDATE_SECRET}"
-Environment="PROJECT_PATH=${APP_DIR}"
-ExecStart=/usr/bin/node ${APP_DIR}/server/update-webhook.js
+Environment="NODE_ENV=production"
+Environment="PORT=3001"
+Environment="UPDATE_SECRET=${UPDATE_SECRET}"
+Environment="APP_DIR=${APP_DIR}"
+Environment="RESTART_COMMAND=sudo systemctl restart jelly-stream"
+EnvironmentFile=${APP_DIR}/.env
+ExecStart=/usr/bin/node ${APP_DIR}/update-server.js
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=jelly-update
 
 [Install]
 WantedBy=multi-user.target
@@ -151,20 +156,20 @@ WantedBy=multi-user.target
 
   try {
     // Write service file
-    await execAsync(`echo '${serviceFile}' | sudo tee /etc/systemd/system/jelly-webhook.service`);
+    await execAsync(`echo '${serviceFile}' | sudo tee /etc/systemd/system/jelly-update-server.service`);
     log('Systemd service file created');
     
     // Reload systemd
     await execAsync('sudo systemctl daemon-reload');
     
     // Enable and start service
-    await execAsync('sudo systemctl enable jelly-webhook.service');
-    await execAsync('sudo systemctl restart jelly-webhook.service');
+    await execAsync('sudo systemctl enable jelly-update-server.service');
+    await execAsync('sudo systemctl restart jelly-update-server.service');
     
-    log('Webhook service enabled and started');
+    log('Update server service enabled and started');
     return true;
   } catch (error) {
-    log('Warning: Could not setup webhook service (may need manual setup):', error.message);
+    log('Warning: Could not setup update server service (may need manual setup):', error.message);
     return false;
   }
 }
@@ -225,9 +230,9 @@ async function performUpdate() {
   log('Starting update process...');
   
   try {
-    // Step 0: Setup nginx and webhook service (first time setup)
+    // Step 0: Setup nginx and update server service (first time setup)
     await setupNginxWebhook();
-    await setupWebhookService();
+    await setupUpdateServerService();
     
     // Step 1: Git pull
     log('Pulling latest changes from GitHub...');
