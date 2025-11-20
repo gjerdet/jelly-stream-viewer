@@ -184,6 +184,9 @@ export const UpdateManager = () => {
     setUpdating(true);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
+    // Declare serverUrl outside try-catch so it's available in catch block
+    let serverUrl = 'http://localhost:3002/git-pull'; // default
+    
     try {
       // Create initial update status entry
       const { data: statusData, error: statusError } = await supabase
@@ -236,7 +239,7 @@ export const UpdateManager = () => {
       );
 
       const secret = settingsMap.get('update_webhook_secret') || settingsMap.get('git_pull_secret') || '';
-      const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
+      serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
 
       // Add log about contacting git-pull server
       const contactingLog = [...(statusData.logs ? JSON.parse(statusData.logs as any) : []), {
@@ -303,7 +306,7 @@ export const UpdateManager = () => {
         },
         {
           timestamp: new Date().toISOString(),
-          message: 'Kontakter git-pull server på localhost:3002...',
+          message: `Kontakter git-pull server på ${serverUrl}...`,
           level: 'info' as const
         },
         {
