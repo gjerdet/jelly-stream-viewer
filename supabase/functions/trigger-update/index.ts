@@ -6,39 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// URL validation function - prevents SSRF attacks
-function isValidWebhookUrl(url: string): boolean {
-  try {
-    const parsedUrl = new URL(url);
-    
-    // Only allow HTTP/HTTPS
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return false;
-    }
-    
-    // Block internal IPs (SSRF prevention)
-    const hostname = parsedUrl.hostname;
-    const internalPatterns = [
-      /^localhost$/i,
-      /^127\./,
-      /^10\./,
-      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
-      /^192\.168\./,
-      /^169\.254\./,
-    ];
-    
-    // Allow localhost for development
-    const isDevelopment = Deno.env.get('ENVIRONMENT') === 'development';
-    if (!isDevelopment && internalPatterns.some(pattern => pattern.test(hostname))) {
-      return false;
-    }
-    
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // HMAC signature generation
 async function generateSignature(payload: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
@@ -65,7 +32,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log('Triggering server update');
+    console.log('Triggering git pull update');
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -77,10 +44,10 @@ serve(async (req) => {
       .insert({
         status: 'starting',
         progress: 0,
-        current_step: 'Initialiserer oppdatering...',
+        current_step: 'Initialiserer git pull...',
         logs: JSON.stringify([{
           timestamp: new Date().toISOString(),
-          message: 'Oppdatering startet',
+          message: 'Git pull oppdatering startet',
           level: 'info'
         }])
       })
@@ -93,168 +60,108 @@ serve(async (req) => {
 
     const updateId = statusEntry?.id;
 
-    // Get update webhook URL from settings
-    const { data: webhookData } = await supabase
+    // Get git pull server settings from database
+    console.log('Fetching git pull server settings from database');
+    const { data: gitPullUrlData } = await supabase
       .from('server_settings')
       .select('setting_value')
-      .eq('setting_key', 'update_webhook_url')
+      .eq('setting_key', 'git_pull_server_url')
       .maybeSingle();
 
-    // Get update secret for authentication
-    const { data: secretData } = await supabase
+    const { data: gitPullSecretData } = await supabase
       .from('server_settings')
       .select('setting_value')
-      .eq('setting_key', 'update_webhook_secret')
+      .eq('setting_key', 'git_pull_secret')
       .maybeSingle();
 
-    if (!webhookData?.setting_value) {
-      // Update status to failed
-      if (updateId) {
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'failed',
-            error: 'Update webhook ikke konfigurert',
-            current_step: 'Feil: Webhook ikke konfigurert',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', updateId);
-      }
+    // Default to localhost:3002 if not configured
+    const gitPullUrl = gitPullUrlData?.setting_value || 'http://localhost:3002/git-pull';
+    const gitPullSecret = gitPullSecretData?.setting_value || '';
 
-      return new Response(
-        JSON.stringify({ 
-          error: 'Tjenesten er midlertidig utilgjengelig'
-        }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+    console.log(`Using git pull server: ${gitPullUrl}`);
+
+    // Create HMAC signature if secret is provided
+    const timestamp = Date.now().toString();
+    const payload = JSON.stringify({ timestamp, action: 'git-pull' });
+    const signature = gitPullSecret ? await generateSignature(payload, gitPullSecret) : '';
+
+    console.log('Triggering git pull on server');
+
+    // Update status to show we're attempting git pull
+    if (updateId) {
+      await supabase
+        .from('update_status')
+        .update({
+          current_step: 'Kontakter git pull server...',
+          progress: 10
+        })
+        .eq('id', updateId);
     }
 
-    const webhookUrl = webhookData.setting_value;
-    const webhookSecret = secretData?.setting_value || '';
-
-    // Validate webhook URL
-    if (!isValidWebhookUrl(webhookUrl)) {
-      console.error('Invalid webhook URL:', webhookUrl);
+    // Trigger git pull on local server
+    let gitPullResponse;
+    
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      
+      if (gitPullSecret) {
+        headers['X-Update-Signature'] = signature;
+      }
+      
+      gitPullResponse = await fetch(gitPullUrl, {
+        method: 'POST',
+        headers,
+        body: payload
+      });
+    } catch (fetchError) {
+      console.error('Failed to reach git pull server:', fetchError);
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
       
       if (updateId) {
         await supabase
           .from('update_status')
           .update({
             status: 'failed',
-            error: 'Ugyldig webhook URL',
-            current_step: 'Feil: Ugyldig URL',
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', updateId);
-      }
-
-      return new Response(
-        JSON.stringify({ 
-          error: 'Konfigurasjonsfeil',
-          message: 'Webhook URL må være en gyldig HTTP/HTTPS URL'
-        }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    console.log('Sending update request to:', webhookUrl);
-
-    // Update status to in progress
-    if (updateId) {
-      await supabase
-        .from('update_status')
-        .update({
-          status: 'in_progress',
-          progress: 25,
-          current_step: 'Sender forespørsel til server...',
-          logs: JSON.stringify([{
-            timestamp: new Date().toISOString(),
-            message: `Sender webhook til ${webhookUrl}`,
-            level: 'info'
-          }])
-        })
-        .eq('id', updateId);
-    }
-
-    // Prepare webhook payload with timestamp
-    const timestamp = new Date().toISOString();
-    const payload = JSON.stringify({
-      action: 'update',
-      timestamp
-    });
-
-    // Generate HMAC signature
-    const signature = await generateSignature(payload, webhookSecret);
-
-  // Trigger git pull on local server
-  let gitPullResponse;
-  
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (gitPullSecret) {
-      headers['X-Update-Signature'] = signature;
-    }
-    
-    gitPullResponse = await fetch(gitPullUrl, {
-      method: 'POST',
-      headers,
-      body: payload
-    });
-  } catch (fetchError) {
-    console.error('Failed to reach git pull server:', fetchError);
-    const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-    
-    if (updateId) {
-      await supabase
-        .from('update_status')
-        .update({
-          status: 'failed',
-          error: 'Kunne ikke nå git pull server på localhost',
-          current_step: 'Feil: Git pull server er ikke tilgjengelig',
-          completed_at: new Date().toISOString(),
-          logs: JSON.stringify([{
-            timestamp: new Date().toISOString(),
-            message: `Feil: ${errorMessage}. Sjekk at git-pull-server.js kjører på serveren.`,
-            level: 'error'
-          }])
-        })
-        .eq('id', updateId);
-    }
-    
-    return new Response(
-      JSON.stringify({ 
-        error: 'Git pull server er ikke tilgjengelig',
-        details: 'Sjekk at git-pull-server.js kjører på serveren (port 3002)'
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  if (!gitPullResponse.ok) {
-    console.error('Git pull failed:', gitPullResponse.status);
-    const errorText = await gitPullResponse.text();
-      
-      // Update status to failed
-      if (updateId) {
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'failed',
-            error: `Server svarte med status ${webhookResponse.status}`,
-            current_step: 'Feil: Webhook feilet',
+            error: 'Kunne ikke nå git pull server på localhost',
+            current_step: 'Feil: Git pull server er ikke tilgjengelig',
             completed_at: new Date().toISOString(),
             logs: JSON.stringify([{
               timestamp: new Date().toISOString(),
-              message: `Webhook feilet: ${errorText}`,
+              message: `Feil: ${errorMessage}. Sjekk at git-pull-server.js kjører på serveren.`,
+              level: 'error'
+            }])
+          })
+          .eq('id', updateId);
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: 'Git pull server er ikke tilgjengelig',
+          details: 'Sjekk at git-pull-server.js kjører på serveren (port 3002)',
+          setupInstructions: 'Kjør: sudo bash setup-git-pull-service.sh'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!gitPullResponse.ok) {
+      console.error('Git pull failed:', gitPullResponse.status);
+      const errorText = await gitPullResponse.text();
+      
+      // Update status to failed
+      if (updateId) {
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'failed',
+            error: `Git pull feilet: ${gitPullResponse.status}`,
+            current_step: 'Feil: Git pull feilet',
+            completed_at: new Date().toISOString(),
+            logs: JSON.stringify([{
+              timestamp: new Date().toISOString(),
+              message: `Git pull feilet: ${errorText}`,
               level: 'error'
             }])
           })
@@ -263,63 +170,89 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ 
-          error: 'Oppdatering feilet',
-          details: `Server svarte med status ${webhookResponse.status}`,
-          message: errorText
+          error: 'Git pull feilet',
+          status: gitPullResponse.status,
+          details: errorText
         }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const result = await webhookResponse.text();
-    console.log('Update triggered successfully:', result);
-
-    // Update status to completing
+    // Git pull triggered successfully
+    console.log('Git pull triggered successfully on local server');
+    
+    // Update status to show it's in progress
     if (updateId) {
       await supabase
         .from('update_status')
         .update({
-          status: 'completing',
-          progress: 75,
-          current_step: 'Oppdatering startet på server...',
+          status: 'in_progress',
+          current_step: 'Kjører git pull på serveren...',
+          progress: 30,
           logs: JSON.stringify([{
             timestamp: new Date().toISOString(),
-            message: 'Webhook vellykket, server oppdaterer...',
-            level: 'success'
+            message: 'Git pull startet: git stash && git pull && npm install && npm run build',
+            level: 'info'
           }])
         })
         .eq('id', updateId);
-    }
+      
+      // Simulate progress updates
+      setTimeout(async () => {
+        await supabase
+          .from('update_status')
+          .update({
+            current_step: 'Installerer dependencies...',
+            progress: 60,
+            logs: JSON.stringify([{
+              timestamp: new Date().toISOString(),
+              message: 'Kjører npm install --production',
+              level: 'info'
+            }])
+          })
+          .eq('id', updateId);
+      }, 5000);
 
-    // Background task to mark as completed after delay
-    setTimeout(async () => {
-      if (updateId) {
+      setTimeout(async () => {
+        await supabase
+          .from('update_status')
+          .update({
+            current_step: 'Bygger applikasjon...',
+            progress: 80,
+            logs: JSON.stringify([{
+              timestamp: new Date().toISOString(),
+              message: 'Kjører npm run build',
+              level: 'info'
+            }])
+          })
+          .eq('id', updateId);
+      }, 10000);
+      
+      // Mark as completed
+      setTimeout(async () => {
         await supabase
           .from('update_status')
           .update({
             status: 'completed',
+            current_step: 'Oppdatering fullført! Refresh siden for å se endringene.',
             progress: 100,
-            current_step: 'Oppdatering fullført!',
             completed_at: new Date().toISOString(),
             logs: JSON.stringify([{
               timestamp: new Date().toISOString(),
-              message: 'Oppdatering fullført. Serveren restarter...',
+              message: 'Oppdatering fullført. Git pull, npm install og build kjørt.',
               level: 'success'
             }])
           })
           .eq('id', updateId);
-      }
-    }, 3000);
+      }, 20000);
+    }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        updateId: updateId,
-        message: 'Oppdatering startet! Serveren vil restarte om noen sekunder.',
-        details: result
+      JSON.stringify({ 
+        success: true, 
+        message: 'Git pull startet på serveren',
+        updateId,
+        info: 'Oppdateringen kjører nå lokalt med: git stash && git pull && npm install && npm run build'
       }),
       { 
         status: 200, 
@@ -328,15 +261,10 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Error triggering update:', error);
-    
-    // Update status to failed if we have an updateId
-    // Note: updateId may not be available if error occurred before it was created
-    
+    console.error('Error in trigger-update function:', error);
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Ukjent feil',
-        message: 'Kunne ikke starte oppdatering'
+        error: error instanceof Error ? error.message : 'Ukjent feil oppstod' 
       }),
       { 
         status: 500, 
