@@ -36,6 +36,11 @@ echo -e "${GREEN}[3/6]${NC} Building application..."
 su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; cd '$APP_DIR' && npm run build"
 
 echo -e "${GREEN}[4/6]${NC} Creating systemd service for preview (port 4173)..."
+
+# Find npm path
+NPM_PATH=$(su - "$ACTUAL_USER" -c "which npm" 2>/dev/null || echo "/usr/bin/npm")
+echo "Using npm at: $NPM_PATH"
+
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
 [Unit]
 Description=Jelly Stream Preview
@@ -45,10 +50,11 @@ After=network.target
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/npm run preview -- --host 0.0.0.0 --port 4173
+ExecStart=$NPM_PATH run preview -- --host 0.0.0.0 --port 4173
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/$ACTUAL_USER/.nvm/versions/node/$(su - "$ACTUAL_USER" -c "node -v" 2>/dev/null | sed 's/v//')/bin
 
 [Install]
 WantedBy=multi-user.target
