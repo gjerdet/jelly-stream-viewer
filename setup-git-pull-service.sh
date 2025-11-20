@@ -34,6 +34,32 @@ if [ ! -f ".env" ]; then
     touch .env
 fi
 
+# Check for Supabase credentials
+if ! grep -q "SUPABASE_URL" .env; then
+    echo -e "${YELLOW}Legger til Supabase URL i .env...${NC}"
+    if [ -f ".env" ] && grep -q "VITE_SUPABASE_URL" .env; then
+        SUPABASE_URL=$(grep "VITE_SUPABASE_URL" .env | cut -d '=' -f2)
+        echo "SUPABASE_URL=${SUPABASE_URL}" >> .env
+    else
+        echo -e "${RED}Kunne ikke finne VITE_SUPABASE_URL i .env${NC}"
+        echo -e "${YELLOW}Vennligst legg til SUPABASE_URL manuelt i .env${NC}"
+    fi
+fi
+
+if ! grep -q "SUPABASE_SERVICE_ROLE_KEY" .env; then
+    echo -e "${YELLOW}Supabase Service Role Key mangler${NC}"
+    echo -e "${BLUE}Denne trengs for å oppdatere databasen etter git pull${NC}"
+    echo -e "${YELLOW}Finn den i Supabase Dashboard → Settings → API${NC}"
+    echo -e "${YELLOW}Eller hvis du bruker Lovable Cloud, kontakt support${NC}"
+    read -p "Skriv inn Service Role Key (eller trykk Enter for å hoppe over): " SERVICE_KEY
+    if [ ! -z "$SERVICE_KEY" ]; then
+        echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_KEY}" >> .env
+        echo -e "${GREEN}✓ Service Role Key lagt til${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Uten Service Role Key vil ikke versjonen oppdateres automatisk${NC}"
+    fi
+fi
+
 # Generate or get UPDATE_SECRET
 if grep -q "UPDATE_SECRET" .env; then
     UPDATE_SECRET=$(grep "UPDATE_SECRET" .env | cut -d '=' -f2)

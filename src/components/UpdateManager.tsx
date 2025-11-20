@@ -151,11 +151,19 @@ export const UpdateManager = () => {
             error: newData.error
           });
 
-          // Auto-reload when completed
+          // Stop updating state and refresh when completed
           if (newData.status === 'completed') {
+            setUpdating(false);
+            toast.success('Oppdatering fullført! Siden laster på nytt om 3 sekunder...');
             setTimeout(() => {
               window.location.reload();
             }, 3000);
+          }
+          
+          // Stop updating on failure
+          if (newData.status === 'failed') {
+            setUpdating(false);
+            toast.error('Oppdatering feilet. Se loggene for detaljer.');
           }
         }
       )
@@ -169,46 +177,103 @@ export const UpdateManager = () => {
   const installUpdate = async () => {
     setUpdating(true);
     setUpdateStatus(null);
+    setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
     try {
       // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
-      // Avoid calling the backend here and just show an info message instead.
       if (window.location.hostname.endsWith('lovableproject.com')) {
         toast.info('Installer oppdatering virker kun på selvhostede installasjoner.');
         setUpdating(false);
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('trigger-update');
-      
-      if (error) {
-        throw error;
-      }
-
-      if (data?.needsSetup) {
-        toast.error(data.message);
-        setError(data.error);
-        setUpdating(false);
-        return;
-      }
-
-      // Set initial status
-      if (data?.updateId) {
-        setUpdateStatus({
-          id: data.updateId,
+      // Create initial update status entry
+      const { data: statusData, error: statusError } = await supabase
+        .from('update_status')
+        .insert({
           status: 'starting',
           progress: 0,
-          current_step: 'Starter oppdatering...',
-          logs: []
-        });
+          current_step: 'Forbereder oppdatering...',
+          logs: JSON.stringify([{
+            timestamp: new Date().toISOString(),
+            message: 'Oppdatering startet...',
+            level: 'info'
+          }])
+        })
+        .select()
+        .single();
+
+      if (statusError) {
+        throw statusError;
       }
 
-      toast.success(data.message);
+      const updateId = statusData.id;
+
+      // Set initial status for UI
+      setUpdateStatus({
+        id: updateId,
+        status: 'starting',
+        progress: 0,
+        current_step: 'Forbereder oppdatering...',
+        logs: [{
+          timestamp: new Date().toISOString(),
+          message: 'Oppdatering startet...',
+          level: 'info'
+        }]
+      });
+
+      // Get git_pull_secret for HMAC signature
+      const { data: secretData } = await supabase
+        .from('server_settings')
+        .select('setting_value')
+        .eq('setting_key', 'git_pull_secret')
+        .maybeSingle();
+
+      const secret = secretData?.setting_value || '';
+
+      // Prepare request body
+      const requestBody = JSON.stringify({ updateId });
+
+      // Generate HMAC signature if secret is configured
+      let signature = '';
+      if (secret) {
+        const encoder = new TextEncoder();
+        const keyData = encoder.encode(secret);
+        const messageData = encoder.encode(requestBody);
+        const cryptoKey = await crypto.subtle.importKey(
+          'raw',
+          keyData,
+          { name: 'HMAC', hash: 'SHA-256' },
+          false,
+          ['sign']
+        );
+        const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+        signature = Array.from(new Uint8Array(signatureBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      }
+
+      // Call git-pull server directly (works because frontend runs on user's machine)
+      const response = await fetch('http://localhost:3002/git-pull', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(signature && { 'X-Update-Signature': signature })
+        },
+        body: requestBody
+      });
+
+      if (!response.ok) {
+        throw new Error(`Git pull server returned ${response.status}`);
+      }
+
+      toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
       
     } catch (err: any) {
       console.error('Install update error:', err);
       toast.error(err.message || 'Kunne ikke installere oppdatering');
       setUpdating(false);
+      setShowLogs(false);
     }
   };
 
