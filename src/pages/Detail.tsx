@@ -5,7 +5,7 @@ import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSetting
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -261,6 +261,17 @@ const Detail = () => {
     !!selectedSeasonId && !!userId
   );
 
+  // Fetch similar items
+  const { data: similarItems } = useJellyfinApi<{ Items: JellyfinItemDetail[] }>(
+    ["similar-items", id || ""],
+    {
+      endpoint: id && userId
+        ? `/Items/${id}/Similar?UserId=${userId}&Limit=12&Fields=PrimaryImageAspectRatio,Overview`
+        : "",
+    },
+    !!user && !!userId && !!id
+  );
+
   // Auto-select season based on URL parameter or first season
   useEffect(() => {
     if (seasonsData?.Items && seasonsData.Items.length > 0) {
@@ -482,7 +493,7 @@ const Detail = () => {
             <div className="md:col-span-3">
               <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {item.People.filter(p => p.Type === "Actor").slice(0, 6).map((person, index) => {
+                {item.People.filter(p => p.Type === "Actor").map((person, index) => {
                   const personImageUrl = person.Id && person.PrimaryImageTag && serverUrl
                     ? getJellyfinImageUrl(serverUrl, person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
                     : null;
@@ -621,6 +632,48 @@ const Detail = () => {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Similar Items Section */}
+      {similarItems?.Items && similarItems.Items.length > 0 && (
+        <div className="container mx-auto px-4 py-12">
+          <h2 className="text-2xl font-bold mb-6">Mer som dette</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {similarItems.Items.map((similar) => {
+              const similarImageUrl = similar.ImageTags?.Primary && serverUrl
+                ? getJellyfinImageUrl(serverUrl, similar.Id, 'Primary', { maxHeight: '400' })
+                : null;
+
+              return (
+                <div
+                  key={similar.Id}
+                  onClick={() => navigate(`/detail/${similar.Id}`)}
+                  className="cursor-pointer group"
+                >
+                  <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary mb-2 smooth-transition group-hover:ring-2 group-hover:ring-primary">
+                    {similarImageUrl ? (
+                      <img
+                        src={similarImageUrl}
+                        alt={similar.Name}
+                        className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Film className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary smooth-transition">
+                    {similar.Name}
+                  </h3>
+                  {similar.ProductionYear && (
+                    <p className="text-xs text-muted-foreground">{similar.ProductionYear}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
