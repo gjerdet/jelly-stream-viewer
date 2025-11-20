@@ -182,7 +182,6 @@ export const UpdateManager = () => {
     }
 
     setUpdating(true);
-    setUpdateStatus(null);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
     try {
@@ -208,7 +207,7 @@ export const UpdateManager = () => {
 
       const updateId = statusData.id;
 
-      // Set initial status for UI
+      // Set initial status for UI immediately after creating DB entry
       setUpdateStatus({
         id: updateId,
         status: 'starting',
@@ -220,6 +219,18 @@ export const UpdateManager = () => {
           level: 'info'
         }]
       });
+
+      // Add log about contacting git-pull server
+      const contactingLog = [...(statusData.logs ? JSON.parse(statusData.logs as any) : []), {
+        timestamp: new Date().toISOString(),
+        message: 'Kontakter git-pull server på localhost:3002...',
+        level: 'info'
+      }];
+      
+      setUpdateStatus(prev => prev ? {
+        ...prev,
+        logs: contactingLog
+      } : null);
 
       // Get git_pull_secret for HMAC signature
       const { data: secretData } = await supabase
@@ -271,32 +282,55 @@ export const UpdateManager = () => {
     } catch (err: any) {
       console.error('Install update error:', err);
       
-      // Update status in UI to show error - keep terminal open!
-      if (updateStatus?.id) {
-        const errorLogs = [...(updateStatus.logs || []), {
+      const errorMessage = err.message || 'Kunne ikke starte oppdatering';
+      const isConnectionError = errorMessage.includes('fetch') || errorMessage.includes('NetworkError');
+      
+      // Create detailed error logs
+      const errorLogs = [
+        {
           timestamp: new Date().toISOString(),
-          message: `FEIL: ${err.message || 'Kunne ikke starte oppdatering'}`,
+          message: 'Oppdatering startet...',
+          level: 'info' as const
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: 'Kontakter git-pull server på localhost:3002...',
+          level: 'info' as const
+        },
+        {
+          timestamp: new Date().toISOString(),
+          message: `❌ FEIL: ${errorMessage}`,
           level: 'error' as const
-        }];
-        
-        setUpdateStatus({
-          ...updateStatus,
-          status: 'failed',
-          error: err.message || 'Kunne ikke installere oppdatering',
-          logs: errorLogs
+        }
+      ];
+      
+      if (isConnectionError) {
+        errorLogs.push({
+          timestamp: new Date().toISOString(),
+          message: '💡 TIP: Sjekk at git-pull-server kjører på serveren:',
+          level: 'info' as const
         });
-
-        // Also update in database
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'failed',
-            error: err.message || 'Kunne ikke installere oppdatering',
-            logs: JSON.stringify(errorLogs),
-            completed_at: new Date().toISOString()
-          })
-          .eq('id', updateStatus.id);
+        errorLogs.push({
+          timestamp: new Date().toISOString(),
+          message: '   sudo systemctl status jelly-git-pull',
+          level: 'info' as const
+        });
+        errorLogs.push({
+          timestamp: new Date().toISOString(),
+          message: '   sudo systemctl start jelly-git-pull',
+          level: 'info' as const
+        });
       }
+      
+      // Update status in UI to show error - keep terminal open!
+      setUpdateStatus({
+        id: 'error-' + Date.now(),
+        status: 'failed',
+        progress: 0,
+        current_step: 'Feil: Kunne ikke kontakte git-pull server',
+        error: errorMessage,
+        logs: errorLogs
+      });
       
       toast.error('Oppdatering feilet - se terminal for detaljer');
       setUpdating(false);
