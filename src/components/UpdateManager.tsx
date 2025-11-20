@@ -220,10 +220,26 @@ export const UpdateManager = () => {
         }]
       });
 
+      // Get git_pull_secret and git_pull_server_url for HMAC signature and endpoint
+      const { data: secretData } = await supabase
+        .from('server_settings')
+        .select('setting_value')
+        .eq('setting_key', 'git_pull_secret')
+        .maybeSingle();
+
+      const { data: serverUrlData } = await supabase
+        .from('server_settings')
+        .select('setting_value')
+        .eq('setting_key', 'git_pull_server_url')
+        .maybeSingle();
+
+      const secret = secretData?.setting_value || '';
+      const serverUrl = serverUrlData?.setting_value || 'http://192.168.9.24:3002/git-pull';
+
       // Add log about contacting git-pull server
       const contactingLog = [...(statusData.logs ? JSON.parse(statusData.logs as any) : []), {
         timestamp: new Date().toISOString(),
-        message: 'Kontakter git-pull server på localhost:3002...',
+        message: `Kontakter git-pull server på ${serverUrl}...`,
         level: 'info'
       }];
       
@@ -231,15 +247,6 @@ export const UpdateManager = () => {
         ...prev,
         logs: contactingLog
       } : null);
-
-      // Get git_pull_secret for HMAC signature
-      const { data: secretData } = await supabase
-        .from('server_settings')
-        .select('setting_value')
-        .eq('setting_key', 'git_pull_secret')
-        .maybeSingle();
-
-      const secret = secretData?.setting_value || '';
 
       // Prepare request body
       const requestBody = JSON.stringify({ updateId });
@@ -263,8 +270,8 @@ export const UpdateManager = () => {
           .join('');
       }
 
-      // Call git-pull server directly (works because frontend runs on user's machine)
-      const response = await fetch('http://localhost:3002/git-pull', {
+      // Call git-pull server using configured URL
+      const response = await fetch(serverUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

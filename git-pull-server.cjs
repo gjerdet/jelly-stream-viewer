@@ -18,6 +18,7 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 const PORT = process.env.GIT_PULL_PORT || 3002;
+const HOST = process.env.GIT_PULL_HOST || '0.0.0.0'; // Listen on all interfaces
 const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
 const APP_DIR = process.env.APP_DIR || process.cwd();
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -249,10 +250,13 @@ const server = http.createServer((req, res) => {
 });
 
 // Start server
-server.listen(PORT, 'localhost', () => {
-  console.log(`✅ Git Pull Server listening on http://localhost:${PORT}`);
-  console.log(`📍 Endpoint: http://localhost:${PORT}/git-pull`);
-  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+server.listen(PORT, HOST, () => {
+  console.log(`✅ Git Pull Server listening on http://${HOST}:${PORT}`);
+  console.log(`📍 Endpoint: http://${HOST}:${PORT}/git-pull`);
+  console.log(`🏥 Health check: http://${HOST}:${PORT}/health`);
+  if (HOST === '0.0.0.0') {
+    console.log(`🌐 Accessible from LAN: http://192.168.9.24:${PORT}/git-pull`);
+  }
 });
 
 // Graceful shutdown
