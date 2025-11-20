@@ -194,6 +194,8 @@ serve(async (req) => {
 
     // Trigger the update webhook with HMAC signature
     let webhookResponse;
+    let finalWebhookUrl = webhookUrl;
+    
     try {
       webhookResponse = await fetch(webhookUrl, {
         method: 'POST',
@@ -207,51 +209,74 @@ serve(async (req) => {
     } catch (fetchError) {
       console.error('Failed to reach webhook server:', fetchError);
       
-      // Check if it's an SSL error
+      // Check if it's an SSL error and URL is HTTPS
       const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
       const isSSLError = errorMessage.includes('UnrecognisedName') || 
                         errorMessage.includes('certificate') ||
                         errorMessage.includes('SSL') ||
-                        errorMessage.includes('TLS');
+                        errorMessage.includes('TLS') ||
+                        errorMessage.includes('NotValidForName');
       
-      let userMessage = 'Kunne ikke nå webhook-serveren';
-      let suggestion = '';
-      
-      if (isSSLError) {
-        userMessage = 'SSL-sertifikat feil på webhook-serveren';
-        suggestion = webhookUrl.startsWith('https://') 
-          ? `Prøv å bruke HTTP i stedet: ${webhookUrl.replace('https://', 'http://')}` 
-          : 'Sjekk at SSL-sertifikatet inkluderer domenet';
+      // If SSL error and HTTPS URL, automatically try HTTP fallback
+      if (isSSLError && webhookUrl.startsWith('https://')) {
+        const httpUrl = webhookUrl.replace('https://', 'http://');
+        console.log(`SSL error detected, retrying with HTTP: ${httpUrl}`);
+        
+        // Update logs
+        if (updateId) {
+          await supabase
+            .from('update_status')
+            .update({
+              current_step: 'SSL-feil oppdaget, prøver HTTP...',
+              logs: JSON.stringify([{
+                timestamp: new Date().toISOString(),
+                message: 'SSL-sertifikat feil. Prøver HTTP i stedet...',
+                level: 'warning'
+              }])
+            })
+            .eq('id', updateId);
+        }
+        
+        try {
+          // Retry with HTTP
+          webhookResponse = await fetch(httpUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Webhook-Signature': signature,
+              'X-Webhook-Timestamp': timestamp
+            },
+            body: payload
+          });
+          finalWebhookUrl = httpUrl;
+        } catch (httpError) {
+          console.error('HTTP fallback also failed:', httpError);
+          throw httpError;
+        }
+      } else {
+        throw fetchError;
       }
+    }
+    
+    // If we still don't have a response, something went wrong
+    if (!webhookResponse) {
+      const errorMsg = 'Kunne ikke nå webhook-serveren';
       
-      // Update status to failed
       if (updateId) {
         await supabase
           .from('update_status')
           .update({
             status: 'failed',
-            error: userMessage,
+            error: errorMsg,
             current_step: 'Feil: Kunne ikke koble til webhook',
-            completed_at: new Date().toISOString(),
-            logs: JSON.stringify([{
-              timestamp: new Date().toISOString(),
-              message: `${userMessage}. ${suggestion}`,
-              level: 'error'
-            }])
+            completed_at: new Date().toISOString()
           })
           .eq('id', updateId);
       }
       
       return new Response(
-        JSON.stringify({ 
-          error: userMessage,
-          suggestion: suggestion,
-          details: errorMessage
-        }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+        JSON.stringify({ error: errorMsg }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
