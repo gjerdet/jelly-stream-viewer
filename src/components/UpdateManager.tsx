@@ -93,6 +93,38 @@ export const UpdateManager = () => {
     }
   };
 
+  const syncInstalledVersion = async () => {
+    try {
+      // Prompt user for current commit SHA
+      const commitSha = prompt('Lim inn commit SHA fra git log (kjør: git rev-parse HEAD)');
+      
+      if (!commitSha) {
+        toast.error('Commit SHA er påkrevd');
+        return;
+      }
+
+      toast.info('Synkroniserer installert versjon...');
+
+      const { data, error: syncError } = await supabase.functions.invoke('sync-installed-version', {
+        body: { commitSha: commitSha.trim() }
+      });
+
+      if (syncError) {
+        console.error('Sync error:', syncError);
+        toast.error('Kunne ikke synkronisere versjon');
+        return;
+      }
+
+      toast.success('Installert versjon synkronisert!');
+      
+      // Check for updates again
+      await checkForUpdates();
+    } catch (err: any) {
+      console.error('Sync error:', err);
+      toast.error('Kunne ikke synkronisere versjon');
+    }
+  };
+
   // Subscribe to realtime updates
   useEffect(() => {
     if (!updateStatus?.id) return;
@@ -327,30 +359,42 @@ export const UpdateManager = () => {
           </Button>
 
           {updateInfo?.updateAvailable && !updateStatus && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={updating} className="flex-1">
-                  <Download className="h-4 w-4 mr-2" />
-                  {updates?.installUpdate || 'Install update'}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{updates?.installUpdate || 'Install update'}?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {language === 'no' 
-                      ? 'Dette vil laste ned den nyeste versjonen fra GitHub og restarte serveren. Operasjonen tar vanligvis 30-60 sekunder. Siden vil automatisk laste på nytt når oppdateringen er ferdig.'
-                      : 'This will download the latest version from GitHub and restart the server. The operation usually takes 30-60 seconds. The page will automatically reload when the update is complete.'}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{common?.cancel || 'Cancel'}</AlertDialogCancel>
-                  <AlertDialogAction onClick={installUpdate}>
-                    {language === 'no' ? 'Installer nå' : 'Install now'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <>
+              <Button
+                onClick={syncInstalledVersion}
+                variant="secondary"
+                size="sm"
+                className="flex-shrink-0"
+              >
+                <CheckCircle className="h-4 w-4 mr-2" />
+                {language === 'no' ? 'Synk versjon' : 'Sync version'}
+              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button disabled={updating} className="flex-1">
+                    <Download className="h-4 w-4 mr-2" />
+                    {updates?.installUpdate || 'Install update'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{updates?.installUpdate || 'Install update'}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {language === 'no' 
+                        ? 'Dette vil laste ned den nyeste versjonen fra GitHub og restarte serveren. Operasjonen tar vanligvis 30-60 sekunder. Siden vil automatisk laste på nytt når oppdateringen er ferdig.'
+                        : 'This will download the latest version from GitHub and restart the server. The operation usually takes 30-60 seconds. The page will automatically reload when the update is complete.'}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{common?.cancel || 'Cancel'}</AlertDialogCancel>
+                    <AlertDialogAction onClick={installUpdate}>
+                      {language === 'no' ? 'Installer nå' : 'Install now'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
           )}
         </div>
       </CardContent>
