@@ -193,15 +193,67 @@ serve(async (req) => {
     const signature = await generateSignature(payload, webhookSecret);
 
     // Trigger the update webhook with HMAC signature
-    const webhookResponse = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Webhook-Signature': signature,
-        'X-Webhook-Timestamp': timestamp
-      },
-      body: payload
-    });
+    let webhookResponse;
+    try {
+      webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Webhook-Signature': signature,
+          'X-Webhook-Timestamp': timestamp
+        },
+        body: payload
+      });
+    } catch (fetchError) {
+      console.error('Failed to reach webhook server:', fetchError);
+      
+      // Check if it's an SSL error
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      const isSSLError = errorMessage.includes('UnrecognisedName') || 
+                        errorMessage.includes('certificate') ||
+                        errorMessage.includes('SSL') ||
+                        errorMessage.includes('TLS');
+      
+      let userMessage = 'Kunne ikke nå webhook-serveren';
+      let suggestion = '';
+      
+      if (isSSLError) {
+        userMessage = 'SSL-sertifikat feil på webhook-serveren';
+        suggestion = webhookUrl.startsWith('https://') 
+          ? `Prøv å bruke HTTP i stedet: ${webhookUrl.replace('https://', 'http://')}` 
+          : 'Sjekk at SSL-sertifikatet inkluderer domenet';
+      }
+      
+      // Update status to failed
+      if (updateId) {
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'failed',
+            error: userMessage,
+            current_step: 'Feil: Kunne ikke koble til webhook',
+            completed_at: new Date().toISOString(),
+            logs: JSON.stringify([{
+              timestamp: new Date().toISOString(),
+              message: `${userMessage}. ${suggestion}`,
+              level: 'error'
+            }])
+          })
+          .eq('id', updateId);
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          error: userMessage,
+          suggestion: suggestion,
+          details: errorMessage
+        }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
 
     if (!webhookResponse.ok) {
       console.error('Webhook failed:', webhookResponse.status);
