@@ -16,6 +16,10 @@ const http = require('http');
 const { exec } = require('child_process');
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { execSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const PORT = process.env.GIT_PULL_PORT || 3002;
 const HOST = process.env.GIT_PULL_HOST || '0.0.0.0'; // Listen on all interfaces
@@ -23,6 +27,45 @@ const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
 const APP_DIR = process.env.APP_DIR || process.cwd();
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+/**
+ * Find npm binary path (NVM or system)
+ */
+function findNpmPath() {
+  // Try to find npm in common locations
+  const homeDir = os.homedir();
+  const possiblePaths = [
+    // NVM paths
+    path.join(homeDir, '.nvm/versions/node/v18.20.0/bin/npm'),
+    path.join(homeDir, '.nvm/current/bin/npm'),
+    // System paths
+    '/usr/local/bin/npm',
+    '/usr/bin/npm',
+  ];
+
+  for (const npmPath of possiblePaths) {
+    if (fs.existsSync(npmPath)) {
+      console.log(`📦 Found npm at: ${npmPath}`);
+      return npmPath;
+    }
+  }
+
+  // Try to find via which command
+  try {
+    const whichNpm = execSync('which npm', { encoding: 'utf8' }).trim();
+    if (whichNpm && fs.existsSync(whichNpm)) {
+      console.log(`📦 Found npm via which: ${whichNpm}`);
+      return whichNpm;
+    }
+  } catch (err) {
+    // which failed, continue
+  }
+
+  console.warn('⚠️  Could not find npm, will use "npm" and hope it\'s in PATH');
+  return 'npm';
+}
+
+const NPM_PATH = findNpmPath();
 
 // Initialize Supabase client if credentials are available
 let supabase = null;
@@ -145,12 +188,12 @@ async function executeGitPull(updateId) {
 
     // Step 5: npm install
     addLog(logs, '📦 Installing dependencies...', 'info');
-    await execCommand('npm install --production', APP_DIR, logs);
+    await execCommand(`${NPM_PATH} install --production`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 75, 'Building application...', logs);
 
     // Step 6: npm build
     addLog(logs, '🔨 Building application...', 'info');
-    await execCommand('npm run build', APP_DIR, logs);
+    await execCommand(`${NPM_PATH} run build`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 90, 'Finalizing...', logs);
 
     addLog(logs, '✅ Update completed successfully!', 'success');
