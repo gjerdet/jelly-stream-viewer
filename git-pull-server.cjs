@@ -32,6 +32,13 @@ const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
  * Find npm binary path (NVM or system)
  */
 function findNpmPath() {
+  // Allow explicit override via environment variable
+  const envNpm = process.env.NPM_PATH;
+  if (envNpm && fs.existsSync(envNpm)) {
+    console.log(`📦 Using npm from NPM_PATH env: ${envNpm}`);
+    return envNpm;
+  }
+
   // Try to find npm in common locations
   const homeDir = os.homedir();
   const possiblePaths = [
