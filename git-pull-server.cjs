@@ -72,53 +72,33 @@ function findNpmPath() {
   return 'npm';
 }
 
-function findNodePath() {
-  // Allow explicit override via environment variable
-  const envNode = process.env.NODE_PATH;
-  if (envNode && fs.existsSync(envNode)) {
-    console.log(`🟢 Using node from NODE_PATH env: ${envNode}`);
-    return envNode;
-  }
-
-  // If NPM_PATH points to a real file inside a bin folder, assume node is alongside it
-  const npmPath = NPM_PATH && NPM_PATH !== 'npm' ? NPM_PATH : null;
-  if (npmPath) {
-    const dir = path.dirname(npmPath);
-    const nodeCandidate = path.join(dir, 'node');
-    if (fs.existsSync(nodeCandidate)) {
-      console.log(`🟢 Using node next to npm: ${nodeCandidate}`);
-      return nodeCandidate;
-    }
-  }
-
-  const homeDir = os.homedir();
-  const possibleNodes = [
-    path.join(homeDir, '.nvm/versions/node/v18.20.0/bin/node'),
-    path.join(homeDir, '.nvm/current/bin/node'),
-    '/usr/local/bin/node',
-    '/usr/bin/node',
-  ];
-
-  for (const nodePath of possibleNodes) {
-    if (fs.existsSync(nodePath)) {
-      console.log(`🟢 Found node at: ${nodePath}`);
-      return nodePath;
-    }
-  }
-
-  console.warn('⚠️  Could not find a specific node binary, falling back to "node" in PATH');
-  return 'node';
-}
+const NPM_PATH = findNpmPath();
 
 function getNpmCommand() {
-  if (NPM_PATH === 'npm') return 'npm';
-  const nodePath = NODE_PATH || 'node';
-  // Execute npm JS file with the chosen node binary to avoid old system node
-  return `"${nodePath}" "${NPM_PATH}"`;
+  // If we only have a generic npm, fall back to calling it directly
+  if (!NPM_PATH || NPM_PATH === 'npm') {
+    return 'npm';
+  }
+
+  // Try to resolve the real npm CLI JS file and pair it with the matching node binary
+  const npmDir = path.dirname(NPM_PATH);
+  const nodeFromNvm = path.join(npmDir, 'node');
+  const npmCliFromNvm = path.join(
+    npmDir.replace(/bin$/, 'lib/node_modules/npm/bin'),
+    'npm-cli.js',
+  );
+
+  if (fs.existsSync(nodeFromNvm) && fs.existsSync(npmCliFromNvm)) {
+    console.log(`🟢 Using node from: ${nodeFromNvm}`);
+    console.log(`📦 Using npm CLI from: ${npmCliFromNvm}`);
+    // Run: /path/to/node /path/to/npm-cli.js
+    return `"${nodeFromNvm}" "${npmCliFromNvm}"`;
+  }
+
+  console.warn('⚠️  Could not find npm-cli.js next to npm, falling back to npm binary directly');
+  return `"${NPM_PATH}"`;
 }
 
-const NPM_PATH = findNpmPath();
-const NODE_PATH = findNodePath();
 const NPM_CMD = getNpmCommand();
 
 // Initialize Supabase client if credentials are available
