@@ -42,7 +42,9 @@ function findNpmPath() {
   // Try to find npm in common locations
   const homeDir = os.homedir();
   const possiblePaths = [
-    // NVM paths
+    // NVM paths - prefer Node 20+
+    path.join(homeDir, '.nvm/versions/node/v22.12.0/bin/npm'),
+    path.join(homeDir, '.nvm/versions/node/v20.18.0/bin/npm'),
     path.join(homeDir, '.nvm/versions/node/v18.20.0/bin/npm'),
     path.join(homeDir, '.nvm/current/bin/npm'),
     // System paths
