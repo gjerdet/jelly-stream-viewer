@@ -72,7 +72,54 @@ function findNpmPath() {
   return 'npm';
 }
 
+function findNodePath() {
+  // Allow explicit override via environment variable
+  const envNode = process.env.NODE_PATH;
+  if (envNode && fs.existsSync(envNode)) {
+    console.log(`🟢 Using node from NODE_PATH env: ${envNode}`);
+    return envNode;
+  }
+
+  // If NPM_PATH points to a real file inside a bin folder, assume node is alongside it
+  const npmPath = NPM_PATH && NPM_PATH !== 'npm' ? NPM_PATH : null;
+  if (npmPath) {
+    const dir = path.dirname(npmPath);
+    const nodeCandidate = path.join(dir, 'node');
+    if (fs.existsSync(nodeCandidate)) {
+      console.log(`🟢 Using node next to npm: ${nodeCandidate}`);
+      return nodeCandidate;
+    }
+  }
+
+  const homeDir = os.homedir();
+  const possibleNodes = [
+    path.join(homeDir, '.nvm/versions/node/v18.20.0/bin/node'),
+    path.join(homeDir, '.nvm/current/bin/node'),
+    '/usr/local/bin/node',
+    '/usr/bin/node',
+  ];
+
+  for (const nodePath of possibleNodes) {
+    if (fs.existsSync(nodePath)) {
+      console.log(`🟢 Found node at: ${nodePath}`);
+      return nodePath;
+    }
+  }
+
+  console.warn('⚠️  Could not find a specific node binary, falling back to "node" in PATH');
+  return 'node';
+}
+
+function getNpmCommand() {
+  if (NPM_PATH === 'npm') return 'npm';
+  const nodePath = NODE_PATH || 'node';
+  // Execute npm JS file with the chosen node binary to avoid old system node
+  return `"${nodePath}" "${NPM_PATH}"`;
+}
+
 const NPM_PATH = findNpmPath();
+const NODE_PATH = findNodePath();
+const NPM_CMD = getNpmCommand();
 
 // Initialize Supabase client if credentials are available
 let supabase = null;
@@ -195,12 +242,12 @@ async function executeGitPull(updateId) {
 
     // Step 5: npm install
     addLog(logs, '📦 Installing dependencies...', 'info');
-    await execCommand(`${NPM_PATH} install --production`, APP_DIR, logs);
+    await execCommand(`${NPM_CMD} install --production`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 75, 'Building application...', logs);
 
     // Step 6: npm build
     addLog(logs, '🔨 Building application...', 'info');
-    await execCommand(`${NPM_PATH} run build`, APP_DIR, logs);
+    await execCommand(`${NPM_CMD} run build`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 90, 'Finalizing...', logs);
 
     addLog(logs, '✅ Update completed successfully!', 'success');
