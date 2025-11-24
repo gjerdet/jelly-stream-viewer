@@ -41,10 +41,31 @@ function findNpmPath() {
 
   // Try to find npm in common locations
   const homeDir = os.homedir();
+
+  // Prefer any installed Node 20.x from NVM dynamically
+  const preferredNpmPaths = [];
+  const nvmNodeDir = path.join(homeDir, '.nvm/versions/node');
+  try {
+    if (fs.existsSync(nvmNodeDir)) {
+      const entries = fs.readdirSync(nvmNodeDir, { withFileTypes: true });
+      const v20Dirs = entries
+        .filter((e) => e.isDirectory() && e.name.startsWith('v20.'))
+        .map((e) => e.name)
+        .sort()
+        .reverse(); // highest version first
+
+      for (const dir of v20Dirs) {
+        preferredNpmPaths.push(path.join(nvmNodeDir, dir, 'bin/npm'));
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️  Failed to scan NVM directory for Node 20.x, falling back to defaults:', err.message);
+  }
+
   const possiblePaths = [
-    // NVM paths - prefer Node 20+
-    path.join(homeDir, '.nvm/versions/node/v22.12.0/bin/npm'),
-    path.join(homeDir, '.nvm/versions/node/v20.18.0/bin/npm'),
+    // Dynamically detected NVM Node 20.x paths
+    ...preferredNpmPaths,
+    // Fallback NVM paths (18.x and "current")
     path.join(homeDir, '.nvm/versions/node/v18.20.0/bin/npm'),
     path.join(homeDir, '.nvm/current/bin/npm'),
     // System paths
