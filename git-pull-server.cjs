@@ -241,10 +241,14 @@ async function executeGitPull(updateId) {
       addLog(logs, '✅ Database updated with new version', 'success');
     }
     
+    await updateStatus(updateId, 'running', 50, 'Cleaning node_modules...', logs);
+
+    // Step 5: Clean install to ensure devDependencies are installed
+    addLog(logs, '🧹 Removing node_modules for clean install...', 'info');
+    await execCommand('rm -rf node_modules package-lock.json', APP_DIR, logs);
     await updateStatus(updateId, 'running', 55, 'Installing dependencies...', logs);
 
-    // Step 5: npm install
-    addLog(logs, '📦 Installing dependencies...', 'info');
+    addLog(logs, '📦 Installing all dependencies (including dev)...', 'info');
     await execCommand(`${NPM_CMD} install`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 75, 'Building application...', logs);
 
