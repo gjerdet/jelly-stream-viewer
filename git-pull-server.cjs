@@ -245,7 +245,7 @@ async function executeGitPull(updateId) {
 
     // Step 5: npm install
     addLog(logs, '📦 Installing dependencies...', 'info');
-    await execCommand(`${NPM_CMD} install --production`, APP_DIR, logs);
+    await execCommand(`${NPM_CMD} install`, APP_DIR, logs);
     await updateStatus(updateId, 'running', 75, 'Building application...', logs);
 
     // Step 6: npm build
