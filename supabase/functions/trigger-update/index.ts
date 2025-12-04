@@ -81,7 +81,8 @@ serve(async (req) => {
 
     // Default to localhost:3002 if not configured anywhere
     const gitPullUrl = primaryUrl || 'http://localhost:3002/git-pull';
-    const gitPullSecret = primarySecret || '';
+    // Use database secret, or fall back to environment variable UPDATE_SECRET
+    const gitPullSecret = primarySecret || Deno.env.get('UPDATE_SECRET') || '';
 
     console.log(`Using git pull server: ${gitPullUrl}`);
 
