@@ -82,6 +82,32 @@ echo -e "${BLUE}Git Pull Server URL: ${GIT_PULL_URL}${NC}"
 ACTUAL_USER=${SUDO_USER:-$(whoami)}
 echo -e "${BLUE}Service vil kjøre som bruker: ${ACTUAL_USER}${NC}"
 
+# Find Node 20 path (prefer nvm, fallback to system)
+NODE_PATH="/usr/bin/node"
+USER_HOME=$(getent passwd "$ACTUAL_USER" | cut -d: -f6)
+
+# Check for nvm Node 20
+if [ -f "${USER_HOME}/.nvm/versions/node/v20.19.5/bin/node" ]; then
+    NODE_PATH="${USER_HOME}/.nvm/versions/node/v20.19.5/bin/node"
+    echo -e "${GREEN}Found nvm Node 20: ${NODE_PATH}${NC}"
+elif [ -d "${USER_HOME}/.nvm/versions/node" ]; then
+    # Find any Node 20.x version
+    NODE20_DIR=$(ls -d ${USER_HOME}/.nvm/versions/node/v20.* 2>/dev/null | head -1)
+    if [ ! -z "$NODE20_DIR" ] && [ -f "${NODE20_DIR}/bin/node" ]; then
+        NODE_PATH="${NODE20_DIR}/bin/node"
+        echo -e "${GREEN}Found nvm Node 20: ${NODE_PATH}${NC}"
+    fi
+fi
+
+# Verify Node version is 20+
+NODE_VERSION=$($NODE_PATH -v 2>/dev/null | sed 's/v//' | cut -d. -f1)
+if [ "$NODE_VERSION" -lt 20 ] 2>/dev/null; then
+    echo -e "${RED}Warning: Node version is less than 20. Vite build may fail.${NC}"
+    echo -e "${YELLOW}Install Node 20 via nvm: nvm install 20${NC}"
+fi
+
+echo -e "${BLUE}Using Node: ${NODE_PATH} ($(${NODE_PATH} -v))${NC}"
+
 # Create systemd service
 SERVICE_FILE="/etc/systemd/system/jelly-git-pull.service"
 echo -e "${BLUE}Lager systemd service: ${SERVICE_FILE}${NC}"
@@ -100,7 +126,7 @@ Environment="NODE_ENV=production"
 Environment="GIT_PULL_PORT=3002"
 Environment="APP_DIR=${APP_DIR}"
 EnvironmentFile=${APP_DIR}/.env
-ExecStart=/usr/bin/node ${APP_DIR}/git-pull-server.cjs
+ExecStart=${NODE_PATH} ${APP_DIR}/git-pull-server.cjs
 Restart=always
 RestartSec=10
 StandardOutput=journal
