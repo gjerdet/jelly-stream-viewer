@@ -6,7 +6,10 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -86,6 +89,16 @@ interface EpisodesResponse {
   Items: Episode[];
 }
 
+interface RemoteSubtitle {
+  Id: string;
+  Name: string;
+  Language: string;
+  Provider: string;
+  Comment?: string;
+  DownloadCount?: number;
+  Format?: string;
+}
+
 const Player = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -104,8 +117,71 @@ const Player = () => {
     const saved = localStorage.getItem('autoMarkWatched');
     return saved === 'true';
   });
+  const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
+  const [searchingSubtitles, setSearchingSubtitles] = useState(false);
+  const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
+  const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
+
+  // Search for subtitles via Jellyfin
+  const searchSubtitles = async (language: string = 'nor') => {
+    if (!id) return;
+    
+    setSearchingSubtitles(true);
+    setRemoteSubtitles([]);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-search-subtitles', {
+        body: { itemId: id, language }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      
+      setRemoteSubtitles(data?.subtitles || []);
+      
+      if (data?.subtitles?.length === 0) {
+        toast.info('Ingen undertekster funnet');
+      }
+    } catch (error) {
+      console.error('Error searching subtitles:', error);
+      toast.error('Kunne ikke søke etter undertekster');
+    } finally {
+      setSearchingSubtitles(false);
+    }
+  };
+
+  // Download subtitle via Jellyfin
+  const downloadSubtitle = async (subtitleId: string) => {
+    if (!id) return;
+    
+    setDownloadingSubtitle(subtitleId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
+        body: { itemId: id, subtitleId }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success('Undertekst lastet ned! Refresh siden for å bruke den.');
+        setSubtitleSearchOpen(false);
+      } else {
+        toast.error(data?.error || 'Kunne ikke laste ned undertekst');
+      }
+    } catch (error) {
+      console.error('Error downloading subtitle:', error);
+      toast.error('Kunne ikke laste ned undertekst');
+    } finally {
+      setDownloadingSubtitle(null);
+    }
+  };
 
   // Fetch users to get user ID
   const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
@@ -783,6 +859,120 @@ const Player = () => {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Subtitle Search Dialog */}
+            <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-white hover:bg-white/20"
+                  onClick={() => {
+                    setSubtitleSearchOpen(true);
+                    searchSubtitles('nor');
+                  }}
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Søk undertekster
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[80vh]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Subtitles className="h-5 w-5" />
+                    Søk etter undertekster
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => searchSubtitles('nor')}
+                      disabled={searchingSubtitles}
+                    >
+                      Norsk
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => searchSubtitles('eng')}
+                      disabled={searchingSubtitles}
+                    >
+                      English
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => searchSubtitles('swe')}
+                      disabled={searchingSubtitles}
+                    >
+                      Svenska
+                    </Button>
+                  </div>
+                  
+                  <ScrollArea className="h-[400px] rounded-md border p-4">
+                    {searchingSubtitles ? (
+                      <div className="flex items-center justify-center h-full">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2">Søker...</span>
+                      </div>
+                    ) : remoteSubtitles.length > 0 ? (
+                      <div className="space-y-2">
+                        {remoteSubtitles.map((sub) => (
+                          <div
+                            key={sub.Id}
+                            className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{sub.Name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{sub.Language}</span>
+                                <span>•</span>
+                                <span>{sub.Provider}</span>
+                                {sub.Format && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{sub.Format}</span>
+                                  </>
+                                )}
+                                {sub.DownloadCount && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{sub.DownloadCount} nedlastinger</span>
+                                  </>
+                                )}
+                              </div>
+                              {sub.Comment && (
+                                <p className="text-xs text-muted-foreground mt-1 truncate">{sub.Comment}</p>
+                              )}
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadSubtitle(sub.Id)}
+                              disabled={downloadingSubtitle === sub.Id}
+                            >
+                              {downloadingSubtitle === sub.Id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Download className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                        <Subtitles className="h-12 w-12 mb-2 opacity-50" />
+                        <p>Velg et språk for å søke etter undertekster</p>
+                        <p className="text-xs mt-1">Krever at Jellyfin har et undertekstplugin installert</p>
+                      </div>
+                    )}
+                  </ScrollArea>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
 
