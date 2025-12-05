@@ -316,8 +316,11 @@ const Player = () => {
   useEffect(() => {
     if (item?.Id) {
       console.log('Item loaded:', item.Name);
-      console.log('MediaStreams:', item.MediaStreams);
-      console.log('Subtitles found:', subtitles.length);
+      console.log('All MediaStreams:', item.MediaStreams);
+      console.log('Subtitle streams with details:');
+      subtitles.forEach((s, i) => {
+        console.log(`  [${i}] Index: ${s.Index}, Language: ${s.Language}, Title: ${s.DisplayTitle}, Codec: ${s.Codec}`);
+      });
     }
   }, [item?.Id, subtitles.length]);
 
