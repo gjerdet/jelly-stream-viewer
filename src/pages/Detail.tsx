@@ -932,7 +932,7 @@ const Detail = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Button
-                        variant="outline"
+                        variant="secondary"
                         size="sm"
                         className="gap-2"
                         onClick={(e) => {
