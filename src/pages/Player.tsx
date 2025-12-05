@@ -507,8 +507,23 @@ const Player = () => {
         const subtitleIndex = parseInt(selectedSubtitle, 10);
         console.log('Loading subtitle index:', subtitleIndex);
         const url = await getSubtitleUrl(subtitleIndex);
-        console.log('Subtitle URL:', url);
-        setSubtitleUrl(url);
+        console.log('Fetching subtitle from:', url);
+        
+        try {
+          // Fetch subtitle content and create blob URL to avoid CORS issues
+          const response = await fetch(url);
+          if (!response.ok) {
+            console.error('Failed to fetch subtitle:', response.status);
+            return;
+          }
+          const text = await response.text();
+          console.log('Subtitle content length:', text.length);
+          const blob = new Blob([text], { type: 'text/vtt' });
+          const blobUrl = URL.createObjectURL(blob);
+          setSubtitleUrl(blobUrl);
+        } catch (error) {
+          console.error('Error fetching subtitle:', error);
+        }
       } else {
         setSubtitleUrl('');
       }
@@ -526,7 +541,7 @@ const Player = () => {
     existingTracks.forEach(track => track.remove());
 
     if (subtitleUrl) {
-      console.log('Adding subtitle track:', subtitleUrl);
+      console.log('Adding subtitle track with blob URL');
       const track = document.createElement('track');
       track.kind = 'subtitles';
       track.src = subtitleUrl;
@@ -535,18 +550,21 @@ const Player = () => {
       track.default = true;
       video.appendChild(track);
       
-      // Enable the track
-      track.addEventListener('load', () => {
-        console.log('Subtitle track loaded');
+      // Enable the track after a short delay
+      setTimeout(() => {
         if (video.textTracks.length > 0) {
           video.textTracks[0].mode = 'showing';
+          console.log('Subtitle track enabled');
         }
-      });
-      
-      track.addEventListener('error', (e) => {
-        console.error('Subtitle track error:', e);
-      });
+      }, 100);
     }
+
+    // Cleanup blob URL when unmounting
+    return () => {
+      if (subtitleUrl && subtitleUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(subtitleUrl);
+      }
+    };
   }, [subtitleUrl]);
 
 
