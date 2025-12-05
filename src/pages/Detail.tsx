@@ -157,12 +157,13 @@ const Detail = () => {
     
     setDownloadingSubtitle(subtitleId);
     
-    // Show loading toast
-    const toastId = toast.loading(
-      subtitleName 
-        ? `Laster ned: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
-        : 'Laster ned undertekst...'
-    );
+    // Show loading toast immediately
+    console.log('Starting subtitle download:', subtitleName);
+    const loadingMessage = subtitleName 
+      ? `Laster ned: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
+      : 'Laster ned undertekst...';
+    const toastId = toast.loading(loadingMessage);
+    console.log('Toast shown with id:', toastId);
     
     try {
       const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
@@ -968,18 +969,19 @@ const Detail = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0 self-center">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="gap-2"
-                        onClick={() => openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`)}
-                        title="Søk undertekster"
-                      >
-                        <Subtitles className="h-4 w-4" />
-                        <span className="hidden sm:inline">Undertekst</span>
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 flex-shrink-0 bg-secondary/50 border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
+                      }}
+                      title="Søk undertekster"
+                    >
+                      <Subtitles className="h-4 w-4" />
+                      <span className="hidden sm:inline">Undertekst</span>
+                    </Button>
                   </div>
                 );
               })}
