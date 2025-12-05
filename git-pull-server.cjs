@@ -133,17 +133,14 @@ if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
 
 console.log('🚀 Git Pull Server starting...');
 console.log(`📁 Working directory: ${APP_DIR}`);
-console.log(`🔐 Secret configured: ${UPDATE_SECRET ? 'Yes' : 'No'}`);
+console.log(`🔐 Signature verification: DISABLED (private network)`);
 
 /**
- * Verify HMAC signature
+ * Verify HMAC signature - DISABLED for private network deployment
  */
 function verifySignature(payload, signature, secret) {
-  if (!secret) return true; // Skip verification if no secret set
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload);
-  const expectedSignature = hmac.digest('hex');
-  return signature === expectedSignature;
+  // Signature verification disabled - server runs on private network only
+  return true;
 }
 
 /**
