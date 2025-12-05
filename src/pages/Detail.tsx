@@ -111,6 +111,9 @@ const Detail = () => {
   const [subtitleTab, setSubtitleTab] = useState<'existing' | 'search'>('existing');
   const [episodeSubtitleSearchOpen, setEpisodeSubtitleSearchOpen] = useState<string | null>(null);
   const [episodeSubtitleTarget, setEpisodeSubtitleTarget] = useState<{ id: string; name: string } | null>(null);
+  const [episodeSubtitles, setEpisodeSubtitles] = useState<MediaStream[]>([]);
+  const [episodeSubtitleTab, setEpisodeSubtitleTab] = useState<'existing' | 'search'>('existing');
+  const [loadingEpisodeSubtitles, setLoadingEpisodeSubtitles] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -186,11 +189,41 @@ const Detail = () => {
     }
   };
 
-  // Open episode subtitle search
-  const openEpisodeSubtitleSearch = (episodeId: string, episodeName: string) => {
+  // Open episode subtitle search and fetch existing subtitles
+  const openEpisodeSubtitleSearch = async (episodeId: string, episodeName: string) => {
     setEpisodeSubtitleTarget({ id: episodeId, name: episodeName });
     setRemoteSubtitles([]);
+    setEpisodeSubtitles([]);
+    setEpisodeSubtitleTab('existing');
     setEpisodeSubtitleSearchOpen(episodeId);
+    setLoadingEpisodeSubtitles(true);
+    
+    // Fetch episode details to get existing subtitles
+    try {
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (serverUrl && accessToken) {
+        let normalizedUrl = serverUrl;
+        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+          normalizedUrl = `http://${normalizedUrl}`;
+        }
+        
+        const response = await fetch(
+          `${normalizedUrl.replace(/\/$/, '')}/Items/${episodeId}?Fields=MediaStreams&api_key=${accessToken}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const subs = data.MediaStreams?.filter((s: MediaStream) => s.Type === 'Subtitle') || [];
+          setEpisodeSubtitles(subs);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching episode subtitles:', error);
+    } finally {
+      setLoadingEpisodeSubtitles(false);
+    }
   };
 
   useEffect(() => {
@@ -879,12 +912,14 @@ const Detail = () => {
                   <div
                     key={episode.Id}
                     ref={(el) => episodeRefs.current[episode.Id] = el}
-                    onClick={() => navigate(`/player/${episode.Id}`)}
-                    className={`group cursor-pointer bg-card rounded-lg overflow-hidden border smooth-transition flex gap-4 p-3 ${
+                    className={`group cursor-pointer bg-card rounded-lg border smooth-transition flex gap-4 p-3 ${
                       episodeId === episode.Id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary'
                     }`}
                   >
-                    <div className="relative w-52 h-28 flex-shrink-0 bg-secondary rounded overflow-hidden">
+                    <div 
+                      className="relative w-52 h-28 flex-shrink-0 bg-secondary rounded overflow-hidden cursor-pointer"
+                      onClick={() => navigate(`/player/${episode.Id}`)}
+                    >
                       {episodeImageUrl ? (
                         <img
                           src={episodeImageUrl}
@@ -910,10 +945,13 @@ const Detail = () => {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
-                        <Play className="h-8 w-8 text-white" />
+                      <Play className="h-8 w-8 text-white" />
                       </div>
                     </div>
-                    <div className="flex-1 min-w-0 py-1">
+                    <div 
+                      className="flex-1 min-w-0 py-1 cursor-pointer"
+                      onClick={() => navigate(`/player/${episode.Id}`)}
+                    >
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <h3 className="font-semibold text-lg">
                           {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
@@ -930,15 +968,12 @@ const Detail = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0 self-center">
                       <Button
                         variant="secondary"
                         size="sm"
                         className="gap-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
-                        }}
+                        onClick={() => openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`)}
                         title="Søk undertekster"
                       >
                         <Subtitles className="h-4 w-4" />
@@ -961,6 +996,8 @@ const Detail = () => {
             setEpisodeSubtitleSearchOpen(null);
             setEpisodeSubtitleTarget(null);
             setRemoteSubtitles([]);
+            setEpisodeSubtitles([]);
+            setEpisodeSubtitleTab('existing');
           }
         }}
       >
@@ -968,95 +1005,165 @@ const Detail = () => {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Subtitles className="h-5 w-5" />
-              Søk etter undertekster
+              Undertekster
             </DialogTitle>
             {episodeSubtitleTarget && (
               <p className="text-sm text-muted-foreground">{episodeSubtitleTarget.name}</p>
             )}
           </DialogHeader>
+          
+          {/* Tabs */}
+          <div className="flex gap-2 border-b pb-2">
+            <Button
+              variant={episodeSubtitleTab === 'existing' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setEpisodeSubtitleTab('existing')}
+            >
+              Tilgjengelige ({episodeSubtitles.length})
+            </Button>
+            <Button
+              variant={episodeSubtitleTab === 'search' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setEpisodeSubtitleTab('search')}
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Søk og last ned
+            </Button>
+          </div>
+
           <div className="space-y-4">
-            <div className="flex gap-2 flex-wrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => episodeSubtitleTarget && searchSubtitles('nor', episodeSubtitleTarget.id)}
-                disabled={searchingSubtitles}
-              >
-                Norsk
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => episodeSubtitleTarget && searchSubtitles('eng', episodeSubtitleTarget.id)}
-                disabled={searchingSubtitles}
-              >
-                English
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => episodeSubtitleTarget && searchSubtitles('swe', episodeSubtitleTarget.id)}
-                disabled={searchingSubtitles}
-              >
-                Svenska
-              </Button>
-            </div>
-            
-            <ScrollArea className="h-[400px] rounded-md border p-4">
-              {searchingSubtitles ? (
+            {episodeSubtitleTab === 'existing' ? (
+              // Existing subtitles tab
+              loadingEpisodeSubtitles ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <span className="mt-2 text-muted-foreground">Søker...</span>
+                  <span className="mt-2 text-muted-foreground">Henter undertekster...</span>
                 </div>
-              ) : remoteSubtitles.length > 0 ? (
-                <div className="space-y-2">
-                  {remoteSubtitles.map((sub) => (
-                    <div
-                      key={sub.Id}
-                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
-                    >
-                      <div className="flex-1 min-w-0 mr-4">
-                        <p className="font-medium text-sm truncate">{sub.Name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                          <span>{sub.Provider}</span>
-                          {sub.Format && (
-                            <>
-                              <span>•</span>
-                              <span>{sub.Format}</span>
-                            </>
-                          )}
-                          {sub.DownloadCount && (
-                            <>
-                              <span>•</span>
-                              <span>{sub.DownloadCount.toLocaleString()} nedlastinger</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => episodeSubtitleTarget && downloadSubtitle(sub.Id, episodeSubtitleTarget.id, sub.Name)}
-                        disabled={downloadingSubtitle === sub.Id}
-                        className="gap-2"
+              ) : episodeSubtitles.length > 0 ? (
+                <ScrollArea className="h-[350px]">
+                  <div className="space-y-2">
+                    {episodeSubtitles.map((sub) => (
+                      <div
+                        key={sub.Index}
+                        className="flex items-center justify-between p-3 rounded-lg bg-secondary/50"
                       >
-                        {downloadingSubtitle === sub.Id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">
+                            {sub.DisplayTitle || sub.Language || `Undertekst ${sub.Index}`}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {sub.Language && <span>{sub.Language}</span>}
+                            {sub.Codec && (
+                              <>
+                                <span>•</span>
+                                <span className="uppercase">{sub.Codec}</span>
+                              </>
+                            )}
+                            {sub.IsDefault && (
+                              <span className="px-1.5 py-0.5 bg-primary/20 rounded text-primary text-xs">
+                                Standard
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
                   <Subtitles className="h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-center">Velg et språk for å søke etter undertekster</p>
-                  <p className="text-xs mt-1 text-center">Krever at Jellyfin har et undertekstplugin installert</p>
+                  <p className="text-center">Ingen undertekster tilgjengelig</p>
+                  <p className="text-xs mt-2 text-center">Bruk "Søk og last ned" for å finne undertekster</p>
                 </div>
-              )}
-            </ScrollArea>
+              )
+            ) : (
+              // Search subtitles tab
+              <>
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => episodeSubtitleTarget && searchSubtitles('nor', episodeSubtitleTarget.id)}
+                    disabled={searchingSubtitles}
+                  >
+                    Norsk
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => episodeSubtitleTarget && searchSubtitles('eng', episodeSubtitleTarget.id)}
+                    disabled={searchingSubtitles}
+                  >
+                    English
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => episodeSubtitleTarget && searchSubtitles('swe', episodeSubtitleTarget.id)}
+                    disabled={searchingSubtitles}
+                  >
+                    Svenska
+                  </Button>
+                </div>
+                
+                <ScrollArea className="h-[350px] rounded-md border p-4">
+                  {searchingSubtitles ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <span className="mt-2 text-muted-foreground">Søker...</span>
+                    </div>
+                  ) : remoteSubtitles.length > 0 ? (
+                    <div className="space-y-2">
+                      {remoteSubtitles.map((sub) => (
+                        <div
+                          key={sub.Id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0 mr-4">
+                            <p className="font-medium text-sm truncate">{sub.Name}</p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                              <span>{sub.Provider}</span>
+                              {sub.Format && (
+                                <>
+                                  <span>•</span>
+                                  <span>{sub.Format}</span>
+                                </>
+                              )}
+                              {sub.DownloadCount && (
+                                <>
+                                  <span>•</span>
+                                  <span>{sub.DownloadCount.toLocaleString()} nedlastinger</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => episodeSubtitleTarget && downloadSubtitle(sub.Id, episodeSubtitleTarget.id, sub.Name)}
+                            disabled={downloadingSubtitle === sub.Id}
+                            className="gap-2"
+                          >
+                            {downloadingSubtitle === sub.Id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                      <Search className="h-12 w-12 mb-4 opacity-50" />
+                      <p className="text-center">Velg et språk for å søke</p>
+                    </div>
+                  )}
+                </ScrollArea>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
