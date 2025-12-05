@@ -9,6 +9,8 @@ interface MediaItem {
   image: string;
   year?: string;
   rating?: string;
+  episodeCount?: number;
+  type?: string;
 }
 
 interface MediaRowProps {
@@ -74,6 +76,8 @@ const MediaRow = ({ title, items, onItemClick }: MediaRowProps) => {
                 image={item.image}
                 year={item.year}
                 rating={item.rating}
+                episodeCount={item.episodeCount}
+                type={item.type}
                 onClick={() => onItemClick?.(item.id)}
               />
             </div>

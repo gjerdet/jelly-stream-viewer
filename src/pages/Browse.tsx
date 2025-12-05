@@ -29,6 +29,8 @@ interface JellyfinItem {
   Genres?: string[];
   SeriesId?: string;
   SeasonId?: string;
+  ChildCount?: number;
+  RecursiveItemCount?: number;
 }
 
 interface JellyfinResponse {
@@ -79,7 +81,7 @@ const Browse = () => {
     ["all-items", userId || "", contentType],
     {
       endpoint: userId && !isDemoMode
-        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,Genres&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,Genres,ChildCount,RecursiveItemCount&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
     !!user && !!userId && !isDemoMode
@@ -152,6 +154,7 @@ const Browse = () => {
       type: item.Type,
       seriesId: item.SeriesId,
       seasonId: item.SeasonId,
+      episodeCount: item.RecursiveItemCount || item.ChildCount,
     }));
   };
 
