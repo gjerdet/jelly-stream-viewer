@@ -516,6 +516,39 @@ const Player = () => {
     loadSubtitle();
   }, [selectedSubtitle, serverUrl, id, user]);
 
+  // Programmatically add/update subtitle track
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Remove existing tracks
+    const existingTracks = video.querySelectorAll('track');
+    existingTracks.forEach(track => track.remove());
+
+    if (subtitleUrl) {
+      console.log('Adding subtitle track:', subtitleUrl);
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.src = subtitleUrl;
+      track.srclang = 'no';
+      track.label = 'Undertekster';
+      track.default = true;
+      video.appendChild(track);
+      
+      // Enable the track
+      track.addEventListener('load', () => {
+        console.log('Subtitle track loaded');
+        if (video.textTracks.length > 0) {
+          video.textTracks[0].mode = 'showing';
+        }
+      });
+      
+      track.addEventListener('error', (e) => {
+        console.error('Subtitle track error:', e);
+      });
+    }
+  }, [subtitleUrl]);
+
 
   const handleMouseMove = () => {
     setShowControls(true);
@@ -764,7 +797,7 @@ const Player = () => {
         >
           <video
         ref={videoRef}
-        key={`${streamUrl}-${subtitleUrl}`}
+        key={streamUrl}
         src={streamUrl}
         className="w-full h-full object-contain"
         controls
@@ -778,26 +811,14 @@ const Player = () => {
             duration: video.duration,
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight,
-            src: streamUrl?.substring(0, 50) + '...'
+            src: streamUrl?.substring(0, 50) + '...',
+            subtitleUrl: subtitleUrl?.substring(0, 50) + '...'
           });
-          // Enable subtitle track if exists
-          if (video.textTracks.length > 0 && subtitleUrl) {
-            video.textTracks[0].mode = 'showing';
-          }
         }}
         onError={handleVideoError}
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
       >
-        {subtitleUrl && (
-          <track
-            kind="subtitles"
-            src={subtitleUrl}
-            srcLang="no"
-            label="Undertekster"
-            default
-          />
-        )}
         Din nettleser støtter ikke videoavspilling.
       </video>
 
