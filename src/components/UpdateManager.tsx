@@ -176,9 +176,10 @@ export const UpdateManager = () => {
 
   // Poll for update completion when git-pull-server can't send status updates
   useEffect(() => {
-    if (!updating || !updateInfo?.latestVersion?.sha) return;
+    if (!updating) return;
 
-    const targetSha = updateInfo.latestVersion.sha;
+    // Store the initial installed SHA to detect changes
+    const initialSha = updateInfo?.installedVersion?.sha || '';
     let pollCount = 0;
     const maxPolls = 24; // 2 minutes max (5s * 24)
 
@@ -199,7 +200,8 @@ export const UpdateManager = () => {
       try {
         const { data } = await supabase.functions.invoke('check-updates');
         
-        if (data && !data.updateAvailable && data.installedVersion?.sha === targetSha) {
+        // Check if installed version changed (update completed)
+        if (data && data.installedVersion?.sha && data.installedVersion.sha !== initialSha) {
           // Update completed!
           clearInterval(pollInterval);
           
@@ -218,6 +220,25 @@ export const UpdateManager = () => {
           setUpdateInfo(data);
           setUpdating(false);
           toast.success('Oppdatering fullført!');
+        } else if (!data?.updateAvailable && pollCount > 3) {
+          // No update available and we've polled a few times - probably completed
+          clearInterval(pollInterval);
+          
+          setUpdateStatus(prev => prev ? {
+            ...prev,
+            status: 'completed',
+            progress: 100,
+            current_step: 'Oppdatering fullført!',
+            logs: [...(prev.logs || []), {
+              timestamp: new Date().toISOString(),
+              message: '✅ Ingen oppdatering tilgjengelig - du har nyeste versjon.',
+              level: 'success' as const
+            }]
+          } : null);
+          
+          setUpdateInfo(data);
+          setUpdating(false);
+          toast.success('Du har nyeste versjon!');
         } else if (pollCount >= maxPolls) {
           // Timeout
           clearInterval(pollInterval);
@@ -242,7 +263,7 @@ export const UpdateManager = () => {
     }, 5000); // Poll every 5 seconds
 
     return () => clearInterval(pollInterval);
-  }, [updating, updateInfo?.latestVersion?.sha]);
+  }, [updating]);
 
   const installUpdate = async () => {
     // In Lovable preview/staging, we can't reach your self-hosted git-pull server.

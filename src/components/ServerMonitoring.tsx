@@ -41,20 +41,24 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
       const { data, error } = await supabase.functions.invoke("server-stats");
 
       if (error) {
+        console.error('Server stats error:', error);
         setError(error.message);
+        setIsLoading(false);
         return;
       }
 
       if (data?.error) {
         setError(data.error + (data.suggestion ? ` - ${data.suggestion}` : ''));
+        setIsLoading(false);
         return;
       }
 
       setStats(data);
       setError(null);
+      setIsLoading(false);
     } catch (err: any) {
+      console.error('Server stats exception:', err);
       setError(err.message || "Kunne ikke hente server statistikk");
-    } finally {
       setIsLoading(false);
     }
   };
