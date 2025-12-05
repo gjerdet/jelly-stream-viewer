@@ -97,7 +97,7 @@ serve(async (req) => {
     const apiKey = apiKeySettings.setting_value;
 
     // Construct Jellyfin subtitle URL
-    const subtitleUrl = `${jellyfinServerUrl}/Videos/${videoId}/${videoId}/Subtitles/${subtitleIndex}/Stream.vtt?api_key=${apiKey}`;
+    const subtitleUrl = `${jellyfinServerUrl}/Videos/${videoId}/Subtitles/${subtitleIndex}/Stream.vtt?api_key=${apiKey}`;
 
     console.log(`Fetching subtitle ${subtitleIndex} for video ${videoId} for user ${user.id}`);
 
