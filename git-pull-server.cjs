@@ -238,15 +238,26 @@ async function executeGitPull(updateId) {
       addLog(logs, '✅ Database updated with new version', 'success');
     }
     
-    await updateStatus(updateId, 'running', 50, 'Cleaning node_modules...', logs);
+    await updateStatus(updateId, 'running', 50, 'Cleaning for fresh install...', logs);
 
     // Step 5: Clean install to ensure devDependencies are installed
-    addLog(logs, '🧹 Removing node_modules for clean install...', 'info');
-    await execCommand('rm -rf node_modules package-lock.json', APP_DIR, logs);
+    addLog(logs, '🧹 Removing node_modules, lock files and vite cache...', 'info');
+    await execCommand('rm -rf node_modules package-lock.json .vite node_modules/.vite node_modules/.vite-temp', APP_DIR, logs);
     await updateStatus(updateId, 'running', 55, 'Installing dependencies...', logs);
 
-    addLog(logs, '📦 Installing all dependencies (including dev)...', 'info');
-    await execCommand(`${NPM_CMD} install`, APP_DIR, logs);
+    addLog(logs, '📦 Installing all dependencies (with --include=dev)...', 'info');
+    await execCommand(`${NPM_CMD} install --include=dev`, APP_DIR, logs);
+    
+    // Verify critical package exists
+    addLog(logs, '🔍 Verifying @vitejs/plugin-react-swc...', 'info');
+    try {
+      await execCommand('ls node_modules/@vitejs/plugin-react-swc/package.json', APP_DIR, logs);
+      addLog(logs, '✅ @vitejs/plugin-react-swc found', 'success');
+    } catch (e) {
+      addLog(logs, '⚠️ @vitejs/plugin-react-swc NOT found - trying explicit install', 'warning');
+      await execCommand(`${NPM_CMD} install @vitejs/plugin-react-swc --save-dev`, APP_DIR, logs);
+    }
+    
     await updateStatus(updateId, 'running', 75, 'Building application...', logs);
 
     // Step 6: npm build
