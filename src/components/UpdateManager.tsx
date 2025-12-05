@@ -174,34 +174,75 @@ export const UpdateManager = () => {
     };
   }, [updateStatus?.id]);
 
-  // Auto-refresh after update is triggered (fallback when git-pull-server can't send status)
+  // Poll for update completion when git-pull-server can't send status updates
   useEffect(() => {
-    if (!updating) return;
+    if (!updating || !updateInfo?.latestVersion?.sha) return;
 
-    // Poll for completion after 30 seconds (typical update time)
-    const pollTimeout = setTimeout(async () => {
-      console.log('[UpdateManager] Polling for update completion...');
-      await checkForUpdates();
+    const targetSha = updateInfo.latestVersion.sha;
+    let pollCount = 0;
+    const maxPolls = 24; // 2 minutes max (5s * 24)
+
+    const pollInterval = setInterval(async () => {
+      pollCount++;
+      console.log(`[UpdateManager] Polling for completion (${pollCount}/${maxPolls})...`);
       
-      // Update status to show completed
+      // Add polling log to UI
       setUpdateStatus(prev => prev ? {
         ...prev,
-        status: 'completed',
-        progress: 100,
-        current_step: 'Oppdatering fullført (sjekk serverlogs for detaljer)',
         logs: [...(prev.logs || []), {
           timestamp: new Date().toISOString(),
-          message: '✅ Oppdatering sannsynligvis fullført - sjekker versjon...',
+          message: `🔄 Sjekker status... (${pollCount}/${maxPolls})`,
           level: 'info' as const
         }]
       } : null);
-      
-      setUpdating(false);
-      toast.info('Oppdatering sannsynligvis fullført. Klikk "Sjekk etter oppdatering" for å bekrefte.');
-    }, 30000);
 
-    return () => clearTimeout(pollTimeout);
-  }, [updating]);
+      try {
+        const { data } = await supabase.functions.invoke('check-updates');
+        
+        if (data && !data.updateAvailable && data.installedVersion?.sha === targetSha) {
+          // Update completed!
+          clearInterval(pollInterval);
+          
+          setUpdateStatus(prev => prev ? {
+            ...prev,
+            status: 'completed',
+            progress: 100,
+            current_step: 'Oppdatering fullført!',
+            logs: [...(prev.logs || []), {
+              timestamp: new Date().toISOString(),
+              message: '✅ Oppdatering fullført! Versjonen er nå oppdatert.',
+              level: 'success' as const
+            }]
+          } : null);
+          
+          setUpdateInfo(data);
+          setUpdating(false);
+          toast.success('Oppdatering fullført!');
+        } else if (pollCount >= maxPolls) {
+          // Timeout
+          clearInterval(pollInterval);
+          
+          setUpdateStatus(prev => prev ? {
+            ...prev,
+            status: 'unknown',
+            current_step: 'Tidsavbrudd - sjekk serverlogs',
+            logs: [...(prev.logs || []), {
+              timestamp: new Date().toISOString(),
+              message: '⚠️ Tidsavbrudd - klikk "Sjekk etter oppdatering" manuelt',
+              level: 'warning' as const
+            }]
+          } : null);
+          
+          setUpdating(false);
+          toast.warning('Tidsavbrudd - klikk "Sjekk etter oppdatering" for å se status');
+        }
+      } catch (err) {
+        console.error('[UpdateManager] Poll error:', err);
+      }
+    }, 5000); // Poll every 5 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [updating, updateInfo?.latestVersion?.sha]);
 
   const installUpdate = async () => {
     // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
