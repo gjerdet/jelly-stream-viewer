@@ -31,7 +31,7 @@ serve(async (req) => {
       });
     }
 
-    const { itemId } = await req.json();
+    const { itemId, language = 'nor' } = await req.json();
 
     if (!itemId) {
       return new Response(JSON.stringify({ error: 'Item ID required' }), {
@@ -39,6 +39,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    console.log('Searching subtitles for item:', itemId, 'language:', language);
 
     // Get server settings
     const { data: serverSettings } = await supabaseClient
@@ -63,8 +65,8 @@ serve(async (req) => {
     const jellyfinUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Search for Norwegian subtitles using Jellyfin API
-    const searchUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/nor`;
+    // Search for subtitles using Jellyfin API with specified language
+    const searchUrl = `${jellyfinUrl}/Items/${itemId}/RemoteSearch/Subtitles/${language}`;
     
     console.log('Searching for subtitles at:', searchUrl);
     
@@ -87,7 +89,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true,
-      results: results || []
+      subtitles: results || []
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
