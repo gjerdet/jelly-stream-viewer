@@ -389,7 +389,12 @@ export const SystemLogs = () => {
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
-              {filteredAuthLogs.length > 0 ? (
+              {loadingAuth ? (
+                <div className="text-center py-12 space-y-4">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-muted-foreground">Laster auth-logger...</p>
+                </div>
+              ) : filteredAuthLogs.length > 0 ? (
                 <div className="space-y-2">
                   {filteredAuthLogs.map((log, i) => renderLogEntry(log, i))}
                 </div>
@@ -400,14 +405,8 @@ export const SystemLogs = () => {
               ) : (
                 <div className="text-center py-12 space-y-4">
                   <p className="text-muted-foreground">
-                    Auth-logger er tilgjengelige i Supabase Dashboard
+                    Ingen auth-logger funnet. Klikk "Oppdater" for å hente logger.
                   </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/auth-logs', '_blank')}
-                  >
-                    Åpne Supabase Dashboard
-                  </Button>
                 </div>
               )}
             </ScrollArea>
@@ -433,7 +432,12 @@ export const SystemLogs = () => {
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
-              {filteredDbLogs.length > 0 ? (
+              {loadingDb ? (
+                <div className="text-center py-12 space-y-4">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-muted-foreground">Laster database-logger...</p>
+                </div>
+              ) : filteredDbLogs.length > 0 ? (
                 <div className="space-y-2">
                   {filteredDbLogs.map((log, i) => renderLogEntry(log, i))}
                 </div>
@@ -444,14 +448,8 @@ export const SystemLogs = () => {
               ) : (
                 <div className="text-center py-12 space-y-4">
                   <p className="text-muted-foreground">
-                    Database-logger er tilgjengelige i Supabase Dashboard
+                    Ingen database-logger funnet. Klikk "Oppdater" for å hente logger.
                   </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/postgres-logs', '_blank')}
-                  >
-                    Åpne Supabase Dashboard
-                  </Button>
                 </div>
               )}
             </ScrollArea>
@@ -477,7 +475,12 @@ export const SystemLogs = () => {
             </div>
             
             <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
-              {filteredEdgeLogs.length > 0 ? (
+              {loadingEdge ? (
+                <div className="text-center py-12 space-y-4">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-muted-foreground">Laster edge function-logger...</p>
+                </div>
+              ) : filteredEdgeLogs.length > 0 ? (
                 <div className="space-y-2">
                   {filteredEdgeLogs.map((log, i) => renderLogEntry(log, i))}
                 </div>
@@ -488,14 +491,8 @@ export const SystemLogs = () => {
               ) : (
                 <div className="text-center py-12 space-y-4">
                   <p className="text-muted-foreground">
-                    Edge function-logger er tilgjengelige i Supabase Dashboard
+                    Ingen edge function-logger funnet. Klikk "Oppdater" for å hente logger.
                   </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open('https://supabase.com/dashboard/project/_/logs/edge-logs', '_blank')}
-                  >
-                    Åpne Supabase Dashboard
-                  </Button>
                 </div>
               )}
             </ScrollArea>
