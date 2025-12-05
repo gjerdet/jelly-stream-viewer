@@ -174,6 +174,35 @@ export const UpdateManager = () => {
     };
   }, [updateStatus?.id]);
 
+  // Auto-refresh after update is triggered (fallback when git-pull-server can't send status)
+  useEffect(() => {
+    if (!updating) return;
+
+    // Poll for completion after 30 seconds (typical update time)
+    const pollTimeout = setTimeout(async () => {
+      console.log('[UpdateManager] Polling for update completion...');
+      await checkForUpdates();
+      
+      // Update status to show completed
+      setUpdateStatus(prev => prev ? {
+        ...prev,
+        status: 'completed',
+        progress: 100,
+        current_step: 'Oppdatering fullført (sjekk serverlogs for detaljer)',
+        logs: [...(prev.logs || []), {
+          timestamp: new Date().toISOString(),
+          message: '✅ Oppdatering sannsynligvis fullført - sjekker versjon...',
+          level: 'info' as const
+        }]
+      } : null);
+      
+      setUpdating(false);
+      toast.info('Oppdatering sannsynligvis fullført. Klikk "Sjekk etter oppdatering" for å bekrefte.');
+    }, 30000);
+
+    return () => clearTimeout(pollTimeout);
+  }, [updating]);
+
   const installUpdate = async () => {
     // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
     if (window.location.hostname.endsWith('lovableproject.com')) {
