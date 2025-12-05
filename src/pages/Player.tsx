@@ -309,6 +309,15 @@ const Player = () => {
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
 
+  // Debug: Log MediaStreams
+  useEffect(() => {
+    if (item) {
+      console.log('Item loaded:', item.Name);
+      console.log('MediaStreams:', item.MediaStreams);
+      console.log('Subtitles found:', subtitles);
+    }
+  }, [item, subtitles]);
+
   // Auto-select default subtitle or first Norwegian subtitle
   useEffect(() => {
     if (subtitles.length > 0 && !selectedSubtitle) {
