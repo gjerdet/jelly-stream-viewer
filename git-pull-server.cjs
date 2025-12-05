@@ -247,16 +247,28 @@ async function executeGitPull(updateId) {
     addLog(logs, `Current commit: ${trimmedSha.slice(0, 7)}`, 'success');
     
     // Step 4: Update installed_commit_sha in database
-    if (supabase) {
+    // Update installed version via edge function
+    if (SUPABASE_EDGE_URL) {
       addLog(logs, '💾 Updating installed version in database...', 'info');
-      await supabase
-        .from('server_settings')
-        .upsert({
-          setting_key: 'installed_commit_sha',
-          setting_value: trimmedSha,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'setting_key' });
-      addLog(logs, '✅ Database updated with new version', 'success');
+      try {
+        const syncUrl = `${SUPABASE_URL}/functions/v1/sync-installed-version`;
+        const syncResponse = await fetch(syncUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'x-update-secret': UPDATE_SECRET || ''
+          },
+          body: JSON.stringify({ commitSha: trimmedSha })
+        });
+        if (syncResponse.ok) {
+          addLog(logs, '✅ Database updated with new version', 'success');
+        } else {
+          addLog(logs, '⚠️ Failed to update version in database', 'warning');
+        }
+      } catch (err) {
+        addLog(logs, `⚠️ Version sync error: ${err.message}`, 'warning');
+      }
     }
     
     await updateStatus(updateId, 'running', 50, 'Cleaning for fresh install...', logs);
