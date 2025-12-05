@@ -81,14 +81,14 @@ serve(async (req) => {
 
     // Default to localhost:3002 if not configured anywhere
     const gitPullUrl = primaryUrl || 'http://localhost:3002/git-pull';
-    // Use database secret, or fall back to environment variable UPDATE_SECRET
+    // PRIORITIZE env variable UPDATE_SECRET over database value
     const envSecret = Deno.env.get('UPDATE_SECRET') || '';
-    const gitPullSecret = primarySecret || envSecret;
+    const gitPullSecret = envSecret || primarySecret || '';
     
     // Debug logging for signature troubleshooting
     console.log('=== TRIGGER UPDATE DEBUG ===');
     console.log(`Git pull URL: ${gitPullUrl}`);
-    console.log(`Secret source: ${primarySecret ? 'database' : (envSecret ? 'env UPDATE_SECRET' : 'none')}`);
+    console.log(`Secret source: ${envSecret ? 'env UPDATE_SECRET' : (primarySecret ? 'database' : 'none')}`);
     console.log(`Secret length: ${gitPullSecret.length}`);
     console.log(`Secret (trimmed) length: ${gitPullSecret.trim().length}`);
     console.log(`Secret first 8 chars: "${gitPullSecret.slice(0, 8)}"`);
