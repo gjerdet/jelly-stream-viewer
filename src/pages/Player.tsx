@@ -548,7 +548,12 @@ const Player = () => {
     const video = videoRef.current;
     if (!video) return;
 
-    // Remove existing tracks
+    // First disable all existing text tracks
+    for (let i = 0; i < video.textTracks.length; i++) {
+      video.textTracks[i].mode = 'disabled';
+    }
+
+    // Remove existing track elements
     const existingTracks = video.querySelectorAll('track');
     existingTracks.forEach(track => track.remove());
 
@@ -569,6 +574,8 @@ const Player = () => {
           console.log('Subtitle track enabled');
         }
       }, 100);
+    } else {
+      console.log('Subtitles disabled');
     }
 
     // Cleanup blob URL when unmounting
@@ -947,6 +954,11 @@ const Player = () => {
               <Select 
                 value={selectedSubtitle} 
                 onValueChange={(value) => {
+                  console.log('User selected subtitle:', value);
+                  const sub = subtitles.find(s => s.Index.toString() === value);
+                  if (sub) {
+                    console.log('Subtitle details:', sub.DisplayTitle, 'Language:', sub.Language, 'Index:', sub.Index);
+                  }
                   setSelectedSubtitle(value);
                 }}
               >
