@@ -309,6 +309,31 @@ const Player = () => {
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
 
+  // Auto-select default subtitle or first Norwegian subtitle
+  useEffect(() => {
+    if (subtitles.length > 0 && !selectedSubtitle) {
+      console.log('Available subtitles:', subtitles);
+      // First try to find default subtitle
+      const defaultSub = subtitles.find(s => s.IsDefault);
+      if (defaultSub) {
+        console.log('Auto-selecting default subtitle:', defaultSub);
+        setSelectedSubtitle(defaultSub.Index.toString());
+        return;
+      }
+      // Then try Norwegian
+      const norwegianSub = subtitles.find(s => 
+        s.Language?.toLowerCase() === 'nor' || 
+        s.Language?.toLowerCase() === 'no' ||
+        s.DisplayTitle?.toLowerCase().includes('norsk') ||
+        s.DisplayTitle?.toLowerCase().includes('norwegian')
+      );
+      if (norwegianSub) {
+        console.log('Auto-selecting Norwegian subtitle:', norwegianSub);
+        setSelectedSubtitle(norwegianSub.Index.toString());
+      }
+    }
+  }, [subtitles, selectedSubtitle]);
+
   // Find next episode for autoplay
   const getNextEpisode = () => {
     if (!isEpisode || episodes.length === 0 || !item?.IndexNumber) return null;
@@ -480,7 +505,9 @@ const Player = () => {
     const loadSubtitle = async () => {
       if (selectedSubtitle && selectedSubtitle !== 'none') {
         const subtitleIndex = parseInt(selectedSubtitle, 10);
+        console.log('Loading subtitle index:', subtitleIndex);
         const url = await getSubtitleUrl(subtitleIndex);
+        console.log('Subtitle URL:', url);
         setSubtitleUrl(url);
       } else {
         setSubtitleUrl('');
