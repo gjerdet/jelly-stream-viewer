@@ -220,14 +220,15 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Add log about contacting git-pull server
+      // Add log about contacting git-pull server - DIRECT CALL v2
+      console.log('=== UPDATEMANAGER DIRECT CALL v2 ===');
       const contactingLog = [{
         timestamp: new Date().toISOString(),
         message: 'Oppdatering startet...',
         level: 'info' as const
       }, {
         timestamp: new Date().toISOString(),
-        message: 'Kontakter git-pull server direkte...',
+        message: '🔄 Kontakter git-pull server DIREKTE (v2)...',
         level: 'info' as const
       }];
       
