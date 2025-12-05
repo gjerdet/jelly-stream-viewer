@@ -564,7 +564,7 @@ const Detail = () => {
                         )}
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+                    <DialogContent className="max-w-2xl">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <Subtitles className="h-5 w-5" />
@@ -591,11 +591,11 @@ const Detail = () => {
                         </Button>
                       </div>
 
-                      <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+                      <div className="space-y-4">
                         {subtitleTab === 'existing' ? (
                           // Existing subtitles tab
                           subtitles.length > 0 ? (
-                            <ScrollArea className="flex-1 min-h-0 max-h-[50vh]">
+                            <ScrollArea className="h-[350px]">
                               <div className="space-y-2">
                                 {subtitles.map((sub) => (
                                   <div
@@ -674,7 +674,7 @@ const Detail = () => {
                               </Button>
                             </div>
                             
-                            <ScrollArea className="flex-1 min-h-0 max-h-[50vh] rounded-md border p-4">
+                            <ScrollArea className="h-[350px] rounded-md border p-4">
                               {searchingSubtitles ? (
                                 <div className="flex flex-col items-center justify-center h-full">
                                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -927,7 +927,7 @@ const Detail = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="h-9 w-9"
                         onClick={(e) => {
                           e.stopPropagation();
                           openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
@@ -956,7 +956,7 @@ const Detail = () => {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Subtitles className="h-5 w-5" />
@@ -966,7 +966,7 @@ const Detail = () => {
               <p className="text-sm text-muted-foreground">{episodeSubtitleTarget.name}</p>
             )}
           </DialogHeader>
-          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+          <div className="space-y-4">
             <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
@@ -994,7 +994,7 @@ const Detail = () => {
               </Button>
             </div>
             
-            <ScrollArea className="flex-1 min-h-0 rounded-md border p-4">
+            <ScrollArea className="h-[400px] rounded-md border p-4">
               {searchingSubtitles ? (
                 <div className="flex flex-col items-center justify-center py-12">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
