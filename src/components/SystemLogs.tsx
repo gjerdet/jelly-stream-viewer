@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Database, Shield, Globe, Search, X, Filter, RefreshCw } from "lucide-react";
+import { Terminal, Database, Shield, Globe, Search, X, Filter, RefreshCw, Film } from "lucide-react";
 import { format } from "date-fns";
 import { enUS, nb } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +20,7 @@ interface LogEntry {
   error?: string;
   path?: string;
   status?: string;
+  type?: string;
 }
 
 export const SystemLogs = () => {
@@ -34,11 +35,13 @@ export const SystemLogs = () => {
   const [authLogs, setAuthLogs] = useState<LogEntry[]>([]);
   const [dbLogs, setDbLogs] = useState<LogEntry[]>([]);
   const [edgeLogs, setEdgeLogs] = useState<LogEntry[]>([]);
+  const [jellyfinLogs, setJellyfinLogs] = useState<LogEntry[]>([]);
   
   const [loadingAuth, setLoadingAuth] = useState(false);
   const [loadingDb, setLoadingDb] = useState(false);
   const [loadingEdge, setLoadingEdge] = useState(false);
-  const [activeTab, setActiveTab] = useState("console");
+  const [loadingJellyfin, setLoadingJellyfin] = useState(false);
+  const [activeTab, setActiveTab] = useState("jellyfin");
 
   // Fetch logs function
   const fetchLogs = async (logType: 'auth' | 'database' | 'edge') => {
@@ -82,9 +85,35 @@ export const SystemLogs = () => {
     }
   };
 
+  // Fetch Jellyfin activity logs
+  const fetchJellyfinLogs = async () => {
+    try {
+      setLoadingJellyfin(true);
+
+      const { data, error } = await supabase.functions.invoke('jellyfin-logs');
+
+      if (error) throw error;
+
+      if (data?.error) {
+        toast.error(data.error);
+        setJellyfinLogs([]);
+        return;
+      }
+
+      setJellyfinLogs(data?.logs || []);
+    } catch (error) {
+      console.error('Error fetching Jellyfin logs:', error);
+      toast.error('Kunne ikke hente Jellyfin-logger');
+    } finally {
+      setLoadingJellyfin(false);
+    }
+  };
+
   // Load logs when tab changes
   useEffect(() => {
-    if (activeTab === 'auth' && authLogs.length === 0) {
+    if (activeTab === 'jellyfin' && jellyfinLogs.length === 0) {
+      fetchJellyfinLogs();
+    } else if (activeTab === 'auth' && authLogs.length === 0) {
       fetchLogs('auth');
     } else if (activeTab === 'database' && dbLogs.length === 0) {
       fetchLogs('database');
@@ -176,6 +205,13 @@ export const SystemLogs = () => {
 
   const filteredEdgeLogs = useMemo(() => filterLogs(edgeLogs), [
     edgeLogs,
+    searchQuery,
+    levelFilter,
+    timeFilter,
+  ]);
+
+  const filteredJellyfinLogs = useMemo(() => filterLogs(jellyfinLogs), [
+    jellyfinLogs,
     searchQuery,
     levelFilter,
     timeFilter,
@@ -317,8 +353,12 @@ export const SystemLogs = () => {
           )}
         </div>
 
-        <Tabs defaultValue="console" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+        <Tabs defaultValue="jellyfin" className="w-full" onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="jellyfin" className="gap-2">
+              <Film className="h-4 w-4" />
+              Jellyfin
+            </TabsTrigger>
             <TabsTrigger value="console" className="gap-2">
               <Terminal className="h-4 w-4" />
               Console
@@ -333,9 +373,52 @@ export const SystemLogs = () => {
             </TabsTrigger>
             <TabsTrigger value="edge" className="gap-2">
               <Globe className="h-4 w-4" />
-              Edge Functions
+              Edge
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="jellyfin" className="space-y-4 mt-4">
+            <div className="flex items-center justify-between">
+              <div className="p-4 rounded-lg bg-purple-500/10 border border-purple-500/20 flex-1">
+                <p className="text-sm text-purple-400">
+                  <strong>🎬 Jellyfin:</strong> Aktivitetslogger fra Jellyfin-serveren (innlogginger, avspillinger, etc.)
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={fetchJellyfinLogs}
+                disabled={loadingJellyfin}
+                className="ml-4 gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${loadingJellyfin ? 'animate-spin' : ''}`} />
+                Oppdater
+              </Button>
+            </div>
+            
+            <ScrollArea className="h-[500px] w-full rounded-lg border border-border/50 p-4">
+              {loadingJellyfin ? (
+                <div className="text-center py-12 space-y-4">
+                  <RefreshCw className="h-8 w-8 animate-spin mx-auto text-primary" />
+                  <p className="text-muted-foreground">Laster Jellyfin-logger...</p>
+                </div>
+              ) : filteredJellyfinLogs.length > 0 ? (
+                <div className="space-y-2">
+                  {filteredJellyfinLogs.map((log, i) => renderLogEntry(log, i))}
+                </div>
+              ) : jellyfinLogs.length > 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Ingen logger matcher filtrene dine
+                </div>
+              ) : (
+                <div className="text-center py-12 space-y-4">
+                  <p className="text-muted-foreground">
+                    Ingen Jellyfin-logger funnet. Klikk "Oppdater" for å hente logger.
+                  </p>
+                </div>
+              )}
+            </ScrollArea>
+          </TabsContent>
 
           <TabsContent value="console" className="space-y-4 mt-4">
             <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20">
