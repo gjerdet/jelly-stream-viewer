@@ -86,17 +86,28 @@ serve(async (req) => {
     const gitPullSecret = primarySecret || envSecret;
     
     // Debug logging for signature troubleshooting
-    console.log(`Using git pull server: ${gitPullUrl}`);
+    console.log('=== TRIGGER UPDATE DEBUG ===');
+    console.log(`Git pull URL: ${gitPullUrl}`);
     console.log(`Secret source: ${primarySecret ? 'database' : (envSecret ? 'env UPDATE_SECRET' : 'none')}`);
-    console.log(`Secret length: ${gitPullSecret.length}, first 8 chars: ${gitPullSecret.slice(0, 8)}...`);
+    console.log(`Secret length: ${gitPullSecret.length}`);
+    console.log(`Secret (trimmed) length: ${gitPullSecret.trim().length}`);
+    console.log(`Secret first 8 chars: "${gitPullSecret.slice(0, 8)}"`);
+    console.log(`Secret has whitespace: ${gitPullSecret !== gitPullSecret.trim()}`);
 
     // Get updateId from request body if provided
     const { updateId: providedUpdateId } = await req.json().catch(() => ({}));
     const finalUpdateId = providedUpdateId || updateId;
 
+    // Trim secret to avoid whitespace issues
+    const cleanSecret = gitPullSecret.trim();
+
     // Create HMAC signature if secret is provided
     const requestBody = JSON.stringify({ updateId: finalUpdateId });
-    const signature = gitPullSecret ? await generateSignature(requestBody, gitPullSecret) : '';
+    const signature = cleanSecret ? await generateSignature(requestBody, cleanSecret) : '';
+    
+    console.log(`Request body: ${requestBody}`);
+    console.log(`Generated signature length: ${signature.length}`);
+    console.log(`Generated signature: ${signature}`);
 
     console.log('Triggering git pull on server');
 
@@ -133,9 +144,15 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       };
       
-      if (gitPullSecret) {
+      if (cleanSecret && signature) {
         headers['X-Update-Signature'] = signature;
+        console.log(`Adding X-Update-Signature header: ${signature.slice(0, 16)}...`);
+      } else {
+        console.log('No signature added to request (no secret configured)');
       }
+      
+      console.log(`Sending request to: ${gitPullUrl}`);
+      console.log(`Request headers: ${JSON.stringify(Object.keys(headers))}`);
       
       gitPullResponse = await fetch(gitPullUrl, {
         method: 'POST',
