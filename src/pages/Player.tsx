@@ -512,6 +512,13 @@ const Player = () => {
     <TooltipProvider>
       <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <div className="relative h-screen bg-black overflow-hidden flex w-full">
+        {/* Sidebar Overlay - Click to close */}
+        {sidebarOpen && isEpisode && episodes.length > 0 && (
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 cursor-pointer"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
         {/* Episodes Sidebar */}
         {isEpisode && episodes.length > 0 && (
           <Sidebar 
@@ -521,8 +528,16 @@ const Player = () => {
           >
             <SidebarContent className="bg-background/95 backdrop-blur-xl">
               <SidebarGroup>
-                <SidebarGroupLabel className="text-base">
+                <SidebarGroupLabel className="text-base flex items-center justify-between pr-2">
                   {item?.SeriesName}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSidebarOpen(false)}
+                    className="h-6 w-6 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
                   <div className="space-y-2 p-2">
