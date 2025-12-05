@@ -124,11 +124,11 @@ function getNpmCommand() {
 
 const NPM_CMD = getNpmCommand();
 
-// Initialize Supabase client if credentials are available
-let supabase = null;
-if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
-  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-  console.log('✅ Supabase client initialized');
+// Log configuration status
+if (SUPABASE_URL) {
+  console.log('✅ Supabase URL configured - will use edge function for status updates');
+} else {
+  console.log('⚠️  No SUPABASE_URL - status updates will be skipped');
 }
 
 console.log('🚀 Git Pull Server starting...');
@@ -143,35 +143,45 @@ function verifySignature(payload, signature, secret) {
   return true;
 }
 
+// Edge function URL for updating status (doesn't require service_role key)
+const SUPABASE_EDGE_URL = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/update-status` : null;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
 /**
- * Update status in Supabase
+ * Update status via Edge Function (no service_role key needed)
  */
 async function updateStatus(updateId, status, progress, currentStep, logs, error = null) {
-  if (!supabase || !updateId) {
-    console.log('[updateStatus] Skipped: supabase=' + !!supabase + ', updateId=' + updateId);
+  if (!SUPABASE_EDGE_URL || !updateId) {
+    console.log('[updateStatus] Skipped: edge_url=' + !!SUPABASE_EDGE_URL + ', updateId=' + updateId);
     return;
   }
   
   try {
-    console.log(`[updateStatus] Updating ${updateId}: status=${status}, progress=${progress}`);
-    const { data, error: updateError } = await supabase
-      .from('update_status')
-      .update({
+    console.log(`[updateStatus] Calling edge function for ${updateId}: status=${status}, progress=${progress}`);
+    
+    const response = await fetch(SUPABASE_EDGE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'x-update-secret': UPDATE_SECRET || ''
+      },
+      body: JSON.stringify({
+        updateId,
         status,
         progress,
-        current_step: currentStep,
-        logs: JSON.stringify(logs),
-        error,
-        updated_at: new Date().toISOString(),
-        ...(status === 'completed' && { completed_at: new Date().toISOString() })
+        currentStep,
+        logs,
+        error
       })
-      .eq('id', updateId)
-      .select();
+    });
     
-    if (updateError) {
-      console.error('[updateStatus] Supabase error:', updateError.message, updateError.code);
+    const result = await response.json();
+    
+    if (!response.ok) {
+      console.error('[updateStatus] Edge function error:', result.error);
     } else {
-      console.log(`[updateStatus] Success, rows updated: ${data?.length || 0}`);
+      console.log(`[updateStatus] Success, rows updated: ${result.rowsAffected || 0}`);
     }
   } catch (err) {
     console.error('[updateStatus] Exception:', err.message);
