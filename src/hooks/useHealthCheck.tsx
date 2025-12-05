@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -31,6 +31,7 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
     overallStatus: "healthy",
   });
   const [isChecking, setIsChecking] = useState(false);
+  const prevHealthStatusRef = useRef<HealthCheckResult | null>(null);
 
   const checkJellyfin = async (): Promise<ServiceStatus> => {
     const startTime = Date.now();
@@ -264,22 +265,28 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
     setHealthStatus(newHealthStatus);
     setIsChecking(false);
 
-    // Show toast notifications for services that went down
-    if (jellyfinStatus.status === "down" && healthStatus.jellyfin.status !== "down") {
-      toast.error(`Jellyfin ${health.isDown || "is down"}: ${jellyfinStatus.message}`);
+    // Show toast notifications for services that went down (compare with previous status via ref)
+    const prev = prevHealthStatusRef.current;
+    if (prev) {
+      if (jellyfinStatus.status === "down" && prev.jellyfin.status !== "down") {
+        toast.error(`Jellyfin ${health.isDown || "is down"}: ${jellyfinStatus.message}`);
+      }
+      if (jellyseerrStatus.status === "down" && prev.jellyseerr.status !== "down") {
+        toast.error(`Jellyseerr ${health.isDown || "is down"}: ${jellyseerrStatus.message}`);
+      }
+      if (databaseStatus.status === "down" && prev.database.status !== "down") {
+        toast.error(`Database ${health.isDown || "is down"}: ${databaseStatus.message}`);
+      }
+      if (netdataStatus.status === "down" && prev.netdata.status !== "down") {
+        toast.warning(`Netdata ${health.isDown || "is down"}: ${netdataStatus.message}`);
+      }
     }
-    if (jellyseerrStatus.status === "down" && healthStatus.jellyseerr.status !== "down") {
-      toast.error(`Jellyseerr ${health.isDown || "is down"}: ${jellyseerrStatus.message}`);
-    }
-    if (databaseStatus.status === "down" && healthStatus.database.status !== "down") {
-      toast.error(`Database ${health.isDown || "is down"}: ${databaseStatus.message}`);
-    }
-    if (netdataStatus.status === "down" && healthStatus.netdata.status !== "down") {
-      toast.warning(`Netdata ${health.isDown || "is down"}: ${netdataStatus.message}`);
-    }
+    
+    // Update ref for next comparison
+    prevHealthStatusRef.current = newHealthStatus;
 
     return newHealthStatus;
-  }, [healthStatus]);
+  }, [health.isDown]);
 
   useEffect(() => {
     if (!autoCheck) return;
