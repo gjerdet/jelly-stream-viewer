@@ -257,6 +257,7 @@ export const UpdateManager = () => {
       const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
 
       // Call git-pull server directly from browser (browser IS on local network)
+      console.log('[UpdateManager] Calling git-pull server directly at:', serverUrl);
       const response = await fetch(serverUrl, {
         method: 'POST',
         headers: {
@@ -264,6 +265,7 @@ export const UpdateManager = () => {
         },
         body: JSON.stringify({ updateId })
       });
+      console.log('[UpdateManager] Response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
