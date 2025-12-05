@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
@@ -305,27 +305,30 @@ const Player = () => {
     !!item?.SeriesId && !!item?.SeasonId && !!userId
   );
 
-  const subtitles = item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [];
+  const subtitles = useMemo(() => 
+    item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [], 
+    [item?.MediaStreams]
+  );
   const isEpisode = item?.Type === "Episode";
   const episodes = episodesData?.Items || [];
 
-  // Debug: Log MediaStreams
+  // Debug: Log MediaStreams (only once when item changes)
   useEffect(() => {
-    if (item) {
+    if (item?.Id) {
       console.log('Item loaded:', item.Name);
       console.log('MediaStreams:', item.MediaStreams);
-      console.log('Subtitles found:', subtitles);
+      console.log('Subtitles found:', subtitles.length);
     }
-  }, [item, subtitles]);
+  }, [item?.Id, subtitles.length]);
 
   // Auto-select default subtitle or first Norwegian subtitle
   useEffect(() => {
     if (subtitles.length > 0 && !selectedSubtitle) {
-      console.log('Available subtitles:', subtitles);
+      console.log('Auto-selecting, available subtitles:', subtitles.length);
       // First try to find default subtitle
       const defaultSub = subtitles.find(s => s.IsDefault);
       if (defaultSub) {
-        console.log('Auto-selecting default subtitle:', defaultSub);
+        console.log('Auto-selecting default subtitle index:', defaultSub.Index);
         setSelectedSubtitle(defaultSub.Index.toString());
         return;
       }
@@ -337,11 +340,11 @@ const Player = () => {
         s.DisplayTitle?.toLowerCase().includes('norwegian')
       );
       if (norwegianSub) {
-        console.log('Auto-selecting Norwegian subtitle:', norwegianSub);
+        console.log('Auto-selecting Norwegian subtitle index:', norwegianSub.Index);
         setSelectedSubtitle(norwegianSub.Index.toString());
       }
     }
-  }, [subtitles, selectedSubtitle]);
+  }, [subtitles]);
 
   // Find next episode for autoplay
   const getNextEpisode = () => {
