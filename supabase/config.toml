@@ -67,3 +67,11 @@ verify_jwt = true
 
 [functions.setup-netdata]
 verify_jwt = true
+
+[functions.update-status]
+verify_jwt = false
+# Note: Server-to-server call from git-pull-server, uses x-update-secret header
+
+[functions.sync-installed-version]
+verify_jwt = false
+# Note: Server-to-server call from git-pull-server
