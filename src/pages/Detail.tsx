@@ -925,9 +925,9 @@ const Detail = () => {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
                         onClick={(e) => {
                           e.stopPropagation();
                           openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
@@ -935,6 +935,7 @@ const Detail = () => {
                         title="Søk undertekster"
                       >
                         <Subtitles className="h-4 w-4" />
+                        <span className="hidden sm:inline">Undertekst</span>
                       </Button>
                     </div>
                   </div>
