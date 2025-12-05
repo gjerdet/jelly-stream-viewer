@@ -5,7 +5,7 @@ import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSetting
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface MediaStream {
   Index: number;
@@ -80,6 +82,16 @@ interface EpisodesResponse {
   Items: Episode[];
 }
 
+interface RemoteSubtitle {
+  Id: string;
+  Name: string;
+  Language: string;
+  Provider: string;
+  Comment?: string;
+  DownloadCount?: number;
+  Format?: string;
+}
+
 const Detail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -92,8 +104,71 @@ const Detail = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
+  const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
+  const [searchingSubtitles, setSearchingSubtitles] = useState(false);
+  const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
+  const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
+
+  // Search for subtitles via Jellyfin
+  const searchSubtitles = async (language: string = 'nor') => {
+    if (!id) return;
+    
+    setSearchingSubtitles(true);
+    setRemoteSubtitles([]);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-search-subtitles', {
+        body: { itemId: id, language }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      
+      setRemoteSubtitles(data?.subtitles || []);
+      
+      if (data?.subtitles?.length === 0) {
+        toast.info('Ingen undertekster funnet for dette språket');
+      }
+    } catch (error) {
+      console.error('Error searching subtitles:', error);
+      toast.error('Kunne ikke søke etter undertekster');
+    } finally {
+      setSearchingSubtitles(false);
+    }
+  };
+
+  // Download subtitle via Jellyfin
+  const downloadSubtitle = async (subtitleId: string) => {
+    if (!id) return;
+    
+    setDownloadingSubtitle(subtitleId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
+        body: { itemId: id, subtitleId }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success('Undertekst lastet ned og tilgjengelig!');
+        setSubtitleSearchOpen(false);
+      } else {
+        toast.error(data?.error || 'Kunne ikke laste ned undertekst');
+      }
+    } catch (error) {
+      console.error('Error downloading subtitle:', error);
+      toast.error('Kunne ikke laste ned undertekst');
+    } finally {
+      setDownloadingSubtitle(null);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -448,6 +523,133 @@ const Detail = () => {
                 >
                   <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
                 </Button>
+
+                {/* Subtitle Search Dialog */}
+                <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => {
+                        setSubtitleSearchOpen(true);
+                        searchSubtitles('nor');
+                      }}
+                    >
+                      <Subtitles className="h-5 w-5" />
+                      Undertekster
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[80vh]">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Subtitles className="h-5 w-5" />
+                        Søk etter undertekster
+                      </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <p className="text-sm text-muted-foreground">
+                        Søk og last ned undertekster via Jellyfin. Underteksten blir tilgjengelig når du spiller av filmen.
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        <Button
+                          variant={!searchingSubtitles ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => searchSubtitles('nor')}
+                          disabled={searchingSubtitles}
+                        >
+                          🇳🇴 Norsk
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => searchSubtitles('eng')}
+                          disabled={searchingSubtitles}
+                        >
+                          🇬🇧 English
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => searchSubtitles('swe')}
+                          disabled={searchingSubtitles}
+                        >
+                          🇸🇪 Svenska
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => searchSubtitles('dan')}
+                          disabled={searchingSubtitles}
+                        >
+                          🇩🇰 Dansk
+                        </Button>
+                      </div>
+                      
+                      <ScrollArea className="h-[350px] rounded-md border p-4">
+                        {searchingSubtitles ? (
+                          <div className="flex flex-col items-center justify-center h-full">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <span className="mt-2 text-muted-foreground">Søker etter undertekster...</span>
+                          </div>
+                        ) : remoteSubtitles.length > 0 ? (
+                          <div className="space-y-2">
+                            {remoteSubtitles.map((sub) => (
+                              <div
+                                key={sub.Id}
+                                className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
+                              >
+                                <div className="flex-1 min-w-0 mr-4">
+                                  <p className="font-medium text-sm truncate">{sub.Name}</p>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                                    <span>{sub.Language}</span>
+                                    <span>•</span>
+                                    <span>{sub.Provider}</span>
+                                    {sub.Format && (
+                                      <>
+                                        <span>•</span>
+                                        <span>{sub.Format}</span>
+                                      </>
+                                    )}
+                                    {sub.DownloadCount && (
+                                      <>
+                                        <span>•</span>
+                                        <span>{sub.DownloadCount.toLocaleString()} nedlastinger</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {sub.Comment && (
+                                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{sub.Comment}</p>
+                                  )}
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => downloadSubtitle(sub.Id)}
+                                  disabled={downloadingSubtitle === sub.Id}
+                                  className="gap-2"
+                                >
+                                  {downloadingSubtitle === sub.Id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )}
+                                  Last ned
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                            <Subtitles className="h-12 w-12 mb-4 opacity-50" />
+                            <p className="text-center">Velg et språk for å søke etter undertekster</p>
+                            <p className="text-xs mt-2 text-center">Krever at Jellyfin har et undertekstplugin (f.eks. OpenSubtitles) installert</p>
+                          </div>
+                        )}
+                      </ScrollArea>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               {item.Overview && (
