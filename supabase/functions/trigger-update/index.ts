@@ -82,9 +82,13 @@ serve(async (req) => {
     // Default to localhost:3002 if not configured anywhere
     const gitPullUrl = primaryUrl || 'http://localhost:3002/git-pull';
     // Use database secret, or fall back to environment variable UPDATE_SECRET
-    const gitPullSecret = primarySecret || Deno.env.get('UPDATE_SECRET') || '';
-
+    const envSecret = Deno.env.get('UPDATE_SECRET') || '';
+    const gitPullSecret = primarySecret || envSecret;
+    
+    // Debug logging for signature troubleshooting
     console.log(`Using git pull server: ${gitPullUrl}`);
+    console.log(`Secret source: ${primarySecret ? 'database' : (envSecret ? 'env UPDATE_SECRET' : 'none')}`);
+    console.log(`Secret length: ${gitPullSecret.length}, first 8 chars: ${gitPullSecret.slice(0, 8)}...`);
 
     // Get updateId from request body if provided
     const { updateId: providedUpdateId } = await req.json().catch(() => ({}));
