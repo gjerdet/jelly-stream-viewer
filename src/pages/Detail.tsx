@@ -109,19 +109,22 @@ const Detail = () => {
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
   const [subtitleTab, setSubtitleTab] = useState<'existing' | 'search'>('existing');
+  const [episodeSubtitleSearchOpen, setEpisodeSubtitleSearchOpen] = useState<string | null>(null);
+  const [episodeSubtitleTarget, setEpisodeSubtitleTarget] = useState<{ id: string; name: string } | null>(null);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
   // Search for remote subtitles via Jellyfin
-  const searchSubtitles = async (language: string = 'nor') => {
-    if (!id) return;
+  const searchSubtitles = async (language: string = 'nor', targetItemId?: string) => {
+    const searchId = targetItemId || id;
+    if (!searchId) return;
     
     setSearchingSubtitles(true);
     setRemoteSubtitles([]);
     
     try {
       const { data, error } = await supabase.functions.invoke('jellyfin-search-subtitles', {
-        body: { itemId: id, language }
+        body: { itemId: searchId, language }
       });
       
       if (error) throw error;
@@ -145,14 +148,15 @@ const Detail = () => {
   };
 
   // Download subtitle via Jellyfin
-  const downloadSubtitle = async (subtitleId: string) => {
-    if (!id) return;
+  const downloadSubtitle = async (subtitleId: string, targetItemId?: string) => {
+    const downloadId = targetItemId || id;
+    if (!downloadId) return;
     
     setDownloadingSubtitle(subtitleId);
     
     try {
       const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
-        body: { itemId: id, subtitleId }
+        body: { itemId: downloadId, subtitleId }
       });
       
       if (error) throw error;
@@ -161,6 +165,9 @@ const Detail = () => {
         toast.success('Undertekst lastet ned!');
         // Refresh item data to show new subtitle
         queryClient.invalidateQueries({ queryKey: ['item-detail', id] });
+        if (targetItemId) {
+          queryClient.invalidateQueries({ queryKey: ['item-detail-player', targetItemId] });
+        }
       } else {
         toast.error(data?.error || 'Kunne ikke laste ned undertekst');
       }
@@ -170,6 +177,13 @@ const Detail = () => {
     } finally {
       setDownloadingSubtitle(null);
     }
+  };
+
+  // Open episode subtitle search
+  const openEpisodeSubtitleSearch = (episodeId: string, episodeName: string) => {
+    setEpisodeSubtitleTarget({ id: episodeId, name: episodeName });
+    setRemoteSubtitles([]);
+    setEpisodeSubtitleSearchOpen(episodeId);
   };
 
   useEffect(() => {
@@ -550,7 +564,7 @@ const Detail = () => {
                         )}
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                       <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                           <Subtitles className="h-5 w-5" />
@@ -577,11 +591,11 @@ const Detail = () => {
                         </Button>
                       </div>
 
-                      <div className="space-y-4">
+                      <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
                         {subtitleTab === 'existing' ? (
                           // Existing subtitles tab
                           subtitles.length > 0 ? (
-                            <ScrollArea className="max-h-[350px]">
+                            <ScrollArea className="flex-1 min-h-0 max-h-[50vh]">
                               <div className="space-y-2">
                                 {subtitles.map((sub) => (
                                   <div
@@ -660,7 +674,7 @@ const Detail = () => {
                               </Button>
                             </div>
                             
-                            <ScrollArea className="h-[300px] rounded-md border p-4">
+                            <ScrollArea className="flex-1 min-h-0 max-h-[50vh] rounded-md border p-4">
                               {searchingSubtitles ? (
                                 <div className="flex flex-col items-center justify-center h-full">
                                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -909,6 +923,20 @@ const Detail = () => {
                         </p>
                       )}
                     </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
+                        }}
+                        title="Søk undertekster"
+                      >
+                        <Subtitles className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
@@ -916,6 +944,114 @@ const Detail = () => {
           )}
         </div>
       )}
+
+      {/* Episode Subtitle Search Dialog */}
+      <Dialog 
+        open={!!episodeSubtitleSearchOpen} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setEpisodeSubtitleSearchOpen(null);
+            setEpisodeSubtitleTarget(null);
+            setRemoteSubtitles([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Subtitles className="h-5 w-5" />
+              Søk etter undertekster
+            </DialogTitle>
+            {episodeSubtitleTarget && (
+              <p className="text-sm text-muted-foreground">{episodeSubtitleTarget.name}</p>
+            )}
+          </DialogHeader>
+          <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => episodeSubtitleTarget && searchSubtitles('nor', episodeSubtitleTarget.id)}
+                disabled={searchingSubtitles}
+              >
+                Norsk
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => episodeSubtitleTarget && searchSubtitles('eng', episodeSubtitleTarget.id)}
+                disabled={searchingSubtitles}
+              >
+                English
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => episodeSubtitleTarget && searchSubtitles('swe', episodeSubtitleTarget.id)}
+                disabled={searchingSubtitles}
+              >
+                Svenska
+              </Button>
+            </div>
+            
+            <ScrollArea className="flex-1 min-h-0 rounded-md border p-4">
+              {searchingSubtitles ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="mt-2 text-muted-foreground">Søker...</span>
+                </div>
+              ) : remoteSubtitles.length > 0 ? (
+                <div className="space-y-2">
+                  {remoteSubtitles.map((sub) => (
+                    <div
+                      key={sub.Id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className="font-medium text-sm truncate">{sub.Name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                          <span>{sub.Provider}</span>
+                          {sub.Format && (
+                            <>
+                              <span>•</span>
+                              <span>{sub.Format}</span>
+                            </>
+                          )}
+                          {sub.DownloadCount && (
+                            <>
+                              <span>•</span>
+                              <span>{sub.DownloadCount.toLocaleString()} nedlastinger</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => episodeSubtitleTarget && downloadSubtitle(sub.Id, episodeSubtitleTarget.id)}
+                        disabled={downloadingSubtitle === sub.Id}
+                        className="gap-2"
+                      >
+                        {downloadingSubtitle === sub.Id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Subtitles className="h-12 w-12 mb-4 opacity-50" />
+                  <p className="text-center">Velg et språk for å søke etter undertekster</p>
+                  <p className="text-xs mt-1 text-center">Krever at Jellyfin har et undertekstplugin installert</p>
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Similar Items Section */}
       {similarItems?.Items && similarItems.Items.length > 0 && (

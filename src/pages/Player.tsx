@@ -996,14 +996,14 @@ const Player = () => {
                   Søk undertekster
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[80vh]">
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Subtitles className="h-5 w-5" />
                     Søk etter undertekster
                   </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
+                <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -1031,7 +1031,7 @@ const Player = () => {
                     </Button>
                   </div>
                   
-                  <ScrollArea className="h-[400px] rounded-md border p-4">
+                  <ScrollArea className="flex-1 min-h-0 rounded-md border p-4">
                     {searchingSubtitles ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
