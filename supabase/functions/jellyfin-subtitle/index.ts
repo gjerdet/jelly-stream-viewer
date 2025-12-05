@@ -96,8 +96,9 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Construct Jellyfin subtitle URL
-    const subtitleUrl = `${jellyfinServerUrl}/Videos/${videoId}/Subtitles/${subtitleIndex}/Stream.vtt?api_key=${apiKey}`;
+    // Construct Jellyfin subtitle URL - format: /Videos/{itemId}/{mediaSourceId}/Subtitles/{index}/Stream.vtt
+    // For direct streams, mediaSourceId is usually the same as itemId
+    const subtitleUrl = `${jellyfinServerUrl}/Videos/${videoId}/${videoId}/Subtitles/${subtitleIndex}/Stream.vtt?api_key=${apiKey}`;
 
     console.log(`Fetching subtitle ${subtitleIndex} for video ${videoId} for user ${user.id}`);
 
