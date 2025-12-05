@@ -158,10 +158,16 @@ const Player = () => {
   };
 
   // Download subtitle via Jellyfin
-  const downloadSubtitle = async (subtitleId: string) => {
+  const downloadSubtitle = async (subtitleId: string, subtitleName?: string) => {
     if (!id) return;
     
     setDownloadingSubtitle(subtitleId);
+    
+    const toastId = toast.loading(
+      subtitleName 
+        ? `Laster ned: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
+        : 'Laster ned undertekst...'
+    );
     
     try {
       const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
@@ -171,14 +177,14 @@ const Player = () => {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success('Undertekst lastet ned! Refresh siden for å bruke den.');
+        toast.success('Undertekst lastet ned! Refresh siden for å bruke den.', { id: toastId });
         setSubtitleSearchOpen(false);
       } else {
-        toast.error(data?.error || 'Kunne ikke laste ned undertekst');
+        toast.error(data?.error || 'Kunne ikke laste ned undertekst', { id: toastId });
       }
     } catch (error) {
       console.error('Error downloading subtitle:', error);
-      toast.error('Kunne ikke laste ned undertekst');
+      toast.error('Kunne ikke laste ned undertekst', { id: toastId });
     } finally {
       setDownloadingSubtitle(null);
     }
@@ -1070,7 +1076,7 @@ const Player = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => downloadSubtitle(sub.Id)}
+                              onClick={() => downloadSubtitle(sub.Id, sub.Name)}
                               disabled={downloadingSubtitle === sub.Id}
                             >
                               {downloadingSubtitle === sub.Id ? (

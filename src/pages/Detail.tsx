@@ -148,11 +148,18 @@ const Detail = () => {
   };
 
   // Download subtitle via Jellyfin
-  const downloadSubtitle = async (subtitleId: string, targetItemId?: string) => {
+  const downloadSubtitle = async (subtitleId: string, targetItemId?: string, subtitleName?: string) => {
     const downloadId = targetItemId || id;
     if (!downloadId) return;
     
     setDownloadingSubtitle(subtitleId);
+    
+    // Show loading toast
+    const toastId = toast.loading(
+      subtitleName 
+        ? `Laster ned: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
+        : 'Laster ned undertekst...'
+    );
     
     try {
       const { data, error } = await supabase.functions.invoke('jellyfin-download-subtitle', {
@@ -162,18 +169,18 @@ const Detail = () => {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success('Undertekst lastet ned!');
+        toast.success('Undertekst lastet ned og lagt til!', { id: toastId });
         // Refresh item data to show new subtitle
         queryClient.invalidateQueries({ queryKey: ['item-detail', id] });
         if (targetItemId) {
           queryClient.invalidateQueries({ queryKey: ['item-detail-player', targetItemId] });
         }
       } else {
-        toast.error(data?.error || 'Kunne ikke laste ned undertekst');
+        toast.error(data?.error || 'Kunne ikke laste ned undertekst', { id: toastId });
       }
     } catch (error) {
       console.error('Error downloading subtitle:', error);
-      toast.error('Kunne ikke laste ned undertekst');
+      toast.error('Kunne ikke laste ned undertekst', { id: toastId });
     } finally {
       setDownloadingSubtitle(null);
     }
@@ -708,7 +715,7 @@ const Detail = () => {
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => downloadSubtitle(sub.Id)}
+                                        onClick={() => downloadSubtitle(sub.Id, undefined, sub.Name)}
                                         disabled={downloadingSubtitle === sub.Id}
                                         className="gap-2"
                                       >
@@ -1029,7 +1036,7 @@ const Detail = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => episodeSubtitleTarget && downloadSubtitle(sub.Id, episodeSubtitleTarget.id)}
+                        onClick={() => episodeSubtitleTarget && downloadSubtitle(sub.Id, episodeSubtitleTarget.id, sub.Name)}
                         disabled={downloadingSubtitle === sub.Id}
                         className="gap-2"
                       >
