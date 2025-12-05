@@ -41,7 +41,7 @@ export const SystemLogs = () => {
   const [loadingDb, setLoadingDb] = useState(false);
   const [loadingEdge, setLoadingEdge] = useState(false);
   const [loadingJellyfin, setLoadingJellyfin] = useState(false);
-  const [activeTab, setActiveTab] = useState("jellyfin");
+  const [activeTab, setActiveTab] = useState("jellyfin"); // Default to Jellyfin tab
 
   // Fetch logs function
   const fetchLogs = async (logType: 'auth' | 'database' | 'edge') => {
