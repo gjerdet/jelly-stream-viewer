@@ -227,7 +227,7 @@ export const UpdateManager = () => {
         level: 'info' as const
       }, {
         timestamp: new Date().toISOString(),
-        message: 'Kontakter git-pull server via edge function...',
+        message: 'Kontakter git-pull server direkte...',
         level: 'info' as const
       }];
       
@@ -244,17 +244,30 @@ export const UpdateManager = () => {
         })
         .eq('id', updateId);
 
-      // Call trigger-update edge function (acts as proxy to local git-pull server)
-      const { data, error: triggerError } = await supabase.functions.invoke('trigger-update', {
-        body: { updateId }
+      // Get git-pull server URL from database
+      const { data: settingsData } = await supabase
+        .from('server_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['update_webhook_url', 'git_pull_server_url']);
+
+      const settingsMap = new Map<string, string>(
+        (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
+      );
+
+      const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
+
+      // Call git-pull server directly from browser (browser IS on local network)
+      const response = await fetch(serverUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ updateId })
       });
 
-      if (triggerError) {
-        throw new Error(`Edge function error: ${triggerError.message}`);
-      }
-
-      if (data?.error) {
-        throw new Error(data.error);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Git pull server returned ${response.status}: ${errorText}`);
       }
 
       toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
