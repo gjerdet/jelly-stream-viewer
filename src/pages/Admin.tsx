@@ -30,7 +30,7 @@ const Admin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
-  const { siteName, logoUrl, headerTitle, updateSetting } = useSiteSettings();
+  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, updateSetting } = useSiteSettings();
   const { t, language } = useLanguage();
   const admin = t.admin as any;
   const common = t.common as any;
@@ -62,6 +62,7 @@ const Admin = () => {
   const [newSiteName, setNewSiteName] = useState("");
   const [newLogoUrl, setNewLogoUrl] = useState("");
   const [newHeaderTitle, setNewHeaderTitle] = useState("");
+  const [newLoginBackgroundUrl, setNewLoginBackgroundUrl] = useState("");
   
   // News post state
   const [newPostTitle, setNewPostTitle] = useState("");
@@ -298,7 +299,8 @@ const Admin = () => {
     if (siteName && !newSiteName) setNewSiteName(siteName);
     if (logoUrl !== undefined && !newLogoUrl) setNewLogoUrl(logoUrl);
     if (headerTitle && !newHeaderTitle) setNewHeaderTitle(headerTitle);
-  }, [siteName, logoUrl, headerTitle]);
+    if (loginBackgroundUrl !== undefined && !newLoginBackgroundUrl) setNewLoginBackgroundUrl(loginBackgroundUrl);
+  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl]);
 
   useEffect(() => {
     // Wait for both auth and role to finish loading
@@ -374,6 +376,10 @@ const Admin = () => {
     if (newHeaderTitle.trim()) {
       updateSetting({ key: "site_header_title", value: newHeaderTitle.trim() });
     }
+  };
+
+  const handleUpdateLoginBackgroundUrl = () => {
+    updateSetting({ key: "login_background_url", value: newLoginBackgroundUrl.trim() });
   };
 
   // Test Jellyfin connection
@@ -1199,6 +1205,45 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     className="cinema-glow"
                   >
                     {admin.updateTitle || "Update Title"}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle>{admin.loginBackgroundTitle || "Innloggingsbakgrunn"}</CardTitle>
+                  <CardDescription>
+                    {admin.loginBackgroundDescription || "Sett et bakgrunnsbilde for innloggingssiden (la stå tom for standard gradient)"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-bg-url">{admin.loginBackgroundUrl || "Bakgrunns-URL"}</Label>
+                    <Input
+                      id="login-bg-url"
+                      type="url"
+                      placeholder="https://example.com/background.jpg"
+                      value={newLoginBackgroundUrl}
+                      onChange={(e) => setNewLoginBackgroundUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  {newLoginBackgroundUrl && (
+                    <div className="p-4 bg-secondary/20 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-2">{admin.preview || "Forhåndsvisning:"}</p>
+                      <div 
+                        className="h-32 w-full rounded-lg bg-cover bg-center bg-no-repeat relative overflow-hidden"
+                        style={{ backgroundImage: `url(${newLoginBackgroundUrl})` }}
+                      >
+                        <div className="absolute inset-0 bg-black/60" />
+                      </div>
+                    </div>
+                  )}
+                  <Button 
+                    onClick={handleUpdateLoginBackgroundUrl}
+                    className="cinema-glow"
+                  >
+                    {admin.updateLoginBackground || "Oppdater bakgrunn"}
                   </Button>
                 </CardContent>
               </Card>

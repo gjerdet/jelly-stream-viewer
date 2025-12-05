@@ -11,6 +11,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
+import { useSiteSettings } from "@/hooks/useSiteSettings";
 
 const authSchema = z.object({
   username: z.string().trim().min(1, "Brukernavn er påkrevd").max(255),
@@ -20,6 +21,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { loginBackgroundUrl } = useSiteSettings();
   const { serverUrl } = useServerSettings();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -146,7 +148,16 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      <div className="absolute inset-0 gradient-hero opacity-50" />
+      {loginBackgroundUrl ? (
+        <div 
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${loginBackgroundUrl})` }}
+        >
+          <div className="absolute inset-0 bg-black/60" />
+        </div>
+      ) : (
+        <div className="absolute inset-0 gradient-hero opacity-50" />
+      )}
       
       <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/95 backdrop-blur-xl">
         <CardHeader className="space-y-4 text-center">
