@@ -6,6 +6,8 @@ interface MediaItem {
   image: string;
   year?: string;
   rating?: string;
+  episodeCount?: number;
+  type?: string;
 }
 
 interface MediaGridProps {
@@ -27,6 +29,8 @@ const MediaGrid = ({ title, items, onItemClick }: MediaGridProps) => {
             image={item.image}
             year={item.year}
             rating={item.rating}
+            episodeCount={item.episodeCount}
+            type={item.type}
             onClick={() => onItemClick?.(item.id)}
           />
         ))}

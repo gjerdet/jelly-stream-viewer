@@ -8,11 +8,14 @@ interface MediaCardProps {
   image: string;
   year?: string;
   rating?: string;
+  episodeCount?: number;
+  type?: string;
   onClick?: () => void;
 }
 
-const MediaCard = ({ title, image, year, rating, onClick }: MediaCardProps) => {
+const MediaCard = ({ title, image, year, rating, episodeCount, type, onClick }: MediaCardProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const isSeries = type === 'Series';
 
   return (
     <Card
@@ -42,12 +45,18 @@ const MediaCard = ({ title, image, year, rating, onClick }: MediaCardProps) => {
       
       <div className="p-2 sm:p-3 space-y-1">
         <h3 className="font-semibold text-xs sm:text-sm line-clamp-1">{title}</h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
           {year && <span>{year}</span>}
           {rating && (
             <>
               <span>•</span>
               <span className="text-accent">{rating}</span>
+            </>
+          )}
+          {isSeries && episodeCount !== undefined && (
+            <>
+              <span>•</span>
+              <span>{episodeCount} ep</span>
             </>
           )}
         </div>
