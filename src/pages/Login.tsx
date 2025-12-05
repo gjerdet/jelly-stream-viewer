@@ -170,12 +170,11 @@ const Login = () => {
           <CardDescription className="text-base">
             Logg inn på din Jellyfin-server for å se innhold
           </CardDescription>
-          <p className="text-xs text-success mt-2 font-medium">
-            💡 Testing uten server? Bruk <span className="font-bold">demo / demo</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Første gang? <a href="/setup" className="text-primary hover:underline">Sett opp serveren først</a>
-          </p>
+          {!serverUrl && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Første gang? <a href="/setup" className="text-primary hover:underline">Sett opp serveren først</a>
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
