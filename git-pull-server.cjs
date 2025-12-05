@@ -147,10 +147,14 @@ function verifySignature(payload, signature, secret) {
  * Update status in Supabase
  */
 async function updateStatus(updateId, status, progress, currentStep, logs, error = null) {
-  if (!supabase || !updateId) return;
+  if (!supabase || !updateId) {
+    console.log('[updateStatus] Skipped: supabase=' + !!supabase + ', updateId=' + updateId);
+    return;
+  }
   
   try {
-    await supabase
+    console.log(`[updateStatus] Updating ${updateId}: status=${status}, progress=${progress}`);
+    const { data, error: updateError } = await supabase
       .from('update_status')
       .update({
         status,
@@ -161,9 +165,16 @@ async function updateStatus(updateId, status, progress, currentStep, logs, error
         updated_at: new Date().toISOString(),
         ...(status === 'completed' && { completed_at: new Date().toISOString() })
       })
-      .eq('id', updateId);
+      .eq('id', updateId)
+      .select();
+    
+    if (updateError) {
+      console.error('[updateStatus] Supabase error:', updateError.message, updateError.code);
+    } else {
+      console.log(`[updateStatus] Success, rows updated: ${data?.length || 0}`);
+    }
   } catch (err) {
-    console.error('Failed to update status:', err);
+    console.error('[updateStatus] Exception:', err.message);
   }
 }
 
