@@ -47,6 +47,8 @@ interface JellyfinItemDetail {
     PrimaryImageTag?: string;
   }[];
   MediaStreams?: MediaStream[];
+  ChildCount?: number;
+  RecursiveItemCount?: number;
 }
 
 interface Season {
@@ -233,7 +235,7 @@ const Detail = () => {
     ["item-detail", id || ""],
     {
       endpoint: id && userId 
-        ? `/Users/${userId}/Items/${id}?Fields=MediaStreams,Overview,Genres,People,Studios&EnableImageTypes=Primary,Backdrop,Thumb` 
+        ? `/Users/${userId}/Items/${id}?Fields=MediaStreams,Overview,Genres,People,Studios,ChildCount,RecursiveItemCount&EnableImageTypes=Primary,Backdrop,Thumb` 
         : "",
     },
     !!user && !!userId && !!id
@@ -474,7 +476,14 @@ const Detail = () => {
 
       {/* Additional Info */}
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {item.Type === 'Series' && (item.RecursiveItemCount || item.ChildCount) && (
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Episoder</h3>
+              <p>{item.RecursiveItemCount || item.ChildCount} totalt</p>
+            </div>
+          )}
+
           {item.Genres && item.Genres.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Sjangere</h3>
