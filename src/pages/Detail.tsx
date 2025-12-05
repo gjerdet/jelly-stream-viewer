@@ -72,6 +72,7 @@ interface Episode {
     Played?: boolean;
     PlaybackPositionTicks?: number;
   };
+  MediaStreams?: MediaStream[];
 }
 
 interface SeasonsResponse {
@@ -384,12 +385,12 @@ const Detail = () => {
     !!user && !!userId && !!id && item?.Type === "Series"
   );
 
-  // Fetch episodes for selected season
+  // Fetch episodes for selected season with MediaStreams for subtitle info
   const { data: episodesData } = useJellyfinApi<EpisodesResponse>(
     ["season-episodes", selectedSeasonId],
     {
       endpoint: selectedSeasonId && userId
-        ? `/Shows/${id}/Episodes?SeasonId=${selectedSeasonId}&UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio`
+        ? `/Shows/${id}/Episodes?SeasonId=${selectedSeasonId}&UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio,MediaStreams`
         : "",
     },
     !!selectedSeasonId && !!userId
@@ -908,6 +909,7 @@ const Detail = () => {
                   ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
                   : 0;
                 const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
+                const episodeSubtitleCount = episode.MediaStreams?.filter(s => s.Type === 'Subtitle').length || 0;
 
                 return (
                   <div
@@ -972,15 +974,23 @@ const Detail = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="gap-2 flex-shrink-0 bg-secondary/50 border-border hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                      className={`gap-2 flex-shrink-0 border-border hover:bg-primary hover:text-primary-foreground hover:border-primary ${
+                        episodeSubtitleCount > 0 ? 'bg-green-900/30 border-green-700/50' : 'bg-secondary/50'
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
                         openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
                       }}
-                      title="Søk undertekster"
+                      title={episodeSubtitleCount > 0 ? `${episodeSubtitleCount} undertekster tilgjengelig` : 'Søk undertekster'}
                     >
                       <Subtitles className="h-4 w-4" />
-                      <span className="hidden sm:inline">Undertekst</span>
+                      {episodeSubtitleCount > 0 ? (
+                        <span className="text-xs bg-green-600 text-white px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                          {episodeSubtitleCount}
+                        </span>
+                      ) : (
+                        <span className="hidden sm:inline text-muted-foreground">Ingen</span>
+                      )}
                     </Button>
                   </div>
                 );
