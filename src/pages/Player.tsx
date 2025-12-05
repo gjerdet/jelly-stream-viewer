@@ -108,6 +108,7 @@ const Player = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
+  const [subtitleUrl, setSubtitleUrl] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
@@ -464,16 +465,29 @@ const Player = () => {
   }, []);
 
   // Get subtitle URL using edge function
-  const getSubtitleUrl = (subtitleIndex: number) => {
+  const getSubtitleUrl = async (subtitleIndex: number): Promise<string> => {
     if (!serverUrl || !id || !user) return '';
     
-    return supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session?.access_token) return '';
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      // Token in URL is required for browser subtitle tracks (can't send custom headers)
-      return `${supabaseUrl}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitleIndex}&token=${session.access_token}`;
-    });
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) return '';
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    // Token in URL is required for browser subtitle tracks (can't send custom headers)
+    return `${supabaseUrl}/functions/v1/jellyfin-subtitle?id=${id}&index=${subtitleIndex}&token=${session.access_token}`;
   };
+
+  // Load subtitle URL when selection changes
+  useEffect(() => {
+    const loadSubtitle = async () => {
+      if (selectedSubtitle && selectedSubtitle !== 'none') {
+        const subtitleIndex = parseInt(selectedSubtitle, 10);
+        const url = await getSubtitleUrl(subtitleIndex);
+        setSubtitleUrl(url);
+      } else {
+        setSubtitleUrl('');
+      }
+    };
+    loadSubtitle();
+  }, [selectedSubtitle, serverUrl, id, user]);
 
 
   const handleMouseMove = () => {
@@ -723,7 +737,7 @@ const Player = () => {
         >
           <video
         ref={videoRef}
-        key={streamUrl}
+        key={`${streamUrl}-${subtitleUrl}`}
         src={streamUrl}
         className="w-full h-full object-contain"
         controls
@@ -739,11 +753,24 @@ const Player = () => {
             videoHeight: video.videoHeight,
             src: streamUrl?.substring(0, 50) + '...'
           });
+          // Enable subtitle track if exists
+          if (video.textTracks.length > 0 && subtitleUrl) {
+            video.textTracks[0].mode = 'showing';
+          }
         }}
         onError={handleVideoError}
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
       >
+        {subtitleUrl && (
+          <track
+            kind="subtitles"
+            src={subtitleUrl}
+            srcLang="no"
+            label="Undertekster"
+            default
+          />
+        )}
         Din nettleser støtter ikke videoavspilling.
       </video>
 
