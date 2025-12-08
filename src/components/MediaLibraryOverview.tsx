@@ -42,7 +42,10 @@ import {
   Loader2,
   Eye,
   Check,
-  X
+  X,
+  Trash2,
+  Download,
+  Plus
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -161,6 +164,7 @@ interface SubtitleInfo {
   IsDefault: boolean;
   IsForced: boolean;
   Path?: string;
+  Index?: number;
 }
 
 interface SubtitleDialogProps {
@@ -169,21 +173,52 @@ interface SubtitleDialogProps {
   item: MediaItem | null;
   subtitles: SubtitleInfo[];
   loading: boolean;
+  onDeleteSubtitle?: (item: MediaItem, subtitleIndex: number) => void;
+  onSearchSubtitles?: (item: MediaItem) => void;
+  deleting?: boolean;
+  searching?: boolean;
 }
 
-const SubtitleDialog = ({ open, onOpenChange, item, subtitles, loading }: SubtitleDialogProps) => {
+const SubtitleDialog = ({ 
+  open, 
+  onOpenChange, 
+  item, 
+  subtitles, 
+  loading,
+  onDeleteSubtitle,
+  onSearchSubtitles,
+  deleting,
+  searching
+}: SubtitleDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Subtitles className="h-5 w-5" />
             Undertekster for {item?.Name}
           </DialogTitle>
           <DialogDescription>
-            Viser alle innebygde og eksterne undertekster for denne filen
+            Administrer undertekster - vis, slett eller søk etter nye
           </DialogDescription>
         </DialogHeader>
+        
+        {/* Action buttons */}
+        <div className="flex gap-2 pb-2 border-b">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => item && onSearchSubtitles?.(item)}
+            disabled={searching || !item}
+          >
+            {searching ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4 mr-2" />
+            )}
+            Søk etter undertekster
+          </Button>
+        </div>
         
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -194,6 +229,7 @@ const SubtitleDialog = ({ open, onOpenChange, item, subtitles, loading }: Subtit
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <X className="h-12 w-12 mb-2 text-yellow-500" />
             <p>Ingen undertekster funnet</p>
+            <p className="text-sm mt-2">Bruk "Søk etter undertekster" for å finne og laste ned</p>
           </div>
         ) : (
           <ScrollArea className="max-h-[50vh]">
@@ -205,6 +241,7 @@ const SubtitleDialog = ({ open, onOpenChange, item, subtitles, loading }: Subtit
                   <TableHead className="text-center">Format</TableHead>
                   <TableHead className="text-center">Type</TableHead>
                   <TableHead className="text-center">Standard</TableHead>
+                  <TableHead className="text-center w-[80px]">Handling</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -239,6 +276,24 @@ const SubtitleDialog = ({ open, onOpenChange, item, subtitles, loading }: Subtit
                         <Check className="h-4 w-4 text-green-500 mx-auto" />
                       ) : (
                         <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {sub.IsExternal && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => item && onDeleteSubtitle?.(item, sub.Index ?? index)}
+                          disabled={deleting}
+                          title="Slett undertekst"
+                        >
+                          {deleting ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -302,35 +357,31 @@ const MediaItemRow = ({ item, onViewSubtitles }: MediaItemRowProps) => {
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex items-center justify-center gap-2">
-          <div className="flex flex-wrap gap-1">
-            {subtitleLangs.length > 0 ? (
-              <>
-                {subtitleLangs.slice(0, 2).map((lang, i) => (
-                  <Badge key={i} variant="outline" className="text-xs bg-green-500/10 border-green-500/20">
-                    {lang}
-                  </Badge>
-                ))}
-                {subtitleLangs.length > 2 && (
-                  <Badge variant="outline" className="text-xs">+{subtitleLangs.length - 2}</Badge>
-                )}
-              </>
-            ) : (
-              <Badge variant="outline" className="text-xs bg-yellow-500/10 border-yellow-500/20">
-                Ingen
-              </Badge>
-            )}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0"
-            onClick={() => onViewSubtitles(item)}
-            title="Vis undertekster"
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewSubtitles(item);
+          }}
+          title="Administrer undertekster"
+        >
+          <Subtitles className="h-3.5 w-3.5" />
+          {subtitleLangs.length > 0 ? (
+            <span className="flex items-center gap-1">
+              {subtitleLangs.slice(0, 2).map((lang, i) => (
+                <span key={i} className="text-green-400">{lang}</span>
+              ))}
+              {subtitleLangs.length > 2 && (
+                <span className="text-muted-foreground">+{subtitleLangs.length - 2}</span>
+              )}
+            </span>
+          ) : (
+            <span className="text-yellow-400">Ingen</span>
+          )}
+          <Eye className="h-3 w-3 ml-1" />
+        </Button>
       </TableCell>
     </TableRow>
   );
@@ -407,6 +458,8 @@ export const MediaLibraryOverview = () => {
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [subtitles, setSubtitles] = useState<SubtitleInfo[]>([]);
   const [subtitlesLoading, setSubtitlesLoading] = useState(false);
+  const [deletingSubtitle, setDeletingSubtitle] = useState(false);
+  const [searchingSubtitles, setSearchingSubtitles] = useState(false);
 
   const handleViewSubtitles = async (item: MediaItem) => {
     setSelectedItem(item);
@@ -419,7 +472,7 @@ export const MediaLibraryOverview = () => {
       const allSubtitles: SubtitleInfo[] = [];
       
       item.MediaSources?.forEach(source => {
-        source.MediaStreams?.filter(stream => stream.Type === "Subtitle").forEach(stream => {
+        source.MediaStreams?.filter(stream => stream.Type === "Subtitle").forEach((stream, index) => {
           allSubtitles.push({
             Language: stream.Language || "Ukjent",
             DisplayTitle: stream.DisplayTitle || stream.Title || "Ukjent",
@@ -427,6 +480,7 @@ export const MediaLibraryOverview = () => {
             IsExternal: stream.IsExternal || false,
             IsDefault: stream.IsDefault || false,
             IsForced: false,
+            Index: stream.Index ?? index,
           });
         });
       });
@@ -437,6 +491,77 @@ export const MediaLibraryOverview = () => {
       toast.error("Kunne ikke laste undertekster");
     } finally {
       setSubtitlesLoading(false);
+    }
+  };
+
+  const handleDeleteSubtitle = async (item: MediaItem, subtitleIndex: number) => {
+    if (!serverUrl) return;
+    
+    setDeletingSubtitle(true);
+    try {
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (!accessToken) {
+        toast.error("Ikke autentisert");
+        return;
+      }
+
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      // Delete subtitle via Jellyfin API
+      const response = await fetch(
+        `${normalizedUrl.replace(/\/$/, '')}/Videos/${item.Id}/Subtitles/${subtitleIndex}`,
+        {
+          method: 'DELETE',
+          headers: {
+            "X-Emby-Token": accessToken,
+          },
+        }
+      );
+
+      if (response.ok) {
+        toast.success("Undertekst slettet");
+        // Refresh subtitles
+        await handleViewSubtitles(item);
+        // Refresh media list to update subtitle counts
+        refetchMovies();
+        refetchSeries();
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.error("Error deleting subtitle:", error);
+      toast.error("Kunne ikke slette undertekst");
+    } finally {
+      setDeletingSubtitle(false);
+    }
+  };
+
+  const handleSearchSubtitles = async (item: MediaItem) => {
+    setSearchingSubtitles(true);
+    try {
+      // Open Jellyfin's subtitle search in new tab
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl?.startsWith('http://') && !normalizedUrl?.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+      
+      // For now, show a message - full subtitle search would require more UI
+      toast.info("Undertekstsøk åpnes i Jellyfin-dashboardet. Du kan søke og laste ned undertekster der.", {
+        duration: 5000,
+      });
+      
+      // Open Jellyfin item page
+      window.open(`${normalizedUrl?.replace(/\/$/, '')}/web/index.html#!/item?id=${item.Id}`, '_blank');
+    } catch (error) {
+      console.error("Error searching subtitles:", error);
+      toast.error("Kunne ikke åpne undertekstsøk");
+    } finally {
+      setSearchingSubtitles(false);
     }
   };
 
@@ -725,6 +850,10 @@ export const MediaLibraryOverview = () => {
         item={selectedItem}
         subtitles={subtitles}
         loading={subtitlesLoading}
+        onDeleteSubtitle={handleDeleteSubtitle}
+        onSearchSubtitles={handleSearchSubtitles}
+        deleting={deletingSubtitle}
+        searching={searchingSubtitles}
       />
     </Card>
   );
