@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -20,6 +20,7 @@ import { ServerMonitoring } from "@/components/ServerMonitoring";
 import { QBittorrentStatus } from "@/components/QBittorrentStatus";
 import { HealthCheckDashboard } from "@/components/HealthCheckDashboard";
 import { SystemLogs } from "@/components/SystemLogs";
+import { MediaLibraryOverview } from "@/components/MediaLibraryOverview";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -678,10 +679,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
           </div>
 
           <Tabs defaultValue="health" className="w-full">
-            <TabsList className="w-full overflow-x-auto flex md:grid md:grid-cols-10 justify-start">
+            <TabsList className="w-full overflow-x-auto flex md:grid md:grid-cols-11 justify-start">
               <TabsTrigger value="health" className="flex-shrink-0">
                 <Activity className="h-4 w-4 md:mr-2" />
                 <span className="hidden md:inline">Health</span>
+              </TabsTrigger>
+              <TabsTrigger value="media" className="flex-shrink-0">
+                <Library className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">Media</span>
               </TabsTrigger>
               <TabsTrigger value="servers" className="flex-shrink-0">{admin.servers || "Servers"}</TabsTrigger>
               <TabsTrigger value="database" className="flex-shrink-0">{admin.database || "Database"}</TabsTrigger>
@@ -705,6 +710,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
             <TabsContent value="health" className="space-y-6">
               <HealthCheckDashboard />
+            </TabsContent>
+
+            <TabsContent value="media" className="space-y-6">
+              <MediaLibraryOverview />
             </TabsContent>
 
             <TabsContent value="servers" className="space-y-6">
