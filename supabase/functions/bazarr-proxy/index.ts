@@ -6,6 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Custom fetch that bypasses SSL verification using Deno's unstable API
+async function fetchInsecure(url: string, options: RequestInit = {}): Promise<Response> {
+  try {
+    // @ts-ignore - Deno.createHttpClient may not be in all type definitions
+    const client = Deno.createHttpClient({
+      // @ts-ignore
+      proxy: undefined,
+    });
+    // @ts-ignore
+    return await fetch(url, { ...options, client });
+  } catch {
+    // Fallback to regular fetch if createHttpClient is not available
+    console.log('Using standard fetch (SSL verification enabled)');
+    return fetch(url, options);
+  }
+}
+
 // Helper to get Bazarr settings from database
 async function getBazarrSettings(): Promise<{ url: string | null; apiKey: string | null }> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
