@@ -75,3 +75,6 @@ verify_jwt = false
 [functions.sync-installed-version]
 verify_jwt = false
 # Note: Server-to-server call from git-pull-server
+
+[functions.bazarr-proxy]
+verify_jwt = true
