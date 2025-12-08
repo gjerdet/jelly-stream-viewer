@@ -355,13 +355,13 @@ export const BazarrDashboard = () => {
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <AlertCircle className="h-12 w-12 mb-4 text-yellow-500" />
-            <p className="text-lg font-medium">Ikke tilkoblet</p>
+            <p className="text-lg font-medium">Ikke konfigurert</p>
             <p className="text-sm mt-2 text-center max-w-md">
-              Bazarr er ikke konfigurert eller tilgjengelig. Sjekk at BAZARR_URL og BAZARR_API_KEY er riktig satt opp.
+              Bazarr er ikke satt opp ennå. Gå til <strong>Admin → Servere</strong> for å konfigurere Bazarr URL og API-nøkkel.
             </p>
             <Button onClick={checkConnection} className="mt-4">
               <RefreshCw className="h-4 w-4 mr-2" />
-              Prøv igjen
+              Sjekk på nytt
             </Button>
           </div>
         </CardContent>
