@@ -21,6 +21,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   Film, 
   Tv, 
@@ -32,8 +39,13 @@ import {
   Subtitles,
   FileVideo,
   RefreshCw,
-  Loader2
+  Loader2,
+  Eye,
+  Check,
+  X
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface MediaStream {
   Type: string;
@@ -141,7 +153,111 @@ const getVideoInfo = (mediaSources?: MediaSource[]): { codec: string; resolution
   };
 };
 
-const MediaItemRow = ({ item }: { item: MediaItem }) => {
+interface SubtitleInfo {
+  Language: string;
+  DisplayTitle: string;
+  Codec: string;
+  IsExternal: boolean;
+  IsDefault: boolean;
+  IsForced: boolean;
+  Path?: string;
+}
+
+interface SubtitleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: MediaItem | null;
+  subtitles: SubtitleInfo[];
+  loading: boolean;
+}
+
+const SubtitleDialog = ({ open, onOpenChange, item, subtitles, loading }: SubtitleDialogProps) => {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Subtitles className="h-5 w-5" />
+            Undertekster for {item?.Name}
+          </DialogTitle>
+          <DialogDescription>
+            Viser alle innebygde og eksterne undertekster for denne filen
+          </DialogDescription>
+        </DialogHeader>
+        
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="ml-2">Henter undertekster...</span>
+          </div>
+        ) : subtitles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <X className="h-12 w-12 mb-2 text-yellow-500" />
+            <p>Ingen undertekster funnet</p>
+          </div>
+        ) : (
+          <ScrollArea className="max-h-[50vh]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Språk</TableHead>
+                  <TableHead>Tittel</TableHead>
+                  <TableHead className="text-center">Format</TableHead>
+                  <TableHead className="text-center">Type</TableHead>
+                  <TableHead className="text-center">Standard</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {subtitles.map((sub, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Badge variant="outline" className="bg-green-500/10 border-green-500/20">
+                        {sub.Language?.toUpperCase() || "Ukjent"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate" title={sub.DisplayTitle}>
+                      {sub.DisplayTitle || "-"}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="secondary" className="text-xs">
+                        {sub.Codec?.toUpperCase() || "Ukjent"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge 
+                        variant="outline" 
+                        className={sub.IsExternal 
+                          ? "bg-blue-500/10 border-blue-500/20" 
+                          : "bg-purple-500/10 border-purple-500/20"
+                        }
+                      >
+                        {sub.IsExternal ? "Ekstern" : "Innebygd"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {sub.IsDefault ? (
+                        <Check className="h-4 w-4 text-green-500 mx-auto" />
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+interface MediaItemRowProps {
+  item: MediaItem;
+  onViewSubtitles: (item: MediaItem) => void;
+}
+
+const MediaItemRow = ({ item, onViewSubtitles }: MediaItemRowProps) => {
   const audioLangs = getAudioLanguages(item.MediaSources);
   const subtitleLangs = getSubtitleLanguages(item.MediaSources);
   const videoInfo = getVideoInfo(item.MediaSources);
@@ -186,30 +302,46 @@ const MediaItemRow = ({ item }: { item: MediaItem }) => {
         </div>
       </TableCell>
       <TableCell>
-        <div className="flex flex-wrap gap-1 justify-center">
-          {subtitleLangs.length > 0 ? (
-            <>
-              {subtitleLangs.slice(0, 3).map((lang, i) => (
-                <Badge key={i} variant="outline" className="text-xs bg-green-500/10 border-green-500/20">
-                  {lang}
-                </Badge>
-              ))}
-              {subtitleLangs.length > 3 && (
-                <Badge variant="outline" className="text-xs">+{subtitleLangs.length - 3}</Badge>
-              )}
-            </>
-          ) : (
-            <Badge variant="outline" className="text-xs bg-yellow-500/10 border-yellow-500/20">
-              Ingen
-            </Badge>
-          )}
+        <div className="flex items-center justify-center gap-2">
+          <div className="flex flex-wrap gap-1">
+            {subtitleLangs.length > 0 ? (
+              <>
+                {subtitleLangs.slice(0, 2).map((lang, i) => (
+                  <Badge key={i} variant="outline" className="text-xs bg-green-500/10 border-green-500/20">
+                    {lang}
+                  </Badge>
+                ))}
+                {subtitleLangs.length > 2 && (
+                  <Badge variant="outline" className="text-xs">+{subtitleLangs.length - 2}</Badge>
+                )}
+              </>
+            ) : (
+              <Badge variant="outline" className="text-xs bg-yellow-500/10 border-yellow-500/20">
+                Ingen
+              </Badge>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={() => onViewSubtitles(item)}
+            title="Vis undertekster"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
         </div>
       </TableCell>
     </TableRow>
   );
 };
 
-const SeriesAccordion = ({ series }: { series: SeriesInfo }) => {
+interface SeriesAccordionProps {
+  series: SeriesInfo;
+  onViewSubtitles: (item: MediaItem) => void;
+}
+
+const SeriesAccordion = ({ series, onViewSubtitles }: SeriesAccordionProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const totalEpisodes = series.seasons.reduce((acc, s) => acc + s.episodes.length, 0);
   const totalSize = series.seasons.reduce((acc, season) => 
@@ -253,7 +385,7 @@ const SeriesAccordion = ({ series }: { series: SeriesInfo }) => {
                 </TableHeader>
                 <TableBody>
                   {season.episodes.sort((a, b) => (a.IndexNumber || 0) - (b.IndexNumber || 0)).map(episode => (
-                    <MediaItemRow key={episode.Id} item={episode} />
+                    <MediaItemRow key={episode.Id} item={episode} onViewSubtitles={onViewSubtitles} />
                   ))}
                 </TableBody>
               </Table>
@@ -269,6 +401,44 @@ export const MediaLibraryOverview = () => {
   const { serverUrl, apiKey } = useServerSettings();
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("movies");
+  
+  // Subtitle dialog state
+  const [subtitleDialogOpen, setSubtitleDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
+  const [subtitles, setSubtitles] = useState<SubtitleInfo[]>([]);
+  const [subtitlesLoading, setSubtitlesLoading] = useState(false);
+
+  const handleViewSubtitles = async (item: MediaItem) => {
+    setSelectedItem(item);
+    setSubtitleDialogOpen(true);
+    setSubtitlesLoading(true);
+    setSubtitles([]);
+
+    try {
+      // Get subtitles from the MediaSources
+      const allSubtitles: SubtitleInfo[] = [];
+      
+      item.MediaSources?.forEach(source => {
+        source.MediaStreams?.filter(stream => stream.Type === "Subtitle").forEach(stream => {
+          allSubtitles.push({
+            Language: stream.Language || "Ukjent",
+            DisplayTitle: stream.DisplayTitle || stream.Title || "Ukjent",
+            Codec: stream.Codec || "Ukjent",
+            IsExternal: stream.IsExternal || false,
+            IsDefault: stream.IsDefault || false,
+            IsForced: false,
+          });
+        });
+      });
+
+      setSubtitles(allSubtitles);
+    } catch (error) {
+      console.error("Error loading subtitles:", error);
+      toast.error("Kunne ikke laste undertekster");
+    } finally {
+      setSubtitlesLoading(false);
+    }
+  };
 
   // Fetch all movies with detailed media info
   const { data: movies, isLoading: moviesLoading, refetch: refetchMovies } = useQuery({
@@ -517,7 +687,7 @@ export const MediaLibraryOverview = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredMovies.map(movie => (
-                      <MediaItemRow key={movie.Id} item={movie} />
+                      <MediaItemRow key={movie.Id} item={movie} onViewSubtitles={handleViewSubtitles} />
                     ))}
                   </TableBody>
                 </Table>
@@ -540,7 +710,7 @@ export const MediaLibraryOverview = () => {
               <ScrollArea className="h-[500px]">
                 <div className="space-y-2">
                   {filteredSeries.map(s => (
-                    <SeriesAccordion key={s.Id} series={s} />
+                    <SeriesAccordion key={s.Id} series={s} onViewSubtitles={handleViewSubtitles} />
                   ))}
                 </div>
               </ScrollArea>
@@ -548,6 +718,14 @@ export const MediaLibraryOverview = () => {
           </TabsContent>
         </Tabs>
       </CardContent>
+      
+      <SubtitleDialog
+        open={subtitleDialogOpen}
+        onOpenChange={setSubtitleDialogOpen}
+        item={selectedItem}
+        subtitles={subtitles}
+        loading={subtitlesLoading}
+      />
     </Card>
   );
 };
