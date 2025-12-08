@@ -199,26 +199,27 @@ const Detail = () => {
     setEpisodeSubtitleTab('existing');
     setEpisodeSubtitleSearchOpen(episodeId);
     setLoadingEpisodeSubtitles(true);
+    setEpisodeSubtitles([]);
     
-    // Fetch episode details to get existing subtitles
+    // Fetch episode details to get existing subtitles via proxy
     try {
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
       
-      if (serverUrl && accessToken) {
-        let normalizedUrl = serverUrl;
-        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-          normalizedUrl = `http://${normalizedUrl}`;
-        }
+      if (token) {
+        const response = await supabase.functions.invoke('jellyfin-proxy', {
+          body: {
+            endpoint: `/Items/${episodeId}?Fields=MediaStreams`,
+            method: 'GET'
+          }
+        });
         
-        const response = await fetch(
-          `${normalizedUrl.replace(/\/$/, '')}/Items/${episodeId}?Fields=MediaStreams&api_key=${accessToken}`
-        );
-        
-        if (response.ok) {
-          const data = await response.json();
-          const subs = data.MediaStreams?.filter((s: MediaStream) => s.Type === 'Subtitle') || [];
+        if (response.data && !response.error) {
+          const subs = response.data.MediaStreams?.filter((s: MediaStream) => s.Type === 'Subtitle') || [];
+          console.log('Found existing subtitles:', subs.length, subs);
           setEpisodeSubtitles(subs);
+        } else {
+          console.error('Error fetching episode via proxy:', response.error);
         }
       }
     } catch (error) {
