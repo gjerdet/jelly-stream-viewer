@@ -346,9 +346,20 @@ export const UpdateManager = () => {
         (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
       );
 
-      // Get the raw URL and ensure it ends with /git-pull
-      let rawUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002';
-      // Remove trailing slash and ensure /git-pull path
+      // Get the raw URL - handle cases where only path is stored
+      let rawUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || '';
+      
+      // If it's just a path (starts with /) or empty, use the server's origin
+      if (!rawUrl || rawUrl.startsWith('/')) {
+        // Use the current window origin for self-hosted, but default to known server IP
+        const baseUrl = window.location.hostname === 'localhost' 
+          ? 'http://192.168.9.24:3002'
+          : `http://${window.location.hostname}:3002`;
+        const path = rawUrl || '/git-pull';
+        rawUrl = baseUrl + path;
+      }
+      
+      // Ensure /git-pull path exists
       rawUrl = rawUrl.replace(/\/$/, '');
       const serverUrl = rawUrl.endsWith('/git-pull') ? rawUrl : `${rawUrl}/git-pull`;
       console.log('[UpdateManager] Final git-pull URL:', serverUrl);
