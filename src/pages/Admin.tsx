@@ -613,7 +613,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     },
   });
 
-  // Test Bazarr connection
+  // Test Bazarr connection (direct call from browser)
   const handleTestBazarr = async () => {
     if (!bazarrUrl.trim() || !bazarrApiKey.trim()) {
       setBazarrStatus("❌ Bazarr URL og API-nøkkel må være satt");
@@ -628,27 +628,38 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
       await updateBazarrUrl.mutateAsync(bazarrUrl.trim());
       await updateBazarrApiKey.mutateAsync(bazarrApiKey.trim());
       
-      // Test connection via edge function
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action: 'status', params: {} }
+      // Test connection directly from browser (works with local IPs)
+      const baseUrl = bazarrUrl.trim().replace(/\/$/, '');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${baseUrl}/api/system/status`, {
+        method: 'GET',
+        headers: {
+          'X-API-KEY': bazarrApiKey.trim(),
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
-      if (error) {
-        setBazarrStatus(`❌ Feil: ${error.message}`);
+      if (!response.ok) {
+        setBazarrStatus(`❌ Feil: HTTP ${response.status}`);
         return;
       }
 
-      if (data?.error) {
-        setBazarrStatus(`❌ ${data.error}`);
-        return;
-      }
-
+      const data = await response.json();
       const version = data?.bazarr_version || data?.data?.bazarr_version;
       setBazarrStatus(`✅ Tilkoblet! Bazarr v${version || 'ukjent'}`);
       toast.success("Bazarr-tilkobling OK!");
     } catch (error) {
       console.error('Bazarr test exception:', error);
-      setBazarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      if (error instanceof Error && error.name === 'AbortError') {
+        setBazarrStatus("❌ Timeout: Bazarr svarer ikke");
+      } else {
+        setBazarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      }
     } finally {
       setTestingBazarr(false);
     }
