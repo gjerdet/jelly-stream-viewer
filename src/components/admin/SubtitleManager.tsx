@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,6 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { 
   Subtitles,
   Loader2,
@@ -32,9 +38,12 @@ import {
   Trash2,
   Search,
   Download,
-  RefreshCw
+  RefreshCw,
+  Zap,
+  AlertCircle
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface MediaStream {
   Type: string;
@@ -92,6 +101,25 @@ interface RemoteSubtitle {
   DownloadCount?: number;
 }
 
+interface BazarrSubtitle {
+  provider: string;
+  description: string;
+  language: string;
+  hearing_impaired: boolean;
+  forced: boolean;
+  score: number;
+  release_info?: string[];
+  uploader?: string;
+  url?: string;
+  subtitle?: string;
+}
+
+interface BazarrStatus {
+  data?: {
+    bazarr_version?: string;
+  };
+}
+
 interface SubtitleManagerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -120,12 +148,43 @@ export const SubtitleManager = ({
 }: SubtitleManagerProps) => {
   const [subtitles, setSubtitles] = useState<SubtitleInfo[]>([]);
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
+  const [bazarrSubtitles, setBazarrSubtitles] = useState<BazarrSubtitle[]>([]);
   const [loading, setLoading] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [bazarrSearching, setBazarrSearching] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [searchLanguage, setSearchLanguage] = useState("nor");
   const [showSearch, setShowSearch] = useState(false);
+  const [bazarrConnected, setBazarrConnected] = useState<boolean | null>(null);
+  const [activeTab, setActiveTab] = useState("jellyfin");
+
+  // Check Bazarr connection
+  const checkBazarrConnection = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+        body: { action: 'status', params: {} }
+      });
+      
+      if (error) {
+        console.log('Bazarr not connected:', error);
+        setBazarrConnected(false);
+        return;
+      }
+      
+      setBazarrConnected(true);
+      console.log('Bazarr connected:', data);
+    } catch (err) {
+      console.log('Bazarr connection check failed:', err);
+      setBazarrConnected(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      checkBazarrConnection();
+    }
+  }, [open]);
 
   const getAuthToken = () => {
     const jellyfinSession = localStorage.getItem('jellyfin_session');
@@ -170,7 +229,7 @@ export const SubtitleManager = ({
     }
   };
 
-  // Search for remote subtitles
+  // Search for remote subtitles via Jellyfin
   const handleSearchSubtitles = async () => {
     if (!item || !serverUrl) return;
     
@@ -216,7 +275,52 @@ export const SubtitleManager = ({
     }
   };
 
-  // Download a remote subtitle
+  // Search via Bazarr
+  const handleBazarrSearch = async () => {
+    if (!item) return;
+    
+    setBazarrSearching(true);
+    setBazarrSubtitles([]);
+    
+    try {
+      // For movies, we need to find the Radarr ID
+      // For episodes, we need the Sonarr episode ID
+      // This is a simplified approach - you may need to adjust based on your setup
+      
+      const isMovie = item.Type === "Movie";
+      const action = isMovie ? 'manual-search-movie' : 'manual-search-episode';
+      
+      // Note: This assumes the Jellyfin ID matches or can be mapped to Radarr/Sonarr IDs
+      // In practice, you might need additional mapping logic
+      const params = isMovie 
+        ? { radarrId: item.Id } 
+        : { episodeId: item.Id };
+
+      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+        body: { action, params }
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      const results = data?.data || [];
+      setBazarrSubtitles(results);
+      
+      if (results.length === 0) {
+        toast.info("Ingen undertekster funnet i Bazarr");
+      } else {
+        toast.success(`Fant ${results.length} undertekster via Bazarr`);
+      }
+    } catch (error) {
+      console.error("Error searching Bazarr:", error);
+      toast.error("Kunne ikke søke via Bazarr. Sjekk at ID-ene matcher Radarr/Sonarr.");
+    } finally {
+      setBazarrSearching(false);
+    }
+  };
+
+  // Download a remote subtitle via Jellyfin
   const handleDownloadSubtitle = async (subtitle: RemoteSubtitle) => {
     if (!item || !serverUrl) return;
     
@@ -243,11 +347,8 @@ export const SubtitleManager = ({
 
       if (response.ok) {
         toast.success("Undertekst lastet ned");
-        // Refresh item data to show new subtitle
         onSubtitleChanged?.();
-        // Remove from search results
         setRemoteSubtitles(prev => prev.filter(s => s.Id !== subtitle.Id));
-        // Reload subtitles list
         await refreshItemAndSubtitles();
       } else {
         throw new Error(`HTTP ${response.status}`);
@@ -260,7 +361,56 @@ export const SubtitleManager = ({
     }
   };
 
-  // Delete a subtitle
+  // Download subtitle via Bazarr
+  const handleBazarrDownload = async (subtitle: BazarrSubtitle) => {
+    if (!item) return;
+    
+    setDownloading(subtitle.subtitle || subtitle.description);
+    
+    try {
+      const isMovie = item.Type === "Movie";
+      const action = isMovie ? 'download-movie-subtitle' : 'download-episode-subtitle';
+      
+      const params = isMovie 
+        ? { 
+            radarrId: item.Id,
+            language: subtitle.language,
+            hi: subtitle.hearing_impaired,
+            forced: subtitle.forced,
+            provider: subtitle.provider,
+            subtitle: subtitle.subtitle
+          } 
+        : { 
+            sonarrId: item.Id,
+            episodeId: item.Id,
+            language: subtitle.language,
+            hi: subtitle.hearing_impaired,
+            forced: subtitle.forced,
+            provider: subtitle.provider,
+            subtitle: subtitle.subtitle
+          };
+
+      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+        body: { action, params }
+      });
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast.success("Undertekst lastet ned via Bazarr");
+      onSubtitleChanged?.();
+      setBazarrSubtitles(prev => prev.filter(s => s.subtitle !== subtitle.subtitle));
+      await refreshItemAndSubtitles();
+    } catch (error) {
+      console.error("Error downloading via Bazarr:", error);
+      toast.error("Kunne ikke laste ned undertekst via Bazarr");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  // Delete a subtitle via Jellyfin
   const handleDeleteSubtitle = async (subtitleIndex: number) => {
     if (!item || !serverUrl) return;
     
@@ -354,6 +504,8 @@ export const SubtitleManager = ({
       loadSubtitles();
       setShowSearch(false);
       setRemoteSubtitles([]);
+      setBazarrSubtitles([]);
+      setActiveTab("jellyfin");
     }
   };
 
@@ -381,6 +533,18 @@ export const SubtitleManager = ({
             <Search className="h-4 w-4 mr-2" />
             {showSearch ? "Skjul søk" : "Søk nye undertekster"}
           </Button>
+          {bazarrConnected && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Zap className="h-3 w-3 text-green-500" />
+              Bazarr tilkoblet
+            </Badge>
+          )}
+          {bazarrConnected === false && (
+            <Badge variant="outline" className="flex items-center gap-1 text-muted-foreground">
+              <AlertCircle className="h-3 w-3" />
+              Bazarr ikke tilkoblet
+            </Badge>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -398,92 +562,189 @@ export const SubtitleManager = ({
         {/* Search section */}
         {showSearch && (
           <div className="py-3 border-b space-y-3">
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <label className="text-sm text-muted-foreground mb-1 block">Språk</label>
-                <Select value={searchLanguage} onValueChange={setSearchLanguage}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGE_OPTIONS.map(lang => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button
-                onClick={handleSearchSubtitles}
-                disabled={searching}
-              >
-                {searching ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Search className="h-4 w-4 mr-2" />
-                )}
-                Søk
-              </Button>
-            </div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="jellyfin">Jellyfin</TabsTrigger>
+                <TabsTrigger value="bazarr" disabled={!bazarrConnected}>
+                  Bazarr {!bazarrConnected && "(ikke tilkoblet)"}
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="jellyfin" className="space-y-3 mt-3">
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <label className="text-sm text-muted-foreground mb-1 block">Språk</label>
+                    <Select value={searchLanguage} onValueChange={setSearchLanguage}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LANGUAGE_OPTIONS.map(lang => (
+                          <SelectItem key={lang.value} value={lang.value}>
+                            {lang.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleSearchSubtitles}
+                    disabled={searching}
+                  >
+                    {searching ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Search className="h-4 w-4 mr-2" />
+                    )}
+                    Søk
+                  </Button>
+                </div>
 
-            {/* Search results */}
-            {remoteSubtitles.length > 0 && (
-              <ScrollArea className="max-h-[200px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Navn</TableHead>
-                      <TableHead className="text-center">Kilde</TableHead>
-                      <TableHead className="text-center">Format</TableHead>
-                      <TableHead className="text-center w-[100px]">Last ned</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {remoteSubtitles.map((sub) => (
-                      <TableRow key={sub.Id}>
-                        <TableCell className="max-w-[300px]">
-                          <div className="truncate" title={sub.Name}>
-                            {sub.Name}
-                          </div>
-                          {sub.IsHashMatch && (
-                            <Badge variant="default" className="mt-1 text-xs bg-green-600">
-                              Hash match
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="outline" className="text-xs">
-                            {sub.ProviderName}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant="secondary" className="text-xs">
-                            {sub.Format || "SRT"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
-                            onClick={() => handleDownloadSubtitle(sub)}
-                            disabled={downloading === sub.Id}
-                            title="Last ned"
-                          >
-                            {downloading === sub.Id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            )}
+                {/* Jellyfin search results */}
+                {remoteSubtitles.length > 0 && (
+                  <ScrollArea className="max-h-[200px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Navn</TableHead>
+                          <TableHead className="text-center">Kilde</TableHead>
+                          <TableHead className="text-center">Format</TableHead>
+                          <TableHead className="text-center w-[100px]">Last ned</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {remoteSubtitles.map((sub) => (
+                          <TableRow key={sub.Id}>
+                            <TableCell className="max-w-[300px]">
+                              <div className="truncate" title={sub.Name}>
+                                {sub.Name}
+                              </div>
+                              {sub.IsHashMatch && (
+                                <Badge variant="default" className="mt-1 text-xs bg-green-600">
+                                  Hash match
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {sub.ProviderName}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="secondary" className="text-xs">
+                                {sub.Format || "SRT"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                onClick={() => handleDownloadSubtitle(sub)}
+                                disabled={downloading === sub.Id}
+                                title="Last ned"
+                              >
+                                {downloading === sub.Id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="bazarr" className="space-y-3 mt-3">
+                <div className="flex gap-2 items-center">
+                  <p className="text-sm text-muted-foreground flex-1">
+                    Søk via Bazarr basert på filens fingeravtrykk
+                  </p>
+                  <Button
+                    onClick={handleBazarrSearch}
+                    disabled={bazarrSearching}
+                  >
+                    {bazarrSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    Søk i Bazarr
+                  </Button>
+                </div>
+
+                {/* Bazarr search results */}
+                {bazarrSubtitles.length > 0 && (
+                  <ScrollArea className="max-h-[200px]">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Beskrivelse</TableHead>
+                          <TableHead className="text-center">Kilde</TableHead>
+                          <TableHead className="text-center">Score</TableHead>
+                          <TableHead className="text-center w-[100px]">Last ned</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bazarrSubtitles.map((sub, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="max-w-[300px]">
+                              <div className="truncate" title={sub.description}>
+                                {sub.description}
+                              </div>
+                              <div className="flex gap-1 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  {sub.language}
+                                </Badge>
+                                {sub.hearing_impaired && (
+                                  <Badge variant="secondary" className="text-xs">HI</Badge>
+                                )}
+                                {sub.forced && (
+                                  <Badge variant="secondary" className="text-xs">Forced</Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className="text-xs">
+                                {sub.provider}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Badge 
+                                variant={sub.score > 80 ? "default" : "secondary"} 
+                                className={`text-xs ${sub.score > 80 ? "bg-green-600" : ""}`}
+                              >
+                                {sub.score}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                onClick={() => handleBazarrDownload(sub)}
+                                disabled={downloading === (sub.subtitle || sub.description)}
+                                title="Last ned"
+                              >
+                                {downloading === (sub.subtitle || sub.description) ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Download className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 
