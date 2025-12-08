@@ -346,7 +346,12 @@ export const UpdateManager = () => {
         (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
       );
 
-      const serverUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002/git-pull';
+      // Get the raw URL and ensure it ends with /git-pull
+      let rawUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || 'http://192.168.9.24:3002';
+      // Remove trailing slash and ensure /git-pull path
+      rawUrl = rawUrl.replace(/\/$/, '');
+      const serverUrl = rawUrl.endsWith('/git-pull') ? rawUrl : `${rawUrl}/git-pull`;
+      console.log('[UpdateManager] Final git-pull URL:', serverUrl);
 
       // Call git-pull server directly from browser (browser IS on local network)
       console.log('[UpdateManager] Calling git-pull server directly at:', serverUrl);
