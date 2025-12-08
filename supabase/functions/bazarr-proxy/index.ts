@@ -189,24 +189,41 @@ serve(async (req) => {
       fetchOptions.body = body;
     }
 
-    const response = await fetch(url, fetchOptions);
+    // Add timeout with AbortController
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Bazarr error: ${response.status} - ${errorText}`);
+    try {
+      const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Bazarr error: ${response.status} - ${errorText}`);
+        return new Response(
+          JSON.stringify({ error: `Bazarr error: ${response.status}`, details: errorText }),
+          { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const data = await response.json();
+      console.log(`Bazarr response for ${action}:`, JSON.stringify(data).substring(0, 200));
+
       return new Response(
-        JSON.stringify({ error: `Bazarr error: ${response.status}`, details: errorText }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify(data),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    } catch (fetchError: unknown) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error('Bazarr request timeout');
+        return new Response(
+          JSON.stringify({ error: 'Timeout: Bazarr svarer ikke' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw fetchError;
     }
-
-    const data = await response.json();
-    console.log(`Bazarr response for ${action}:`, JSON.stringify(data).substring(0, 200));
-
-    return new Response(
-      JSON.stringify(data),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
 
   } catch (error) {
     console.error('Bazarr proxy error:', error);
