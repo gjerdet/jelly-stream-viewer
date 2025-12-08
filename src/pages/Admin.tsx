@@ -46,6 +46,12 @@ const Admin = () => {
   const [qbittorrentUsername, setQbittorrentUsername] = useState("");
   const [qbittorrentPassword, setQbittorrentPassword] = useState("");
   
+  // Bazarr settings state
+  const [bazarrUrl, setBazarrUrl] = useState("");
+  const [bazarrApiKey, setBazarrApiKey] = useState("");
+  const [testingBazarr, setTestingBazarr] = useState(false);
+  const [bazarrStatus, setBazarrStatus] = useState<string | null>(null);
+  
   // GitHub settings state
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
@@ -272,7 +278,9 @@ const Admin = () => {
           "db_name",
           "db_user",
           "supabase_url",
-          "supabase_project_id"
+          "supabase_project_id",
+          "bazarr_url",
+          "bazarr_api_key"
         ]);
       
       data?.forEach(setting => {
@@ -291,6 +299,8 @@ const Admin = () => {
         if (setting.setting_key === "db_user") setDbUser(setting.setting_value || "");
         if (setting.setting_key === "supabase_url") setSupabaseUrl(setting.setting_value || "");
         if (setting.setting_key === "supabase_project_id") setSupabaseProjectId(setting.setting_value || "");
+        if (setting.setting_key === "bazarr_url") setBazarrUrl(setting.setting_value || "");
+        if (setting.setting_key === "bazarr_api_key") setBazarrApiKey(setting.setting_value || "");
       });
     };
     
@@ -552,6 +562,95 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
       setJellyseerrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
     } finally {
       setTestingJellyseerr(false);
+    }
+  };
+
+  // Update Bazarr URL mutation
+  const updateBazarrUrl = useMutation({
+    mutationFn: async (newUrl: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "bazarr_url",
+          setting_value: newUrl,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Bazarr URL oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Bazarr URL");
+    },
+  });
+
+  // Update Bazarr API key mutation
+  const updateBazarrApiKey = useMutation({
+    mutationFn: async (newApiKey: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "bazarr_api_key",
+          setting_value: newApiKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Bazarr API-nøkkel oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Bazarr API-nøkkel");
+    },
+  });
+
+  // Test Bazarr connection
+  const handleTestBazarr = async () => {
+    if (!bazarrUrl.trim() || !bazarrApiKey.trim()) {
+      setBazarrStatus("❌ Bazarr URL og API-nøkkel må være satt");
+      return;
+    }
+
+    setTestingBazarr(true);
+    setBazarrStatus(null);
+
+    try {
+      // Save settings first
+      await updateBazarrUrl.mutateAsync(bazarrUrl.trim());
+      await updateBazarrApiKey.mutateAsync(bazarrApiKey.trim());
+      
+      // Test connection via edge function
+      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+        body: { action: 'status', params: {} }
+      });
+
+      if (error) {
+        setBazarrStatus(`❌ Feil: ${error.message}`);
+        return;
+      }
+
+      if (data?.error) {
+        setBazarrStatus(`❌ ${data.error}`);
+        return;
+      }
+
+      const version = data?.bazarr_version || data?.data?.bazarr_version;
+      setBazarrStatus(`✅ Tilkoblet! Bazarr v${version || 'ukjent'}`);
+      toast.success("Bazarr-tilkobling OK!");
+    } catch (error) {
+      console.error('Bazarr test exception:', error);
+      setBazarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+    } finally {
+      setTestingBazarr(false);
     }
   };
 
@@ -986,6 +1085,83 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         : 'bg-red-500/10 text-red-400 border border-red-500/20'
                     }`}>
                       <div className="whitespace-pre-wrap">{jellyseerrStatus}</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Subtitles className="h-5 w-5" />
+                    Bazarr
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'no' 
+                      ? 'Konfigurer Bazarr for automatisk undertekstbehandling' 
+                      : 'Configure Bazarr for automatic subtitle management'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="bazarr-url">{language === 'no' ? 'Bazarr Server URL' : 'Bazarr Server URL'}</Label>
+                    <Input
+                      id="bazarr-url"
+                      type="url"
+                      placeholder="http://192.168.1.100:6767"
+                      value={bazarrUrl}
+                      onChange={(e) => setBazarrUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="bazarr-api-key">{language === 'no' ? 'Bazarr API-nøkkel' : 'Bazarr API Key'}</Label>
+                    <Input
+                      id="bazarr-api-key"
+                      type="password"
+                      placeholder={language === 'no' ? 'Finn i Bazarr → Settings → General' : 'Find in Bazarr → Settings → General'}
+                      value={bazarrApiKey}
+                      onChange={(e) => setBazarrApiKey(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        if (bazarrUrl.trim()) updateBazarrUrl.mutate(bazarrUrl.trim());
+                        if (bazarrApiKey.trim()) updateBazarrApiKey.mutate(bazarrApiKey.trim());
+                      }}
+                      disabled={updateBazarrUrl.isPending || updateBazarrApiKey.isPending}
+                      className="cinema-glow flex-1"
+                    >
+                      {(updateBazarrUrl.isPending || updateBazarrApiKey.isPending) 
+                        ? (admin.updating || "Updating...") 
+                        : (language === 'no' ? 'Lagre innstillinger' : 'Save Settings')}
+                    </Button>
+                    <Button 
+                      onClick={handleTestBazarr}
+                      disabled={testingBazarr}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {testingBazarr ? (admin.testing || "Testing...") : (admin.testConnection || "Test Connection")}
+                    </Button>
+                  </div>
+                  
+                  {testingBazarr && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">{language === 'no' ? 'Tester tilkobling...' : 'Testing connection...'}</span>
+                    </div>
+                  )}
+                  
+                  {!testingBazarr && bazarrStatus && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      bazarrStatus.startsWith('✅') 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{bazarrStatus}</div>
                     </div>
                   )}
                 </CardContent>

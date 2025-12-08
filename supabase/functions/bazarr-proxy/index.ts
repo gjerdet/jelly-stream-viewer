@@ -1,9 +1,32 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Helper to get Bazarr settings from database
+async function getBazarrSettings(): Promise<{ url: string | null; apiKey: string | null }> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const { data, error } = await supabase
+    .from('server_settings')
+    .select('setting_key, setting_value')
+    .in('setting_key', ['bazarr_url', 'bazarr_api_key']);
+  
+  if (error) {
+    console.error('Failed to fetch Bazarr settings:', error);
+    return { url: null, apiKey: null };
+  }
+  
+  const url = data?.find(s => s.setting_key === 'bazarr_url')?.setting_value || null;
+  const apiKey = data?.find(s => s.setting_key === 'bazarr_api_key')?.setting_value || null;
+  
+  return { url, apiKey };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,13 +34,13 @@ serve(async (req) => {
   }
 
   try {
-    const bazarrUrl = Deno.env.get('BAZARR_URL');
-    const bazarrApiKey = Deno.env.get('BAZARR_API_KEY');
+    // Get settings from database
+    const { url: bazarrUrl, apiKey: bazarrApiKey } = await getBazarrSettings();
 
     if (!bazarrUrl || !bazarrApiKey) {
       return new Response(
-        JSON.stringify({ error: 'Bazarr configuration missing' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Bazarr ikke konfigurert. Gå til Admin → Servere for å sette opp.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
