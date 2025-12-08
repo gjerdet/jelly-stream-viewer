@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useBazarrApi } from "@/hooks/useBazarrApi";
 
 interface MediaStream {
   Type: string;
@@ -158,13 +159,12 @@ export const SubtitleManager = ({
   const [showSearch, setShowSearch] = useState(false);
   const [bazarrConnected, setBazarrConnected] = useState<boolean | null>(null);
   const [activeTab, setActiveTab] = useState("jellyfin");
+  const { bazarrRequest } = useBazarrApi();
 
   // Check Bazarr connection
   const checkBazarrConnection = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action: 'status', params: {} }
-      });
+      const { data, error } = await bazarrRequest('status');
       
       if (error) {
         console.log('Bazarr not connected:', error);
@@ -283,28 +283,20 @@ export const SubtitleManager = ({
     setBazarrSubtitles([]);
     
     try {
-      // For movies, we need to find the Radarr ID
-      // For episodes, we need the Sonarr episode ID
-      // This is a simplified approach - you may need to adjust based on your setup
-      
       const isMovie = item.Type === "Movie";
       const action = isMovie ? 'manual-search-movie' : 'manual-search-episode';
       
-      // Note: This assumes the Jellyfin ID matches or can be mapped to Radarr/Sonarr IDs
-      // In practice, you might need additional mapping logic
       const params = isMovie 
         ? { radarrId: item.Id } 
         : { episodeId: item.Id };
 
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action, params }
-      });
+      const { data, error } = await bazarrRequest(action, params);
       
       if (error) {
         throw error;
       }
       
-      const results = data?.data || [];
+      const results = (data as { data?: BazarrSubtitle[] })?.data || [];
       setBazarrSubtitles(results);
       
       if (results.length === 0) {
@@ -390,9 +382,7 @@ export const SubtitleManager = ({
             subtitle: subtitle.subtitle
           };
 
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action, params }
-      });
+      const { error } = await bazarrRequest(action, params);
       
       if (error) {
         throw error;
