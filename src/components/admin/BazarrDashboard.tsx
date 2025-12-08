@@ -53,7 +53,7 @@ import {
   XCircle
 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { useBazarrApi } from "@/hooks/useBazarrApi";
 
 interface BazarrStatus {
   bazarr_version?: string;
@@ -108,6 +108,7 @@ interface SearchResult {
 }
 
 export const BazarrDashboard = () => {
+  const { bazarrRequest } = useBazarrApi();
   const [connected, setConnected] = useState<boolean | null>(null);
   const [status, setStatus] = useState<BazarrStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -128,9 +129,7 @@ export const BazarrDashboard = () => {
   const checkConnection = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action: 'status', params: {} }
-      });
+      const { data, error } = await bazarrRequest('status');
       
       if (error) {
         console.error('Bazarr connection error:', error);
@@ -139,7 +138,7 @@ export const BazarrDashboard = () => {
       }
       
       setConnected(true);
-      setStatus(data?.data || data);
+      setStatus((data as { data?: BazarrStatus })?.data || data as BazarrStatus);
     } catch (err) {
       console.error('Bazarr check failed:', err);
       setConnected(false);
@@ -153,19 +152,15 @@ export const BazarrDashboard = () => {
     setLoadingWanted(true);
     try {
       const [moviesRes, episodesRes] = await Promise.all([
-        supabase.functions.invoke('bazarr-proxy', {
-          body: { action: 'movies-wanted', params: {} }
-        }),
-        supabase.functions.invoke('bazarr-proxy', {
-          body: { action: 'episodes-wanted', params: {} }
-        })
+        bazarrRequest('movies-wanted'),
+        bazarrRequest('episodes-wanted')
       ]);
       
-      if (moviesRes.data?.data) {
-        setWantedMovies(moviesRes.data.data);
+      if ((moviesRes.data as { data?: WantedItem[] })?.data) {
+        setWantedMovies((moviesRes.data as { data: WantedItem[] }).data);
       }
-      if (episodesRes.data?.data) {
-        setWantedEpisodes(episodesRes.data.data);
+      if ((episodesRes.data as { data?: WantedItem[] })?.data) {
+        setWantedEpisodes((episodesRes.data as { data: WantedItem[] }).data);
       }
     } catch (err) {
       console.error('Failed to load wanted:', err);
@@ -180,19 +175,15 @@ export const BazarrDashboard = () => {
     setLoadingHistory(true);
     try {
       const [moviesRes, episodesRes] = await Promise.all([
-        supabase.functions.invoke('bazarr-proxy', {
-          body: { action: 'movies-history', params: {} }
-        }),
-        supabase.functions.invoke('bazarr-proxy', {
-          body: { action: 'episodes-history', params: {} }
-        })
+        bazarrRequest('movies-history'),
+        bazarrRequest('episodes-history')
       ]);
       
-      if (moviesRes.data?.data) {
-        setMovieHistory(moviesRes.data.data);
+      if ((moviesRes.data as { data?: HistoryItem[] })?.data) {
+        setMovieHistory((moviesRes.data as { data: HistoryItem[] }).data);
       }
-      if (episodesRes.data?.data) {
-        setEpisodeHistory(episodesRes.data.data);
+      if ((episodesRes.data as { data?: HistoryItem[] })?.data) {
+        setEpisodeHistory((episodesRes.data as { data: HistoryItem[] }).data);
       }
     } catch (err) {
       console.error('Failed to load history:', err);
@@ -213,9 +204,7 @@ export const BazarrDashboard = () => {
         ? { radarrId: item.radarrId }
         : { sonarrId: item.sonarrSeriesId, episodeId: item.sonarrEpisodeId };
       
-      const { error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action, params }
-      });
+      const { error } = await bazarrRequest(action, params);
       
       if (error) throw error;
       
@@ -243,13 +232,11 @@ export const BazarrDashboard = () => {
         ? { radarrId: item.radarrId }
         : { episodeId: item.sonarrEpisodeId };
       
-      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action, params }
-      });
+      const { data, error } = await bazarrRequest(action, params);
       
       if (error) throw error;
       
-      setManualSearchResults(data?.data || []);
+      setManualSearchResults((data as { data?: SearchResult[] })?.data || []);
     } catch (err) {
       console.error('Manual search failed:', err);
       toast.error('Kunne ikke søke etter undertekster');
@@ -283,9 +270,7 @@ export const BazarrDashboard = () => {
             subtitle: subtitle.subtitle
           };
       
-      const { error } = await supabase.functions.invoke('bazarr-proxy', {
-        body: { action, params }
-      });
+      const { error } = await bazarrRequest(action, params);
       
       if (error) throw error;
       
