@@ -767,85 +767,83 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     );
   }
 
+  const adminTabs = [
+    { value: "health", label: "Health", icon: Activity },
+    { value: "media", label: "Media", icon: Library },
+    { value: "bazarr", label: "Bazarr", icon: Subtitles },
+    { value: "compatibility", label: language === 'no' ? "Kompatibilitet" : "Compatibility", icon: AlertTriangle },
+    { value: "reports", label: language === 'no' ? "Rapporter" : "Reports", icon: MessageSquare },
+    { value: "servers", label: admin.servers || "Servers", icon: Server },
+    { value: "database", label: admin.database || "Database", icon: Database },
+    { value: "site", label: language === 'no' ? 'Side' : 'Site', icon: Settings },
+    { value: "monitoring", label: language === 'no' ? 'Status' : 'Status', icon: Activity },
+    { value: "qbittorrent", label: "qBittorrent", icon: Download },
+    { value: "users", label: admin.users || "Users", icon: Settings },
+    { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
+    { value: "versions", label: admin.versions || "Versions", icon: Settings },
+    { value: "logs", label: admin.logs || "Logs", icon: FileText },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-full md:max-w-4xl lg:max-w-6xl mx-auto space-y-6 px-2 sm:px-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-xl bg-primary/10">
-                <Settings className="h-8 w-8 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold">{admin.title || "Admin Panel"}</h1>
-                <p className="text-muted-foreground">{admin.serverSettings || "Manage server connections and content"}</p>
-              </div>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 rounded-xl bg-primary/10">
+              <Settings className="h-8 w-8 text-primary" />
             </div>
-            <Button 
-              onClick={() => navigate("/requests-admin")}
-              variant="outline"
-              className="gap-2"
-            >
-              <Newspaper className="h-4 w-4" />
-              {admin.requests || "Requests"}
-            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">{admin.title || "Admin Panel"}</h1>
+              <p className="text-muted-foreground">{admin.serverSettings || "Manage server connections and content"}</p>
+            </div>
           </div>
+          <Button 
+            onClick={() => navigate("/requests-admin")}
+            variant="outline"
+            className="gap-2"
+          >
+            <Newspaper className="h-4 w-4" />
+            {admin.requests || "Requests"}
+          </Button>
+        </div>
 
-          <Tabs defaultValue="health" className="w-full">
-            <TabsList className="w-full overflow-x-auto flex md:grid md:grid-cols-12 justify-start">
-              <TabsTrigger value="health" className="flex-shrink-0">
-                <Activity className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Health</span>
-              </TabsTrigger>
-              <TabsTrigger value="media" className="flex-shrink-0">
-                <Library className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Media</span>
-              </TabsTrigger>
-              <TabsTrigger value="bazarr" className="flex-shrink-0">
-                <Subtitles className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">Bazarr</span>
-              </TabsTrigger>
-              <TabsTrigger value="servers" className="flex-shrink-0">{admin.servers || "Servers"}</TabsTrigger>
-              <TabsTrigger value="database" className="flex-shrink-0">{admin.database || "Database"}</TabsTrigger>
-              <TabsTrigger value="site" className="flex-shrink-0">{language === 'no' ? 'Side' : 'Site'}</TabsTrigger>
-              <TabsTrigger value="monitoring" className="flex-shrink-0">
-                <Server className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">{language === 'no' ? 'Status' : 'Status'}</span>
-              </TabsTrigger>
-              <TabsTrigger value="qbittorrent" className="flex-shrink-0">
-                <Download className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">qBittorrent</span>
-              </TabsTrigger>
-              <TabsTrigger value="users" className="flex-shrink-0">{admin.users || "Users"}</TabsTrigger>
-              <TabsTrigger value="news" className="flex-shrink-0">{language === 'no' ? 'Nyheter' : 'News'}</TabsTrigger>
-              <TabsTrigger value="compatibility" className="flex-shrink-0">
-                <AlertTriangle className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">{language === 'no' ? 'Kompatibilitet' : 'Compatibility'}</span>
-              </TabsTrigger>
-              <TabsTrigger value="reports" className="flex-shrink-0">
-                <MessageSquare className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">{language === 'no' ? 'Rapporter' : 'Reports'}</span>
-              </TabsTrigger>
-              <TabsTrigger value="versions" className="flex-shrink-0">{admin.versions || "Versions"}</TabsTrigger>
-              <TabsTrigger value="logs" className="flex-shrink-0">
-                <FileText className="h-4 w-4 md:mr-2" />
-                <span className="hidden md:inline">{admin.logs || "Logs"}</span>
-              </TabsTrigger>
-            </TabsList>
+        <Tabs defaultValue="health" className="w-full" orientation="vertical">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Sidebar Navigation */}
+            <div className="lg:w-56 flex-shrink-0">
+              <TabsList className="flex lg:flex-col h-auto w-full overflow-x-auto lg:overflow-visible gap-1 bg-secondary/30 p-2 rounded-lg">
+                {adminTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger 
+                      key={tab.value}
+                      value={tab.value} 
+                      className="w-full justify-start gap-2 px-3 py-2 text-sm data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                    >
+                      <Icon className="h-4 w-4 flex-shrink-0" />
+                      <span className="truncate">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+            </div>
 
-            <TabsContent value="health" className="space-y-6">
-              <HealthCheckDashboard />
-            </TabsContent>
+            {/* Content Area */}
+            <div className="flex-1 min-w-0">
+              <TabsContent value="health" className="space-y-6 mt-0">
+                <HealthCheckDashboard />
+              </TabsContent>
 
-            <TabsContent value="media" className="space-y-6">
-              <MediaLibraryOverview />
-            </TabsContent>
+              <TabsContent value="media" className="space-y-6 mt-0">
+                <MediaLibraryOverview />
+              </TabsContent>
 
-            <TabsContent value="bazarr" className="space-y-6">
-              <BazarrDashboard />
-            </TabsContent>
+              <TabsContent value="bazarr" className="space-y-6 mt-0">
+                <BazarrDashboard />
+              </TabsContent>
 
-            <TabsContent value="servers" className="space-y-6">
+            <TabsContent value="servers" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>{admin.serverConfiguration || "Server Configuration"}</CardTitle>
@@ -1187,9 +1185,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="database" className="space-y-6">
+              <TabsContent value="database" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1331,9 +1329,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </div>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="site" className="space-y-6">
+              <TabsContent value="site" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>{admin.siteNameTitle || "Site Name"}</CardTitle>
@@ -1462,9 +1460,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </Button>
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="monitoring" className="space-y-6">
+              <TabsContent value="monitoring" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>{admin.serverMonitoring || "Server Monitoring"}</CardTitle>
@@ -1548,9 +1546,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </Card>
 
               <ServerMonitoring monitoringUrl={monitoringUrl} />
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="qbittorrent" className="space-y-6">
+              <TabsContent value="qbittorrent" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>{admin.qbittorrentIntegration || "qBittorrent Integration"}</CardTitle>
@@ -1636,9 +1634,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </Card>
 
               <QBittorrentStatus qbUrl={qbittorrentUrl && qbittorrentPort ? `${qbittorrentUrl}:${qbittorrentPort}` : ""} />
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="news" className="space-y-6">
+              <TabsContent value="news" className="space-y-6 mt-0">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle>{admin.createNewPost || "Create New Post"}</CardTitle>
@@ -1731,30 +1729,31 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   )}
                 </CardContent>
               </Card>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="users">
-              <UserManagement />
-            </TabsContent>
+              <TabsContent value="users" className="mt-0">
+                <UserManagement />
+              </TabsContent>
 
-            <TabsContent value="compatibility" className="space-y-6">
-              <MediaCompatibilityManager />
-            </TabsContent>
+              <TabsContent value="compatibility" className="space-y-6 mt-0">
+                <MediaCompatibilityManager />
+              </TabsContent>
 
-            <TabsContent value="reports" className="space-y-6">
-              <MediaReportsManager />
-            </TabsContent>
+              <TabsContent value="reports" className="space-y-6 mt-0">
+                <MediaReportsManager />
+              </TabsContent>
 
-            <TabsContent value="versions" className="space-y-6">
-              <UpdateManager />
-              <VersionManager />
-            </TabsContent>
+              <TabsContent value="versions" className="space-y-6 mt-0">
+                <UpdateManager />
+                <VersionManager />
+              </TabsContent>
 
-            <TabsContent value="logs" className="space-y-6">
-              <SystemLogs />
-            </TabsContent>
-          </Tabs>
-        </div>
+              <TabsContent value="logs" className="space-y-6 mt-0">
+                <SystemLogs />
+              </TabsContent>
+            </div>
+          </div>
+        </Tabs>
       </div>
     </div>
   );
