@@ -573,14 +573,15 @@ export const BazarrDashboard = () => {
     }
   };
 
-  // Filtered items based on search query
+  // Filtered items based on search query - use allMovies for Mangler tab
   const filteredMovies = useMemo(() => {
-    if (!searchQuery.trim()) return wantedMovies;
+    const moviesToFilter = allMovies as unknown as WantedItem[];
+    if (!searchQuery.trim()) return moviesToFilter;
     const query = searchQuery.toLowerCase();
-    return wantedMovies.filter(item => 
+    return moviesToFilter.filter(item => 
       item.title?.toLowerCase().includes(query)
     );
-  }, [wantedMovies, searchQuery]);
+  }, [allMovies, searchQuery]);
 
   const filteredEpisodes = useMemo(() => {
     if (!searchQuery.trim()) return wantedEpisodes;
@@ -868,10 +869,10 @@ export const BazarrDashboard = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={loadWanted}
-                disabled={loadingWanted}
+                onClick={() => { loadWanted(); loadAllMovies(); }}
+                disabled={loadingWanted || loadingMovies}
               >
-                {loadingWanted ? (
+                {(loadingWanted || loadingMovies) ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
@@ -949,11 +950,22 @@ export const BazarrDashboard = () => {
                           <TableCell className="font-medium">{item.title}</TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
-                              {item.missing_subtitles?.map((lang, i) => (
-                                <Badge key={i} variant="outline" className="text-xs">
-                                  {lang.name || lang.code2}
-                                </Badge>
-                              ))}
+                              {(item as unknown as MovieItem).subtitles && (item as unknown as MovieItem).subtitles!.length > 0 ? (
+                                (item as unknown as MovieItem).subtitles!.map((sub, i) => (
+                                  <Badge key={i} variant="secondary" className="text-xs">
+                                    {sub.name || sub.code2}
+                                    {sub.hi && ' (HI)'}
+                                  </Badge>
+                                ))
+                              ) : item.missing_subtitles && item.missing_subtitles.length > 0 ? (
+                                item.missing_subtitles.map((lang, i) => (
+                                  <Badge key={i} variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                                    Mangler {lang.name || lang.code2}
+                                  </Badge>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground text-xs">Ingen undertekster</span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
@@ -1124,7 +1136,7 @@ export const BazarrDashboard = () => {
               </div>
             )}
 
-            {filteredMovies.length === 0 && filteredEpisodes.length === 0 && !loadingWanted && (
+            {filteredMovies.length === 0 && filteredEpisodes.length === 0 && !loadingWanted && !loadingMovies && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                 {searchQuery ? (
                   <>
@@ -1133,10 +1145,17 @@ export const BazarrDashboard = () => {
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-12 w-12 mb-4 text-green-500" />
-                    <p>Ingen manglende undertekster!</p>
+                    <Film className="h-12 w-12 mb-4 text-muted-foreground" />
+                    <p>Ingen filmer funnet</p>
                   </>
                 )}
+              </div>
+            )}
+            
+            {(loadingMovies || loadingWanted) && filteredMovies.length === 0 && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mr-2" />
+                <span>Laster...</span>
               </div>
             )}
           </TabsContent>
