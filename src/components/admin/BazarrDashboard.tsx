@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -113,10 +113,20 @@ interface EpisodeItem {
   seriesTitle?: string;
   season?: number;
   episode?: number;
+  episode_number?: string;
   sonarrSeriesId?: number;
   sonarrEpisodeId?: number;
   subtitles?: SubtitleInfo[];
   missing_subtitles?: Array<{ name: string; code2: string; code3: string }>;
+}
+
+interface SeriesItem {
+  title?: string;
+  sonarrSeriesId?: number;
+  episodeFileCount?: number;
+  episodeMissingCount?: number;
+  profileId?: number;
+  seriesType?: string;
 }
 
 interface HistoryItem {
@@ -174,8 +184,13 @@ export const BazarrDashboard = () => {
   
   // Subtitle management state
   const [allMovies, setAllMovies] = useState<MovieItem[]>([]);
+  const [allSeries, setAllSeries] = useState<SeriesItem[]>([]);
+  const [seriesEpisodes, setSeriesEpisodes] = useState<{ [key: number]: EpisodeItem[] }>({});
   const [loadingMovies, setLoadingMovies] = useState(false);
+  const [loadingSeries, setLoadingSeries] = useState(false);
   const [movieSearchQuery, setMovieSearchQuery] = useState("");
+  const [seriesSearchQuery, setSeriesSearchQuery] = useState("");
+  const [expandedSeries, setExpandedSeries] = useState<number | null>(null);
   const [deletingSubtitle, setDeletingSubtitle] = useState<string | null>(null);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [selectedMovieForManage, setSelectedMovieForManage] = useState<MovieItem | null>(null);
@@ -249,6 +264,54 @@ export const BazarrDashboard = () => {
       toast.error('Kunne ikke laste filmer');
     } finally {
       setLoadingMovies(false);
+    }
+  };
+
+  // Load all series for subtitle management
+  const loadAllSeries = async () => {
+    setLoadingSeries(true);
+    try {
+      const { data, error } = await bazarrRequest('series');
+      
+      if (error) throw error;
+      
+      if ((data as { data?: SeriesItem[] })?.data) {
+        setAllSeries((data as { data: SeriesItem[] }).data);
+      } else if (Array.isArray(data)) {
+        setAllSeries(data as SeriesItem[]);
+      }
+    } catch (err) {
+      console.error('Failed to load series:', err);
+      toast.error('Kunne ikke laste serier');
+    } finally {
+      setLoadingSeries(false);
+    }
+  };
+
+  // Load episodes for a specific series
+  const loadSeriesEpisodes = async (sonarrId: number) => {
+    try {
+      const { data, error } = await bazarrRequest('episodes', { sonarrId });
+      
+      if (error) throw error;
+      
+      const episodes = (data as { data?: EpisodeItem[] })?.data || (Array.isArray(data) ? data as EpisodeItem[] : []);
+      setSeriesEpisodes(prev => ({ ...prev, [sonarrId]: episodes }));
+    } catch (err) {
+      console.error('Failed to load episodes:', err);
+      toast.error('Kunne ikke laste episoder');
+    }
+  };
+
+  // Toggle series expansion and load episodes
+  const toggleSeriesExpansion = async (sonarrId: number) => {
+    if (expandedSeries === sonarrId) {
+      setExpandedSeries(null);
+    } else {
+      setExpandedSeries(sonarrId);
+      if (!seriesEpisodes[sonarrId]) {
+        await loadSeriesEpisodes(sonarrId);
+      }
     }
   };
 
@@ -542,6 +605,15 @@ export const BazarrDashboard = () => {
     return filteredAllMovies.filter(m => m.subtitles && m.subtitles.length > 0);
   }, [filteredAllMovies]);
 
+  // Filtered all series for management
+  const filteredAllSeries = useMemo(() => {
+    if (!seriesSearchQuery.trim()) return allSeries;
+    const query = seriesSearchQuery.toLowerCase();
+    return allSeries.filter(item => 
+      item.title?.toLowerCase().includes(query)
+    );
+  }, [allSeries, seriesSearchQuery]);
+
   // Bulk selection helpers
   const toggleMovieSelection = (radarrId: number) => {
     setSelectedMovies(prev => {
@@ -674,6 +746,7 @@ export const BazarrDashboard = () => {
       loadWanted();
       loadHistory();
       loadAllMovies();
+      loadAllSeries();
     }
   }, [connected]);
 
@@ -1070,87 +1143,277 @@ export const BazarrDashboard = () => {
 
           {/* Manage Subtitles Tab */}
           <TabsContent value="manage" className="mt-4">
-            <div className="flex flex-col sm:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Søk etter film..."
-                  value={movieSearchQuery}
-                  onChange={(e) => setMovieSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={loadAllMovies}
-                disabled={loadingMovies}
-              >
-                {loadingMovies ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            <Tabs defaultValue="manage-movies">
+              <TabsList className="mb-4">
+                <TabsTrigger value="manage-movies" className="flex items-center gap-2">
+                  <Film className="h-4 w-4" />
+                  Filmer ({allMovies.length})
+                </TabsTrigger>
+                <TabsTrigger value="manage-series" className="flex items-center gap-2">
+                  <Tv className="h-4 w-4" />
+                  Serier ({allSeries.length})
+                </TabsTrigger>
+              </TabsList>
 
-            <div className="text-sm text-muted-foreground mb-3">
-              Viser {moviesWithSubtitles.length} filmer med undertekster
-            </div>
+              {/* Manage Movies */}
+              <TabsContent value="manage-movies">
+                <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Søk etter film..."
+                      value={movieSearchQuery}
+                      onChange={(e) => setMovieSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={loadAllMovies}
+                    disabled={loadingMovies}
+                  >
+                    {loadingMovies ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
 
-            <div className="h-[400px] overflow-y-auto border rounded-md">
-              <Table>
-                <TableHeader className="sticky top-0 bg-background z-10">
-                  <TableRow>
-                    <TableHead>Film</TableHead>
-                    <TableHead>Undertekster</TableHead>
-                    <TableHead className="text-right">Handlinger</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingMovies ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                      </TableCell>
-                    </TableRow>
-                  ) : moviesWithSubtitles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                        {movieSearchQuery ? `Ingen treff for "${movieSearchQuery}"` : 'Ingen filmer med undertekster funnet'}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    moviesWithSubtitles.map((movie, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium">{movie.title}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {movie.subtitles?.map((sub, i) => (
-                              <Badge key={i} variant="secondary" className="text-xs">
-                                {sub.name || sub.code2}
-                                {sub.forced && ' (Forced)'}
-                                {sub.hi && ' (HI)'}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openManageDialog(movie)}
-                          >
-                            <Settings className="h-4 w-4 mr-1" />
-                            Administrer
-                          </Button>
-                        </TableCell>
+                <div className="text-sm text-muted-foreground mb-3">
+                  Viser {filteredAllMovies.length} filmer
+                </div>
+
+                <div className="h-[400px] overflow-y-auto border rounded-md">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead>Film</TableHead>
+                        <TableHead>Undertekster</TableHead>
+                        <TableHead className="text-right">Handlinger</TableHead>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingMovies ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredAllMovies.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                            {movieSearchQuery ? `Ingen treff for "${movieSearchQuery}"` : 'Ingen filmer funnet'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredAllMovies.map((movie, idx) => (
+                          <TableRow key={idx}>
+                            <TableCell className="font-medium">{movie.title}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-1 flex-wrap">
+                                {movie.subtitles && movie.subtitles.length > 0 ? (
+                                  movie.subtitles.map((sub, i) => (
+                                    <Badge key={i} variant="secondary" className="text-xs">
+                                      {sub.name || sub.code2}
+                                      {sub.forced && ' (Forced)'}
+                                      {sub.hi && ' (HI)'}
+                                    </Badge>
+                                  ))
+                                ) : movie.missing_subtitles && movie.missing_subtitles.length > 0 ? (
+                                  movie.missing_subtitles.map((lang, i) => (
+                                    <Badge key={i} variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                                      Mangler {lang.name || lang.code2}
+                                    </Badge>
+                                  ))
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">Ingen undertekster</span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-1 justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleBazarrSearch(movie, 'movie')}
+                                  title="Søk undertekster (Bazarr)"
+                                >
+                                  <Search className="h-4 w-4" />
+                                </Button>
+                                {movie.subtitles && movie.subtitles.length > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openManageDialog(movie)}
+                                    title="Administrer undertekster"
+                                  >
+                                    <Settings className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+
+              {/* Manage Series */}
+              <TabsContent value="manage-series">
+                <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Søk etter serie..."
+                      value={seriesSearchQuery}
+                      onChange={(e) => setSeriesSearchQuery(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={loadAllSeries}
+                    disabled={loadingSeries}
+                  >
+                    {loadingSeries ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                <div className="text-sm text-muted-foreground mb-3">
+                  Viser {filteredAllSeries.length} serier
+                </div>
+
+                <div className="h-[400px] overflow-y-auto border rounded-md">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-background z-10">
+                      <TableRow>
+                        <TableHead>Serie</TableHead>
+                        <TableHead>Episoder</TableHead>
+                        <TableHead className="text-right">Handlinger</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loadingSeries ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredAllSeries.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                            {seriesSearchQuery ? `Ingen treff for "${seriesSearchQuery}"` : 'Ingen serier funnet'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredAllSeries.map((series, idx) => (
+                          <React.Fragment key={idx}>
+                            <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleSeriesExpansion(series.sonarrSeriesId!)}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <ChevronDown className={`h-4 w-4 transition-transform ${expandedSeries === series.sonarrSeriesId ? 'rotate-180' : ''}`} />
+                                  {series.title}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="outline">
+                                  {series.episodeFileCount || 0} episoder
+                                </Badge>
+                                {series.episodeMissingCount && series.episodeMissingCount > 0 && (
+                                  <Badge variant="destructive" className="ml-2">
+                                    {series.episodeMissingCount} mangler
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSeriesExpansion(series.sonarrSeriesId!);
+                                  }}
+                                >
+                                  <FolderOpen className="h-4 w-4 mr-1" />
+                                  Se episoder
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                            {/* Expanded episodes */}
+                            {expandedSeries === series.sonarrSeriesId && (
+                              <TableRow>
+                                <TableCell colSpan={3} className="bg-muted/30 p-0">
+                                  <div className="p-4">
+                                    {!seriesEpisodes[series.sonarrSeriesId!] ? (
+                                      <div className="flex items-center justify-center py-4">
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Laster episoder...
+                                      </div>
+                                    ) : seriesEpisodes[series.sonarrSeriesId!].length === 0 ? (
+                                      <div className="text-center py-4 text-muted-foreground">
+                                        Ingen episoder funnet
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                        {seriesEpisodes[series.sonarrSeriesId!].map((ep, epIdx) => (
+                                          <div key={epIdx} className="flex items-center justify-between p-2 rounded bg-background border">
+                                            <div className="flex-1">
+                                              <span className="font-mono text-sm mr-2">
+                                                {ep.episode_number || `S${String(ep.season || 0).padStart(2, '0')}E${String(ep.episode || 0).padStart(2, '0')}`}
+                                              </span>
+                                              <span className="text-sm">{ep.title}</span>
+                                            </div>
+                                            <div className="flex gap-1 items-center">
+                                              {ep.subtitles && ep.subtitles.length > 0 ? (
+                                                ep.subtitles.map((sub, subIdx) => (
+                                                  <Badge key={subIdx} variant="secondary" className="text-xs">
+                                                    {sub.name || sub.code2}
+                                                    {sub.hi && ' (HI)'}
+                                                  </Badge>
+                                                ))
+                                              ) : ep.missing_subtitles && ep.missing_subtitles.length > 0 ? (
+                                                ep.missing_subtitles.map((lang, langIdx) => (
+                                                  <Badge key={langIdx} variant="outline" className="text-xs text-yellow-600 border-yellow-600">
+                                                    Mangler {lang.name || lang.code2}
+                                                  </Badge>
+                                                ))
+                                              ) : (
+                                                <Badge variant="outline" className="text-xs">Ingen undertekster</Badge>
+                                              )}
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => handleBazarrSearch(ep as unknown as WantedItem, 'episode')}
+                                                title="Søk undertekster"
+                                              >
+                                                <Search className="h-3 w-3" />
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           {/* History Tab */}
