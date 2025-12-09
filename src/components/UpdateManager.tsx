@@ -340,27 +340,25 @@ export const UpdateManager = () => {
       console.log('[UpdateManager] forceLocalMode:', forceLocalMode, 'isLocalNetwork:', isLocalNetwork(), 'useLocalCall:', useLocalCall);
       
       if (useLocalCall) {
-        // Try to get git_pull_server_url from database
+        // Try to get git_pull_server_url or update_webhook_url from database
         const { data: settings } = await supabase
           .from('server_settings')
-          .select('setting_value')
-          .eq('setting_key', 'git_pull_server_url')
-          .single();
+          .select('setting_key, setting_value')
+          .in('setting_key', ['git_pull_server_url', 'update_webhook_url', 'git_pull_secret', 'update_webhook_secret']);
         
-        const gitPullUrl = settings?.setting_value;
+        const settingsMap = new Map(
+          (settings || []).map((row: any) => [row.setting_key, row.setting_value])
+        );
+        
+        // Check for git_pull_server_url first, then fallback to update_webhook_url
+        const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url');
         
         if (!gitPullUrl) {
-          throw new Error('git_pull_server_url er ikke konfigurert i database. Gå til Servere-fanen og sett opp Git Pull URL.');
+          throw new Error('Git Pull URL er ikke konfigurert. Gå til Servere-fanen og sett opp Git Pull URL.');
         }
         
-        // Get secret for signature
-        const { data: secretSettings } = await supabase
-          .from('server_settings')
-          .select('setting_value')
-          .eq('setting_key', 'git_pull_secret')
-          .single();
-        
-        const gitPullSecret = secretSettings?.setting_value;
+        // Get secret (check both keys)
+        const gitPullSecret = settingsMap.get('git_pull_secret') || settingsMap.get('update_webhook_secret');
         
         console.log('[UpdateManager] Calling git-pull server directly (local mode):', gitPullUrl);
         
