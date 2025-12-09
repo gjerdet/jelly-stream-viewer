@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { 
   Loader2, 
@@ -58,10 +59,16 @@ export const ReportMediaDialog = ({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedCategory, setSelectedCategory] = useState<ReportCategory | null>(null);
+  const [otherDescription, setOtherDescription] = useState("");
 
   const submitReport = useMutation({
     mutationFn: async () => {
       if (!user || !selectedCategory) throw new Error("Missing data");
+      
+      // Validate "other" category requires description
+      if (selectedCategory === "other" && !otherDescription.trim()) {
+        throw new Error("Vennligst beskriv problemet");
+      }
 
       const { error } = await supabase.from("media_reports").insert({
         user_id: user.id,
@@ -71,6 +78,7 @@ export const ReportMediaDialog = ({
         jellyfin_series_name: seriesName || null,
         image_url: imageUrl || null,
         category: selectedCategory,
+        admin_notes: selectedCategory === "other" ? `Bruker beskrev: ${otherDescription.trim()}` : null,
       });
 
       if (error) throw error;
@@ -80,6 +88,7 @@ export const ReportMediaDialog = ({
       queryClient.invalidateQueries({ queryKey: ["media-reports"] });
       onOpenChange(false);
       setSelectedCategory(null);
+      setOtherDescription("");
     },
     onError: (error) => {
       toast.error(`Kunne ikke sende rapport: ${error.message}`);
@@ -136,6 +145,24 @@ export const ReportMediaDialog = ({
               );
             })}
           </RadioGroup>
+
+          {/* Free text field for "other" category */}
+          {selectedCategory === "other" && (
+            <div className="mt-4 space-y-2">
+              <Label htmlFor="other-description">Beskriv problemet</Label>
+              <Textarea
+                id="other-description"
+                placeholder="Fortell oss hva som er galt..."
+                value={otherDescription}
+                onChange={(e) => setOtherDescription(e.target.value)}
+                className="min-h-[100px] bg-secondary/50"
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-right">
+                {otherDescription.length}/500
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -144,7 +171,7 @@ export const ReportMediaDialog = ({
           </Button>
           <Button 
             onClick={() => submitReport.mutate()}
-            disabled={!selectedCategory || submitReport.isPending}
+            disabled={!selectedCategory || submitReport.isPending || (selectedCategory === "other" && !otherDescription.trim())}
           >
             {submitReport.isPending ? (
               <>
