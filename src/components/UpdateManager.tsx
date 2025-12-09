@@ -266,12 +266,6 @@ export const UpdateManager = () => {
   }, [updating]);
 
   const installUpdate = async () => {
-    // In Lovable preview/staging, we can't reach your self-hosted git-pull server.
-    if (window.location.hostname.endsWith('lovableproject.com')) {
-      toast.info('Installer oppdatering virker kun på selvhostede installasjoner. Dette vil fungere når appen kjører på din egen server.');
-      return;
-    }
-
     setUpdating(true);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
     
@@ -311,15 +305,15 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Add log about contacting git-pull server - DIRECT CALL v2
-      console.log('=== UPDATEMANAGER DIRECT CALL v2 ===');
+      // Add log about contacting git-pull server via edge function
+      console.log('[UpdateManager] Calling git-pull-proxy edge function');
       const contactingLog = [{
         timestamp: new Date().toISOString(),
         message: 'Oppdatering startet...',
         level: 'info' as const
       }, {
         timestamp: new Date().toISOString(),
-        message: '🔄 Kontakter git-pull server DIREKTE (v2)...',
+        message: '🔄 Kontakter git-pull server via Edge Function...',
         level: 'info' as const
       }];
       
@@ -336,50 +330,21 @@ export const UpdateManager = () => {
         })
         .eq('id', updateId);
 
-      // Get git-pull server URL from database
-      const { data: settingsData } = await supabase
-        .from('server_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['update_webhook_url', 'git_pull_server_url']);
-
-      const settingsMap = new Map<string, string>(
-        (settingsData || []).map((row: any) => [row.setting_key as string, row.setting_value as string]),
-      );
-
-      // Get the raw URL - handle cases where only path is stored
-      let rawUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url') || '';
-      
-      // If it's just a path (starts with /) or empty, use the server's origin
-      if (!rawUrl || rawUrl.startsWith('/')) {
-        // Use the current window origin for self-hosted, but default to known server IP
-        const baseUrl = window.location.hostname === 'localhost' 
-          ? 'http://192.168.9.24:3002'
-          : `http://${window.location.hostname}:3002`;
-        const path = rawUrl || '/git-pull';
-        rawUrl = baseUrl + path;
-      }
-      
-      // Ensure /git-pull path exists
-      rawUrl = rawUrl.replace(/\/$/, '');
-      const serverUrl = rawUrl.endsWith('/git-pull') ? rawUrl : `${rawUrl}/git-pull`;
-      console.log('[UpdateManager] Final git-pull URL:', serverUrl);
-
-      // Call git-pull server directly from browser (browser IS on local network)
-      console.log('[UpdateManager] Calling git-pull server directly at:', serverUrl);
-      const response = await fetch(serverUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ updateId })
+      // Call the git-pull-proxy edge function
+      const { data, error: invokeError } = await supabase.functions.invoke('git-pull-proxy', {
+        body: { updateId }
       });
-      console.log('[UpdateManager] Response status:', response.status);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Git pull server returned ${response.status}: ${errorText}`);
+      if (invokeError) {
+        console.error('[UpdateManager] Edge function error:', invokeError);
+        throw new Error(invokeError.message || 'Edge function feilet');
       }
 
+      if (!data?.success) {
+        throw new Error(data?.error || 'Ukjent feil fra git-pull-proxy');
+      }
+
+      console.log('[UpdateManager] Git pull triggered successfully:', data);
       toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
       
     } catch (err: any) {

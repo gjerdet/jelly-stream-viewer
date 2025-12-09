@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.bazarr-proxy]
 verify_jwt = true
+
+[functions.git-pull-proxy]
+verify_jwt = true
