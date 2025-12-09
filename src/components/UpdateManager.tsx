@@ -493,14 +493,15 @@ export const UpdateManager = () => {
       ];
       
       // Update status in UI to show error - keep terminal open!
-      setUpdateStatus({
-        id: 'error-' + Date.now(),
+      // Use crypto.randomUUID() for a valid UUID format
+      setUpdateStatus(prev => ({
+        id: prev?.id || crypto.randomUUID(),
         status: 'failed',
         progress: 0,
         current_step: 'Feil: Kunne ikke kontakte git-pull server',
         error: errorMessage,
         logs: errorLogs
-      });
+      }));
       
       toast.error('Oppdatering feilet - se terminal for detaljer');
       setUpdating(false);
