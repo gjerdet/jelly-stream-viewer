@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -24,6 +24,7 @@ import { MediaLibraryOverview } from "@/components/MediaLibraryOverview";
 import { BazarrDashboard } from "@/components/admin/BazarrDashboard";
 import { MediaCompatibilityManager } from "@/components/admin/MediaCompatibilityManager";
 import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
+import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -782,6 +783,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
     { value: "versions", label: admin.versions || "Versions", icon: Settings },
     { value: "logs", label: admin.logs || "Logs", icon: FileText },
+    { value: "db-setup", label: language === 'no' ? "DB Oppsett" : "DB Setup", icon: BookOpen },
   ];
 
   return (
@@ -1750,6 +1752,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="logs" className="space-y-6 mt-0">
                 <SystemLogs />
+              </TabsContent>
+
+              <TabsContent value="db-setup" className="space-y-6 mt-0">
+                <DatabaseSetupGuide />
               </TabsContent>
             </div>
           </div>
