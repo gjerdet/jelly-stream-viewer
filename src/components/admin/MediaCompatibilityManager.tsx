@@ -53,11 +53,46 @@ interface ScanSchedule {
   last_run_issues_found: number | null;
 }
 
+type ScheduleFrequency = "daily" | "weekly" | "monthly" | "off";
+
+const parseCronExpression = (cron: string): { frequency: ScheduleFrequency; hour: number; minute: number; dayOfWeek: number; dayOfMonth: number } => {
+  const parts = cron.split(" ");
+  const minute = parseInt(parts[0]) || 0;
+  const hour = parseInt(parts[1]) || 3;
+  const dayOfMonth = parts[2] === "*" ? 1 : parseInt(parts[2]) || 1;
+  const dayOfWeek = parts[4] === "*" ? 0 : parseInt(parts[4]) || 0;
+  
+  let frequency: ScheduleFrequency = "daily";
+  if (parts[2] !== "*") frequency = "monthly";
+  else if (parts[4] !== "*") frequency = "weekly";
+  
+  return { frequency, hour, minute, dayOfWeek, dayOfMonth };
+};
+
+const buildCronExpression = (frequency: ScheduleFrequency, hour: number, minute: number, dayOfWeek: number, dayOfMonth: number): string => {
+  switch (frequency) {
+    case "daily":
+      return `${minute} ${hour} * * *`;
+    case "weekly":
+      return `${minute} ${hour} * * ${dayOfWeek}`;
+    case "monthly":
+      return `${minute} ${hour} ${dayOfMonth} * *`;
+    default:
+      return `${minute} ${hour} * * *`;
+  }
+};
+
+const DAYS_OF_WEEK = ["Søndag", "Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag"];
+
 export const MediaCompatibilityManager = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "needs_transcode" | "resolved">("needs_transcode");
-  
+  const [scheduleFrequency, setScheduleFrequency] = useState<ScheduleFrequency>("daily");
+  const [scheduleHour, setScheduleHour] = useState(3);
+  const [scheduleMinute, setScheduleMinute] = useState(0);
+  const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState(0);
+  const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
 
   // Fetch scan schedule
   const { data: scanSchedule, error: scheduleError, isLoading: scheduleLoading } = useQuery({
@@ -309,51 +344,126 @@ export const MediaCompatibilityManager = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Simple schedule presets */}
-          <div className="space-y-3">
-            <Label>Automatisk skanning</Label>
-            <div className="flex flex-wrap gap-2">
-              <Button 
-                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 * * *" ? "default" : "outline"}
-                size="sm"
-                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 * * *" })}
-                disabled={updateSchedule.isPending}
-              >
-                Hver natt (03:00)
-              </Button>
-              <Button 
-                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 * * 0" ? "default" : "outline"}
-                size="sm"
-                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 * * 0" })}
-                disabled={updateSchedule.isPending}
-              >
-                Ukentlig (søndager)
-              </Button>
-              <Button 
-                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 1 * *" ? "default" : "outline"}
-                size="sm"
-                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 1 * *" })}
-                disabled={updateSchedule.isPending}
-              >
-                Månedlig
-              </Button>
-              <Button 
-                variant={!scanSchedule?.enabled ? "destructive" : "outline"}
-                size="sm"
-                onClick={() => updateSchedule.mutate({ enabled: false, cron: scanSchedule?.cron_expression || "0 3 * * *" })}
-                disabled={updateSchedule.isPending}
-              >
-                Av
-              </Button>
+          {/* Flexible schedule settings */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Hvor ofte?</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant={scheduleFrequency === "daily" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setScheduleFrequency("daily")}
+                >
+                  Daglig
+                </Button>
+                <Button 
+                  variant={scheduleFrequency === "weekly" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setScheduleFrequency("weekly")}
+                >
+                  Ukentlig
+                </Button>
+                <Button 
+                  variant={scheduleFrequency === "monthly" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setScheduleFrequency("monthly")}
+                >
+                  Månedlig
+                </Button>
+                <Button 
+                  variant={scheduleFrequency === "off" ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setScheduleFrequency("off");
+                    updateSchedule.mutate({ enabled: false, cron: scanSchedule?.cron_expression || "0 3 * * *" });
+                  }}
+                >
+                  Av
+                </Button>
+              </div>
             </div>
+
+            {scheduleFrequency !== "off" && (
+              <div className="flex flex-wrap gap-4 items-end">
+                {/* Day of week for weekly */}
+                {scheduleFrequency === "weekly" && (
+                  <div className="space-y-2">
+                    <Label>Ukedag</Label>
+                    <select
+                      value={scheduleDayOfWeek}
+                      onChange={(e) => setScheduleDayOfWeek(parseInt(e.target.value))}
+                      className="flex h-9 w-full rounded-md border border-input bg-secondary/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {DAYS_OF_WEEK.map((day, index) => (
+                        <option key={index} value={index}>{day}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Day of month for monthly */}
+                {scheduleFrequency === "monthly" && (
+                  <div className="space-y-2">
+                    <Label>Dato i måneden</Label>
+                    <select
+                      value={scheduleDayOfMonth}
+                      onChange={(e) => setScheduleDayOfMonth(parseInt(e.target.value))}
+                      className="flex h-9 w-full rounded-md border border-input bg-secondary/50 px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                        <option key={day} value={day}>{day}.</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Time picker */}
+                <div className="space-y-2">
+                  <Label>Klokkeslett</Label>
+                  <div className="flex gap-1 items-center">
+                    <select
+                      value={scheduleHour}
+                      onChange={(e) => setScheduleHour(parseInt(e.target.value))}
+                      className="flex h-9 w-16 rounded-md border border-input bg-secondary/50 px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => i).map((hour) => (
+                        <option key={hour} value={hour}>{hour.toString().padStart(2, "0")}</option>
+                      ))}
+                    </select>
+                    <span className="text-muted-foreground">:</span>
+                    <select
+                      value={scheduleMinute}
+                      onChange={(e) => setScheduleMinute(parseInt(e.target.value))}
+                      className="flex h-9 w-16 rounded-md border border-input bg-secondary/50 px-2 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      {[0, 15, 30, 45].map((min) => (
+                        <option key={min} value={min}>{min.toString().padStart(2, "0")}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => {
+                    const cron = buildCronExpression(scheduleFrequency, scheduleHour, scheduleMinute, scheduleDayOfWeek, scheduleDayOfMonth);
+                    updateSchedule.mutate({ enabled: true, cron });
+                  }}
+                  disabled={updateSchedule.isPending}
+                  size="sm"
+                >
+                  Lagre tidsplan
+                </Button>
+              </div>
+            )}
+
             {scanSchedule?.enabled && (
               <p className="text-xs text-muted-foreground">
-                Automatisk skanning er aktivert
+                Automatisk skanning er aktivert med tidsplan: {scanSchedule.cron_expression}
               </p>
             )}
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 pt-2 border-t border-border/50">
             <Button 
               onClick={() => runScan.mutate()}
               disabled={runScan.isPending}
