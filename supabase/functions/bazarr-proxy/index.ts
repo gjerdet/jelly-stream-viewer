@@ -100,7 +100,7 @@ serve(async (req) => {
 
       // Get episodes for a series
       case 'episodes':
-        endpoint = `/api/episodes?seriesid=${params.sonarrId}`;
+        endpoint = `/api/episodes?seriesid[]=${params.sonarrId}`;
         break;
 
       // Trigger automatic search for subtitles for a movie (uses POST with action=search)
