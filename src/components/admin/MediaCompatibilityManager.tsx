@@ -352,10 +352,10 @@ export const MediaCompatibilityManager = () => {
             </Button>
           </div>
           
-          {scanSchedule?.last_run_items_scanned !== null && (
+          {scanSchedule && scanSchedule.last_run_items_scanned !== null && (
             <p className="text-sm text-muted-foreground">
               Siste kjøring: {scanSchedule.last_run_items_scanned} elementer skannet, 
-              {scanSchedule.last_run_issues_found} problemer funnet
+              {scanSchedule.last_run_issues_found || 0} problemer funnet
             </p>
           )}
         </CardContent>
