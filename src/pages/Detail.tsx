@@ -5,7 +5,7 @@ import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSetting
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2 } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2, Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ReportMediaDialog } from "@/components/ReportMediaDialog";
 
 interface MediaStream {
   Index: number;
@@ -115,6 +116,7 @@ const Detail = () => {
   const [episodeSubtitles, setEpisodeSubtitles] = useState<MediaStream[]>([]);
   const [episodeSubtitleTab, setEpisodeSubtitleTab] = useState<'existing' | 'search'>('existing');
   const [loadingEpisodeSubtitles, setLoadingEpisodeSubtitles] = useState(false);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 

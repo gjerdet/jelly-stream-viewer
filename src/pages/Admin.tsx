@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -22,6 +22,8 @@ import { HealthCheckDashboard } from "@/components/HealthCheckDashboard";
 import { SystemLogs } from "@/components/SystemLogs";
 import { MediaLibraryOverview } from "@/components/MediaLibraryOverview";
 import { BazarrDashboard } from "@/components/admin/BazarrDashboard";
+import { MediaCompatibilityManager } from "@/components/admin/MediaCompatibilityManager";
+import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -816,6 +818,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </TabsTrigger>
               <TabsTrigger value="users" className="flex-shrink-0">{admin.users || "Users"}</TabsTrigger>
               <TabsTrigger value="news" className="flex-shrink-0">{language === 'no' ? 'Nyheter' : 'News'}</TabsTrigger>
+              <TabsTrigger value="compatibility" className="flex-shrink-0">
+                <AlertTriangle className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{language === 'no' ? 'Kompatibilitet' : 'Compatibility'}</span>
+              </TabsTrigger>
+              <TabsTrigger value="reports" className="flex-shrink-0">
+                <MessageSquare className="h-4 w-4 md:mr-2" />
+                <span className="hidden md:inline">{language === 'no' ? 'Rapporter' : 'Reports'}</span>
+              </TabsTrigger>
               <TabsTrigger value="versions" className="flex-shrink-0">{admin.versions || "Versions"}</TabsTrigger>
               <TabsTrigger value="logs" className="flex-shrink-0">
                 <FileText className="h-4 w-4 md:mr-2" />
@@ -1725,6 +1735,14 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
             <TabsContent value="users">
               <UserManagement />
+            </TabsContent>
+
+            <TabsContent value="compatibility" className="space-y-6">
+              <MediaCompatibilityManager />
+            </TabsContent>
+
+            <TabsContent value="reports" className="space-y-6">
+              <MediaReportsManager />
             </TabsContent>
 
             <TabsContent value="versions" className="space-y-6">
