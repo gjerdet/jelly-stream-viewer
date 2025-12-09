@@ -38,14 +38,26 @@ const AppContent = () => {
   useEffect(() => {
     document.title = siteName;
   }, [siteName]);
+  
   const isLoginOrSetupPage = location.pathname === "/" || location.pathname === "/setup" || location.pathname === "/setup-wizard";
+  const isPlayerPage = location.pathname.startsWith("/player/");
 
+  // Render login/setup/player pages without the main layout
   if (isLoginOrSetupPage) {
     return (
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/setup-wizard" element={<SetupWizard />} />
+      </Routes>
+    );
+  }
+
+  // Render player fullscreen without header/sidebar
+  if (isPlayerPage) {
+    return (
+      <Routes>
+        <Route path="/player/:id" element={<Player />} />
       </Routes>
     );
   }
