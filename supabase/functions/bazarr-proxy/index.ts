@@ -6,23 +6,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Custom fetch that bypasses SSL verification using Deno's unstable API
-async function fetchInsecure(url: string, options: RequestInit = {}): Promise<Response> {
-  try {
-    // @ts-ignore - Deno.createHttpClient may not be in all type definitions
-    const client = Deno.createHttpClient({
-      // @ts-ignore
-      proxy: undefined,
-    });
-    // @ts-ignore
-    return await fetch(url, { ...options, client });
-  } catch {
-    // Fallback to regular fetch if createHttpClient is not available
-    console.log('Using standard fetch (SSL verification enabled)');
-    return fetch(url, options);
-  }
-}
-
 // Helper to get Bazarr settings from database
 async function getBazarrSettings(): Promise<{ url: string | null; apiKey: string | null }> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -95,13 +78,23 @@ serve(async (req) => {
         endpoint = '/api/history/series';
         break;
 
-      // Get specific movie
+      // Get specific movie with subtitles
       case 'movie':
         endpoint = `/api/movies?radarrid=${params.radarrId}`;
         break;
 
-      // Get specific series
+      // Get all movies (for subtitle management)
+      case 'movies':
+        endpoint = '/api/movies';
+        break;
+
+      // Get all series
       case 'series':
+        endpoint = '/api/series';
+        break;
+
+      // Get specific series
+      case 'series-detail':
         endpoint = `/api/series?seriesid=${params.sonarrId}`;
         break;
 
@@ -110,24 +103,24 @@ serve(async (req) => {
         endpoint = `/api/episodes?seriesid=${params.sonarrId}`;
         break;
 
-      // Search for subtitles for a movie
+      // Trigger automatic search for subtitles for a movie (uses POST with action=search)
       case 'search-movie':
         endpoint = '/api/movies/subtitles';
-        method = 'PATCH';
+        method = 'POST';
         body = JSON.stringify({
-          radarrid: params.radarrId,
-          profileid: params.profileId
+          action: 'search',
+          radarrid: params.radarrId
         });
         break;
 
-      // Search for subtitles for an episode
+      // Trigger automatic search for subtitles for an episode
       case 'search-episode':
         endpoint = '/api/episodes/subtitles';
-        method = 'PATCH';
+        method = 'POST';
         body = JSON.stringify({
+          action: 'search',
           seriesid: params.sonarrId,
-          episodeid: params.episodeId,
-          profileid: params.profileId
+          episodeid: params.episodeId
         });
         break;
 
@@ -136,6 +129,7 @@ serve(async (req) => {
         endpoint = '/api/movies/subtitles';
         method = 'POST';
         body = JSON.stringify({
+          action: 'download',
           radarrid: params.radarrId,
           language: params.language,
           hi: params.hi || false,
@@ -150,6 +144,7 @@ serve(async (req) => {
         endpoint = '/api/episodes/subtitles';
         method = 'POST';
         body = JSON.stringify({
+          action: 'download',
           seriesid: params.sonarrId,
           episodeid: params.episodeId,
           language: params.language,
@@ -187,12 +182,12 @@ serve(async (req) => {
         });
         break;
 
-      // Manual search for movie subtitles
+      // Manual search for movie subtitles via providers
       case 'manual-search-movie':
         endpoint = `/api/providers/movies?radarrid=${params.radarrId}`;
         break;
 
-      // Manual search for episode subtitles
+      // Manual search for episode subtitles via providers
       case 'manual-search-episode':
         endpoint = `/api/providers/episodes?episodeid=${params.episodeId}`;
         break;
@@ -215,7 +210,7 @@ serve(async (req) => {
     }
 
     const url = `${baseUrl}${endpoint}`;
-    console.log(`Bazarr request: ${method} ${url}`);
+    console.log(`Bazarr request: ${method} ${url}`, body ? `Body: ${body}` : '');
 
     const fetchOptions: RequestInit = {
       method,
@@ -231,11 +226,20 @@ serve(async (req) => {
 
     // Add timeout with AbortController
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased timeout
     
     try {
       const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
       clearTimeout(timeoutId);
+      
+      // Handle 204 No Content (common for POST actions like search)
+      if (response.status === 204) {
+        console.log(`Bazarr returned 204 No Content for ${action}`);
+        return new Response(
+          JSON.stringify({ success: true, message: 'Action completed' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -246,13 +250,23 @@ serve(async (req) => {
         );
       }
 
-      const data = await response.json();
-      console.log(`Bazarr response for ${action}:`, JSON.stringify(data).substring(0, 200));
-
-      return new Response(
-        JSON.stringify(data),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        console.log(`Bazarr response for ${action}:`, JSON.stringify(data).substring(0, 200));
+        return new Response(
+          JSON.stringify(data),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        // Non-JSON response
+        const text = await response.text();
+        console.log(`Bazarr non-JSON response for ${action}:`, text.substring(0, 200));
+        return new Response(
+          JSON.stringify({ success: true, raw: text }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {

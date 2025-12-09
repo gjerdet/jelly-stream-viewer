@@ -23,7 +23,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -32,6 +31,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
@@ -53,10 +58,14 @@ import {
   CheckCircle2,
   XCircle,
   CheckSquare,
-  Square
+  Square,
+  Trash2,
+  FolderOpen,
+  ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBazarrApi } from "@/hooks/useBazarrApi";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BazarrStatus {
   bazarr_version?: string;
@@ -64,6 +73,15 @@ interface BazarrStatus {
   radarr_version?: string;
   operating_system?: string;
   python_version?: string;
+}
+
+interface SubtitleInfo {
+  code2: string;
+  code3: string;
+  name: string;
+  forced: boolean;
+  hi: boolean;
+  path: string;
 }
 
 interface WantedItem {
@@ -77,6 +95,27 @@ interface WantedItem {
   sonarrEpisodeId?: number;
   radarrId?: number;
   sceneName?: string;
+  subtitles?: SubtitleInfo[];
+}
+
+interface MovieItem {
+  title?: string;
+  radarrId?: number;
+  subtitles?: SubtitleInfo[];
+  missing_subtitles?: Array<{ name: string; code2: string; code3: string }>;
+  path?: string;
+  audio_language?: Array<{ name: string }>;
+}
+
+interface EpisodeItem {
+  title?: string;
+  seriesTitle?: string;
+  season?: number;
+  episode?: number;
+  sonarrSeriesId?: number;
+  sonarrEpisodeId?: number;
+  subtitles?: SubtitleInfo[];
+  missing_subtitles?: Array<{ name: string; code2: string; code3: string }>;
 }
 
 interface HistoryItem {
@@ -110,6 +149,8 @@ interface SearchResult {
   subtitle?: string;
 }
 
+type SearchSource = 'bazarr' | 'jellyfin';
+
 export const BazarrDashboard = () => {
   const { bazarrRequest } = useBazarrApi();
   const [connected, setConnected] = useState<boolean | null>(null);
@@ -125,8 +166,17 @@ export const BazarrDashboard = () => {
   const [manualSearchOpen, setManualSearchOpen] = useState(false);
   const [manualSearchResults, setManualSearchResults] = useState<SearchResult[]>([]);
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<WantedItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<WantedItem | MovieItem | null>(null);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
+  const [searchSource, setSearchSource] = useState<SearchSource>('bazarr');
+  
+  // Subtitle management state
+  const [allMovies, setAllMovies] = useState<MovieItem[]>([]);
+  const [loadingMovies, setLoadingMovies] = useState(false);
+  const [movieSearchQuery, setMovieSearchQuery] = useState("");
+  const [deletingSubtitle, setDeletingSubtitle] = useState<string | null>(null);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [selectedMovieForManage, setSelectedMovieForManage] = useState<MovieItem | null>(null);
   
   // Search and bulk selection state
   const [searchQuery, setSearchQuery] = useState("");
@@ -179,6 +229,27 @@ export const BazarrDashboard = () => {
     }
   };
 
+  // Load all movies for subtitle management
+  const loadAllMovies = async () => {
+    setLoadingMovies(true);
+    try {
+      const { data, error } = await bazarrRequest('movies');
+      
+      if (error) throw error;
+      
+      if ((data as { data?: MovieItem[] })?.data) {
+        setAllMovies((data as { data: MovieItem[] }).data);
+      } else if (Array.isArray(data)) {
+        setAllMovies(data as MovieItem[]);
+      }
+    } catch (err) {
+      console.error('Failed to load movies:', err);
+      toast.error('Kunne ikke laste filmer');
+    } finally {
+      setLoadingMovies(false);
+    }
+  };
+
   // Load history
   const loadHistory = async () => {
     setLoadingHistory(true);
@@ -228,18 +299,19 @@ export const BazarrDashboard = () => {
     }
   };
 
-  // Manual search for subtitles
-  const handleManualSearch = async (item: WantedItem, type: 'movie' | 'episode') => {
+  // Manual search for subtitles via Bazarr
+  const handleBazarrSearch = async (item: WantedItem | MovieItem, type: 'movie' | 'episode') => {
     setSelectedItem(item);
     setManualSearchOpen(true);
     setManualSearchLoading(true);
     setManualSearchResults([]);
+    setSearchSource('bazarr');
     
     try {
       const action = type === 'movie' ? 'manual-search-movie' : 'manual-search-episode';
       const params = type === 'movie' 
-        ? { radarrId: item.radarrId }
-        : { episodeId: item.sonarrEpisodeId };
+        ? { radarrId: (item as MovieItem).radarrId }
+        : { episodeId: (item as WantedItem).sonarrEpisodeId };
       
       const { data, error } = await bazarrRequest(action, params);
       
@@ -247,22 +319,37 @@ export const BazarrDashboard = () => {
       
       setManualSearchResults((data as { data?: SearchResult[] })?.data || []);
     } catch (err) {
-      console.error('Manual search failed:', err);
-      toast.error('Kunne ikke søke etter undertekster');
+      console.error('Bazarr manual search failed:', err);
+      toast.error('Kunne ikke søke etter undertekster via Bazarr');
     } finally {
       setManualSearchLoading(false);
     }
   };
 
+  // Manual search for subtitles via Jellyfin
+  const handleJellyfinSearch = async (item: WantedItem | MovieItem) => {
+    setSelectedItem(item);
+    setManualSearchOpen(true);
+    setManualSearchLoading(true);
+    setManualSearchResults([]);
+    setSearchSource('jellyfin');
+    
+    toast.info('Jellyfin-søk krever Jellyfin item ID - denne funksjonen er under utvikling');
+    setManualSearchLoading(false);
+    
+    // TODO: Need to map Radarr/Sonarr ID to Jellyfin ID
+    // This would require additional integration
+  };
+
   // Download subtitle from manual search
-  const downloadSubtitle = async (subtitle: SearchResult, item: WantedItem, type: 'movie' | 'episode') => {
+  const downloadSubtitle = async (subtitle: SearchResult, item: WantedItem | MovieItem, type: 'movie' | 'episode') => {
     setDownloadingSubtitle(subtitle.subtitle || subtitle.description);
     
     try {
       const action = type === 'movie' ? 'download-movie-subtitle' : 'download-episode-subtitle';
       const params = type === 'movie' 
         ? { 
-            radarrId: item.radarrId,
+            radarrId: (item as MovieItem).radarrId,
             language: subtitle.language,
             hi: subtitle.hearing_impaired,
             forced: subtitle.forced,
@@ -270,8 +357,8 @@ export const BazarrDashboard = () => {
             subtitle: subtitle.subtitle
           }
         : { 
-            sonarrId: item.sonarrSeriesId,
-            episodeId: item.sonarrEpisodeId,
+            sonarrId: (item as WantedItem).sonarrSeriesId,
+            episodeId: (item as WantedItem).sonarrEpisodeId,
             language: subtitle.language,
             hi: subtitle.hearing_impaired,
             forced: subtitle.forced,
@@ -286,11 +373,62 @@ export const BazarrDashboard = () => {
       toast.success('Undertekst lastet ned');
       setManualSearchOpen(false);
       loadWanted();
+      loadAllMovies();
     } catch (err) {
       console.error('Download failed:', err);
       toast.error('Kunne ikke laste ned undertekst');
     } finally {
       setDownloadingSubtitle(null);
+    }
+  };
+
+  // Delete subtitle
+  const deleteSubtitle = async (movie: MovieItem, subtitle: SubtitleInfo) => {
+    setDeletingSubtitle(subtitle.path);
+    
+    try {
+      const { error } = await bazarrRequest('delete-movie-subtitle', {
+        radarrId: movie.radarrId,
+        language: subtitle.code2,
+        forced: subtitle.forced,
+        hi: subtitle.hi,
+        path: subtitle.path
+      });
+      
+      if (error) throw error;
+      
+      toast.success('Undertekst slettet');
+      // Refresh the movie data
+      loadAllMovies();
+      
+      // Update the selected movie for manage dialog
+      if (selectedMovieForManage?.radarrId === movie.radarrId) {
+        const { data } = await bazarrRequest('movie', { radarrId: movie.radarrId });
+        if ((data as { data?: MovieItem[] })?.data?.[0]) {
+          setSelectedMovieForManage((data as { data: MovieItem[] }).data[0]);
+        }
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      toast.error('Kunne ikke slette undertekst');
+    } finally {
+      setDeletingSubtitle(null);
+    }
+  };
+
+  // Open manage dialog for a movie
+  const openManageDialog = async (movie: MovieItem) => {
+    setSelectedMovieForManage(movie);
+    setManageDialogOpen(true);
+    
+    // Fetch fresh data for the movie
+    try {
+      const { data } = await bazarrRequest('movie', { radarrId: movie.radarrId });
+      if ((data as { data?: MovieItem[] })?.data?.[0]) {
+        setSelectedMovieForManage((data as { data: MovieItem[] }).data[0]);
+      }
+    } catch (err) {
+      console.error('Failed to fetch movie details:', err);
     }
   };
 
@@ -311,6 +449,20 @@ export const BazarrDashboard = () => {
       item.episodeTitle?.toLowerCase().includes(query)
     );
   }, [wantedEpisodes, searchQuery]);
+
+  // Filtered all movies for management
+  const filteredAllMovies = useMemo(() => {
+    if (!movieSearchQuery.trim()) return allMovies;
+    const query = movieSearchQuery.toLowerCase();
+    return allMovies.filter(item => 
+      item.title?.toLowerCase().includes(query)
+    );
+  }, [allMovies, movieSearchQuery]);
+
+  // Movies with subtitles
+  const moviesWithSubtitles = useMemo(() => {
+    return filteredAllMovies.filter(m => m.subtitles && m.subtitles.length > 0);
+  }, [filteredAllMovies]);
 
   // Bulk selection helpers
   const toggleMovieSelection = (radarrId: number) => {
@@ -353,7 +505,7 @@ export const BazarrDashboard = () => {
     }
   };
 
-  // Bulk search for selected items
+  // Bulk search for selected movies
   const bulkSearchMovies = async () => {
     if (selectedMovies.size === 0) {
       toast.info('Velg minst én film');
@@ -388,6 +540,7 @@ export const BazarrDashboard = () => {
     setTimeout(() => loadWanted(), 3000);
   };
 
+  // Bulk search for selected episodes
   const bulkSearchEpisodes = async () => {
     if (selectedEpisodes.size === 0) {
       toast.info('Velg minst én episode');
@@ -436,6 +589,7 @@ export const BazarrDashboard = () => {
     if (connected) {
       loadWanted();
       loadHistory();
+      loadAllMovies();
     }
   }, [connected]);
 
@@ -522,10 +676,14 @@ export const BazarrDashboard = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="wanted" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="wanted" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
               Mangler ({wantedMovies.length + wantedEpisodes.length})
+            </TabsTrigger>
+            <TabsTrigger value="manage" className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              Administrer
             </TabsTrigger>
             <TabsTrigger value="history" className="flex items-center gap-2">
               <History className="h-4 w-4" />
@@ -648,7 +806,7 @@ export const BazarrDashboard = () => {
                                 size="sm"
                                 onClick={() => triggerSearch(item, 'movie')}
                                 disabled={searchingItem === item.radarrId?.toString()}
-                                title="Automatisk søk"
+                                title="Automatisk søk (Bazarr)"
                               >
                                 {searchingItem === item.radarrId?.toString() ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -656,14 +814,24 @@ export const BazarrDashboard = () => {
                                   <Play className="h-4 w-4" />
                                 )}
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleManualSearch(item, 'movie')}
-                                title="Manuelt søk"
-                              >
-                                <Search className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" title="Manuelt søk">
+                                    <Search className="h-4 w-4" />
+                                    <ChevronDown className="h-3 w-3 ml-1" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={() => handleBazarrSearch(item, 'movie')}>
+                                    <Subtitles className="h-4 w-4 mr-2" />
+                                    Søk via Bazarr
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item)}>
+                                    <Play className="h-4 w-4 mr-2" />
+                                    Søk via Jellyfin
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -763,7 +931,7 @@ export const BazarrDashboard = () => {
                                 size="sm"
                                 onClick={() => triggerSearch(item, 'episode')}
                                 disabled={searchingItem === item.sonarrEpisodeId?.toString()}
-                                title="Automatisk søk"
+                                title="Automatisk søk (Bazarr)"
                               >
                                 {searchingItem === item.sonarrEpisodeId?.toString() ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -771,14 +939,24 @@ export const BazarrDashboard = () => {
                                   <Play className="h-4 w-4" />
                                 )}
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleManualSearch(item, 'episode')}
-                                title="Manuelt søk"
-                              >
-                                <Search className="h-4 w-4" />
-                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm" title="Manuelt søk">
+                                    <Search className="h-4 w-4" />
+                                    <ChevronDown className="h-3 w-3 ml-1" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                  <DropdownMenuItem onClick={() => handleBazarrSearch(item, 'episode')}>
+                                    <Subtitles className="h-4 w-4 mr-2" />
+                                    Søk via Bazarr
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item)}>
+                                    <Play className="h-4 w-4 mr-2" />
+                                    Søk via Jellyfin
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -804,6 +982,91 @@ export const BazarrDashboard = () => {
                 )}
               </div>
             )}
+          </TabsContent>
+
+          {/* Manage Subtitles Tab */}
+          <TabsContent value="manage" className="mt-4">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Søk etter film..."
+                  value={movieSearchQuery}
+                  onChange={(e) => setMovieSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={loadAllMovies}
+                disabled={loadingMovies}
+              >
+                {loadingMovies ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            <div className="text-sm text-muted-foreground mb-3">
+              Viser {moviesWithSubtitles.length} filmer med undertekster
+            </div>
+
+            <div className="h-[400px] overflow-y-auto border rounded-md">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead>Film</TableHead>
+                    <TableHead>Undertekster</TableHead>
+                    <TableHead className="text-right">Handlinger</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingMovies ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : moviesWithSubtitles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        {movieSearchQuery ? `Ingen treff for "${movieSearchQuery}"` : 'Ingen filmer med undertekster funnet'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    moviesWithSubtitles.map((movie, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="font-medium">{movie.title}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 flex-wrap">
+                            {movie.subtitles?.map((sub, i) => (
+                              <Badge key={i} variant="secondary" className="text-xs">
+                                {sub.name || sub.code2}
+                                {sub.forced && ' (Forced)'}
+                                {sub.hi && ' (HI)'}
+                              </Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openManageDialog(movie)}
+                          >
+                            <Settings className="h-4 w-4 mr-1" />
+                            Administrer
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           </TabsContent>
 
           {/* History Tab */}
@@ -909,133 +1172,196 @@ export const BazarrDashboard = () => {
 
           {/* Status Tab */}
           <TabsContent value="status" className="mt-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Bazarr</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-2xl font-bold">{status?.bazarr_version || '-'}</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">System</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">{status?.operating_system || '-'}</p>
-                  <p className="text-sm text-muted-foreground">Python {status?.python_version || '-'}</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="mt-4 grid gap-2">
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="text-sm">Sonarr</span>
-                <Badge variant={status?.sonarr_version ? "default" : "secondary"}>
-                  {status?.sonarr_version || 'Ikke tilkoblet'}
-                </Badge>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Bazarr</div>
+                <div className="text-lg font-semibold">v{status?.bazarr_version || '-'}</div>
               </div>
-              <div className="flex items-center justify-between p-3 border rounded-lg">
-                <span className="text-sm">Radarr</span>
-                <Badge variant={status?.radarr_version ? "default" : "secondary"}>
-                  {status?.radarr_version || 'Ikke tilkoblet'}
-                </Badge>
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Sonarr</div>
+                <div className="text-lg font-semibold">v{status?.sonarr_version || '-'}</div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Radarr</div>
+                <div className="text-lg font-semibold">v{status?.radarr_version || '-'}</div>
+              </div>
+              <div className="p-4 border rounded-lg">
+                <div className="text-sm text-muted-foreground">Python</div>
+                <div className="text-lg font-semibold">{status?.python_version || '-'}</div>
               </div>
             </div>
           </TabsContent>
         </Tabs>
-      </CardContent>
 
-      {/* Manual Search Dialog */}
-      <Dialog open={manualSearchOpen} onOpenChange={setManualSearchOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Manuelt søk</DialogTitle>
-            <DialogDescription>
-              {selectedItem?.title || selectedItem?.seriesTitle} 
-              {selectedItem?.episodeTitle && ` - ${selectedItem.episodeTitle}`}
-            </DialogDescription>
-          </DialogHeader>
-
-          {manualSearchLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Søker...</span>
-            </div>
-          ) : manualSearchResults.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <XCircle className="h-12 w-12 mb-4" />
-              <p>Ingen undertekster funnet</p>
-            </div>
-          ) : (
-            <ScrollArea className="flex-1 max-h-[500px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Beskrivelse</TableHead>
-                    <TableHead>Språk</TableHead>
-                    <TableHead>Kilde</TableHead>
-                    <TableHead className="text-center">Score</TableHead>
-                    <TableHead className="text-right">Last ned</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {manualSearchResults.map((sub, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="max-w-[250px]">
-                        <div className="truncate" title={sub.description}>
-                          {sub.description}
-                        </div>
-                        <div className="flex gap-1 mt-1">
-                          {sub.hearing_impaired && (
-                            <Badge variant="secondary" className="text-xs">HI</Badge>
-                          )}
-                          {sub.forced && (
-                            <Badge variant="secondary" className="text-xs">Forced</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{sub.language}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{sub.provider}</Badge>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge 
-                          variant={sub.score > 80 ? "default" : "secondary"}
-                          className={sub.score > 80 ? "bg-green-600" : ""}
-                        >
-                          {sub.score}%
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadSubtitle(
-                            sub, 
-                            selectedItem!, 
-                            selectedItem?.radarrId ? 'movie' : 'episode'
-                          )}
-                          disabled={downloadingSubtitle === (sub.subtitle || sub.description)}
-                        >
-                          {downloadingSubtitle === (sub.subtitle || sub.description) ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </TableCell>
+        {/* Manual Search Dialog */}
+        <Dialog open={manualSearchOpen} onOpenChange={setManualSearchOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Søk undertekster {searchSource === 'bazarr' ? '(Bazarr)' : '(Jellyfin)'}
+              </DialogTitle>
+              <DialogDescription>
+                {(selectedItem as MovieItem)?.title || (selectedItem as WantedItem)?.seriesTitle}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <ScrollArea className="max-h-[60vh]">
+              {manualSearchLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <span className="ml-2">Søker...</span>
+                </div>
+              ) : manualSearchResults.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <XCircle className="h-12 w-12 mb-4" />
+                  <p>Ingen undertekster funnet</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Kilde</TableHead>
+                      <TableHead>Beskrivelse</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead className="text-right">Last ned</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {manualSearchResults.map((result, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Badge variant="secondary">{result.provider}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="max-w-md">
+                            <p className="truncate">{result.description}</p>
+                            <div className="flex gap-1 mt-1">
+                              {result.hearing_impaired && (
+                                <Badge variant="outline" className="text-xs">HI</Badge>
+                              )}
+                              {result.forced && (
+                                <Badge variant="outline" className="text-xs">Forced</Badge>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={result.score > 80 ? "default" : result.score > 50 ? "secondary" : "outline"}
+                          >
+                            {result.score}%
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            onClick={() => downloadSubtitle(result, selectedItem!, 'movie')}
+                            disabled={downloadingSubtitle === (result.subtitle || result.description)}
+                          >
+                            {downloadingSubtitle === (result.subtitle || result.description) ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </ScrollArea>
-          )}
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+
+        {/* Manage Subtitles Dialog */}
+        <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Subtitles className="h-5 w-5" />
+                Administrer undertekster
+              </DialogTitle>
+              <DialogDescription>
+                {selectedMovieForManage?.title}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {selectedMovieForManage?.subtitles && selectedMovieForManage.subtitles.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Språk</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Fil</TableHead>
+                      <TableHead className="text-right">Slett</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedMovieForManage.subtitles.map((sub, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Badge variant="secondary">{sub.name || sub.code2}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {sub.forced && <Badge variant="outline" className="text-xs">Forced</Badge>}
+                            {sub.hi && <Badge variant="outline" className="text-xs">HI</Badge>}
+                            {!sub.forced && !sub.hi && <span className="text-muted-foreground text-sm">Normal</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs">
+                          {sub.path?.split('/').pop() || sub.path}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteSubtitle(selectedMovieForManage, sub)}
+                            disabled={deletingSubtitle === sub.path}
+                          >
+                            {deletingSubtitle === sub.path ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Subtitles className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Ingen undertekster funnet for denne filmen</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4 border-t">
+                <Button 
+                  variant="outline" 
+                  onClick={() => selectedMovieForManage && handleBazarrSearch(selectedMovieForManage, 'movie')}
+                  className="flex-1"
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Søk via Bazarr
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => selectedMovieForManage && handleJellyfinSearch(selectedMovieForManage)}
+                  className="flex-1"
+                >
+                  <Play className="h-4 w-4 mr-2" />
+                  Søk via Jellyfin
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </CardContent>
     </Card>
   );
 };
