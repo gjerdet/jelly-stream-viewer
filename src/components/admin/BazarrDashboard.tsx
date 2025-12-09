@@ -550,38 +550,18 @@ export const BazarrDashboard = () => {
                   className="pl-9"
                 />
               </div>
-              <div className="flex gap-2">
-                {(selectedMovies.size > 0 || selectedEpisodes.size > 0) && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => {
-                      if (selectedMovies.size > 0) bulkSearchMovies();
-                      if (selectedEpisodes.size > 0) bulkSearchEpisodes();
-                    }}
-                    disabled={bulkSearching}
-                  >
-                    {bulkSearching ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Zap className="h-4 w-4 mr-2" />
-                    )}
-                    Søk valgte ({selectedMovies.size + selectedEpisodes.size})
-                  </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={loadWanted}
+                disabled={loadingWanted}
+              >
+                {loadingWanted ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
                 )}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={loadWanted}
-                  disabled={loadingWanted}
-                >
-                  {loadingWanted ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+              </Button>
             </div>
 
             {/* Movies Wanted */}
@@ -592,24 +572,42 @@ export const BazarrDashboard = () => {
                     <Film className="h-4 w-4" />
                     Filmer ({filteredMovies.length})
                   </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={selectAllMovies}
-                    className="text-xs"
-                  >
-                    {selectedMovies.size === filteredMovies.length && filteredMovies.length > 0 ? (
-                      <>
-                        <CheckSquare className="h-3 w-3 mr-1" />
-                        Fjern alle
-                      </>
-                    ) : (
-                      <>
-                        <Square className="h-3 w-3 mr-1" />
-                        Velg alle
-                      </>
+                  <div className="flex gap-2">
+                    {selectedMovies.size > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={bulkSearchMovies}
+                        disabled={bulkSearching}
+                        className="text-xs"
+                      >
+                        {bulkSearching ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Zap className="h-3 w-3 mr-1" />
+                        )}
+                        Søk valgte ({selectedMovies.size})
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={selectAllMovies}
+                      className="text-xs"
+                    >
+                      {selectedMovies.size === filteredMovies.length && filteredMovies.length > 0 ? (
+                        <>
+                          <CheckSquare className="h-3 w-3 mr-1" />
+                          Fjern alle
+                        </>
+                      ) : (
+                        <>
+                          <Square className="h-3 w-3 mr-1" />
+                          Velg alle
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div className="h-[250px] overflow-y-auto border rounded-md">
                   <Table>
@@ -684,24 +682,42 @@ export const BazarrDashboard = () => {
                     <Tv className="h-4 w-4" />
                     Episoder ({filteredEpisodes.length})
                   </h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={selectAllEpisodes}
-                    className="text-xs"
-                  >
-                    {selectedEpisodes.size === filteredEpisodes.length && filteredEpisodes.length > 0 ? (
-                      <>
-                        <CheckSquare className="h-3 w-3 mr-1" />
-                        Fjern alle
-                      </>
-                    ) : (
-                      <>
-                        <Square className="h-3 w-3 mr-1" />
-                        Velg alle
-                      </>
+                  <div className="flex gap-2">
+                    {selectedEpisodes.size > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={bulkSearchEpisodes}
+                        disabled={bulkSearching}
+                        className="text-xs"
+                      >
+                        {bulkSearching ? (
+                          <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                        ) : (
+                          <Zap className="h-3 w-3 mr-1" />
+                        )}
+                        Søk valgte ({selectedEpisodes.size})
+                      </Button>
                     )}
-                  </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={selectAllEpisodes}
+                      className="text-xs"
+                    >
+                      {selectedEpisodes.size === filteredEpisodes.length && filteredEpisodes.length > 0 ? (
+                        <>
+                          <CheckSquare className="h-3 w-3 mr-1" />
+                          Fjern alle
+                        </>
+                      ) : (
+                        <>
+                          <Square className="h-3 w-3 mr-1" />
+                          Velg alle
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
                 <div className="h-[300px] overflow-y-auto border rounded-md">
                   <Table>
