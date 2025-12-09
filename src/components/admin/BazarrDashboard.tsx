@@ -1277,7 +1277,7 @@ export const BazarrDashboard = () => {
 
         {/* Manage Subtitles Dialog */}
         <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[85vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Subtitles className="h-5 w-5" />
@@ -1285,18 +1285,23 @@ export const BazarrDashboard = () => {
               </DialogTitle>
               <DialogDescription>
                 {selectedMovieForManage?.title}
+                {selectedMovieForManage?.path && (
+                  <span className="block text-xs mt-1 font-mono truncate opacity-70">
+                    {selectedMovieForManage.path}
+                  </span>
+                )}
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4">
+            <ScrollArea className="max-h-[55vh]">
               {selectedMovieForManage?.subtitles && selectedMovieForManage.subtitles.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Språk</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Fil</TableHead>
-                      <TableHead className="text-right">Slett</TableHead>
+                      <TableHead className="min-w-[300px]">Filsti</TableHead>
+                      <TableHead className="text-right">Handlinger</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1312,22 +1317,38 @@ export const BazarrDashboard = () => {
                             {!sub.forced && !sub.hi && <span className="text-muted-foreground text-sm">Normal</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-muted-foreground text-xs">
-                          {sub.path?.split('/').pop() || sub.path}
+                        <TableCell>
+                          <div className="font-mono text-xs text-muted-foreground break-all max-w-[350px]">
+                            {sub.path}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteSubtitle(selectedMovieForManage, sub)}
-                            disabled={deletingSubtitle === sub.path}
-                          >
-                            {deletingSubtitle === sub.path ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
-                          </Button>
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(sub.path);
+                                toast.success('Filsti kopiert');
+                              }}
+                              title="Kopier filsti"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteSubtitle(selectedMovieForManage, sub)}
+                              disabled={deletingSubtitle === sub.path}
+                              title="Slett undertekst"
+                            >
+                              {deletingSubtitle === sub.path ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1339,25 +1360,25 @@ export const BazarrDashboard = () => {
                   <p>Ingen undertekster funnet for denne filmen</p>
                 </div>
               )}
+            </ScrollArea>
 
-              <div className="flex gap-2 pt-4 border-t">
-                <Button 
-                  variant="outline" 
-                  onClick={() => selectedMovieForManage && handleBazarrSearch(selectedMovieForManage, 'movie')}
-                  className="flex-1"
-                >
-                  <Search className="h-4 w-4 mr-2" />
-                  Søk via Bazarr
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => selectedMovieForManage && handleJellyfinSearch(selectedMovieForManage)}
-                  className="flex-1"
-                >
-                  <Play className="h-4 w-4 mr-2" />
-                  Søk via Jellyfin
-                </Button>
-              </div>
+            <div className="flex gap-2 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => selectedMovieForManage && handleBazarrSearch(selectedMovieForManage, 'movie')}
+                className="flex-1"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Søk via Bazarr
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => selectedMovieForManage && handleJellyfinSearch(selectedMovieForManage)}
+                className="flex-1"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Søk via Jellyfin
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
