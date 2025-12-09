@@ -585,6 +585,17 @@ const Detail = () => {
                   <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
                 </Button>
 
+                {/* Report Problem Button */}
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => setReportDialogOpen(true)}
+                >
+                  <Flag className="h-5 w-5" />
+                  Rapporter
+                </Button>
+
                 {/* Subtitle Dialog - Show existing subtitles and search for new */}
                 {item.Type === 'Movie' && (
                   <Dialog open={subtitleSearchOpen} onOpenChange={(open) => {
@@ -1224,6 +1235,19 @@ const Detail = () => {
           </div>
         </div>
       )}
+
+      {/* Report Media Dialog */}
+      <ReportMediaDialog
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+        itemId={item.Id}
+        itemName={item.Name}
+        itemType={item.Type}
+        imageUrl={item.ImageTags?.Primary && serverUrl 
+          ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
+          : undefined
+        }
+      />
     </div>
   );
 };
