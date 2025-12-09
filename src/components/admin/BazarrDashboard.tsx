@@ -418,7 +418,7 @@ export const BazarrDashboard = () => {
                   <Film className="h-4 w-4" />
                   Filmer ({wantedMovies.length})
                 </h4>
-                <ScrollArea className="max-h-[250px]">
+                <ScrollArea className="h-[250px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -480,7 +480,7 @@ export const BazarrDashboard = () => {
                   <Tv className="h-4 w-4" />
                   Episoder ({wantedEpisodes.length})
                 </h4>
-                <ScrollArea className="max-h-[250px]">
+                <ScrollArea className="h-[300px]">
                   <Table>
                     <TableHeader>
                       <TableRow>
