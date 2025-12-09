@@ -396,22 +396,29 @@ export const UpdateManager = () => {
           'Content-Type': 'application/json'
         };
         
-        // Add signature if secret is available
-        if (gitPullSecret) {
-          const body = JSON.stringify({ updateId });
-          const encoder = new TextEncoder();
-          const key = await crypto.subtle.importKey(
-            'raw',
-            encoder.encode(gitPullSecret),
-            { name: 'HMAC', hash: 'SHA-256' },
-            false,
-            ['sign']
-          );
-          const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
-          const signatureHex = Array.from(new Uint8Array(signature))
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('');
-          headers['X-Update-Signature'] = signatureHex;
+        // Add signature if secret is available and crypto.subtle is supported
+        // Note: crypto.subtle is only available in secure contexts (HTTPS or localhost)
+        if (gitPullSecret && typeof crypto !== 'undefined' && crypto.subtle) {
+          try {
+            const body = JSON.stringify({ updateId });
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+              'raw',
+              encoder.encode(gitPullSecret),
+              { name: 'HMAC', hash: 'SHA-256' },
+              false,
+              ['sign']
+            );
+            const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+            const signatureHex = Array.from(new Uint8Array(signature))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('');
+            headers['X-Update-Signature'] = signatureHex;
+          } catch (cryptoError) {
+            console.warn('Could not generate signature (crypto.subtle not available):', cryptoError);
+          }
+        } else if (gitPullSecret) {
+          console.warn('Signature skipped: crypto.subtle not available (requires HTTPS or localhost)');
         }
         
         const response = await fetch(targetUrl, {
