@@ -90,6 +90,7 @@ interface WantedItem {
   episodeTitle?: string;
   season?: number;
   episode?: number;
+  episode_number?: string; // Bazarr format: "3x2"
   missing_subtitles?: Array<{ name: string; code2: string; code3: string }>;
   sonarrSeriesId?: number;
   sonarrEpisodeId?: number;
@@ -125,6 +126,7 @@ interface HistoryItem {
   episodeTitle?: string;
   season?: number;
   episode?: number;
+  episode_number?: string; // Bazarr format: "3x2"
   provider?: string;
   language?: { name: string };
   timestamp?: string;
@@ -994,7 +996,7 @@ export const BazarrDashboard = () => {
                           </TableCell>
                           <TableCell className="font-medium">{item.seriesTitle}</TableCell>
                           <TableCell>
-                            S{String(item.season).padStart(2, '0')}E{String(item.episode).padStart(2, '0')}
+                            <span className="font-mono">{item.episode_number || `S${String(item.season || 0).padStart(2, '0')}E${String(item.episode || 0).padStart(2, '0')}`}</span>
                             <span className="text-muted-foreground ml-2">{item.episodeTitle}</span>
                           </TableCell>
                           <TableCell>
@@ -1232,7 +1234,7 @@ export const BazarrDashboard = () => {
                           <TableCell>{getActionIcon(item.action)}</TableCell>
                           <TableCell className="font-medium">{item.seriesTitle}</TableCell>
                           <TableCell>
-                            S{String(item.season).padStart(2, '0')}E{String(item.episode).padStart(2, '0')}
+                            <span className="font-mono">{item.episode_number || `S${String(item.season || 0).padStart(2, '0')}E${String(item.episode || 0).padStart(2, '0')}`}</span>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{item.language?.name || '-'}</Badge>
