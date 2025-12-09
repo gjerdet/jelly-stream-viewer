@@ -70,12 +70,12 @@ serve(async (req) => {
 
       // Get movie history
       case 'movies-history':
-        endpoint = '/api/history/movies';
+        endpoint = '/api/history/movies?length=50';
         break;
 
       // Get series history
       case 'episodes-history':
-        endpoint = '/api/history/series';
+        endpoint = '/api/history/series?length=50';
         break;
 
       // Get specific movie with subtitles
