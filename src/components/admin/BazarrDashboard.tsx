@@ -280,9 +280,11 @@ export const BazarrDashboard = () => {
     
     try {
       const action = type === 'movie' ? 'search-movie' : 'search-episode';
+      // Get first missing subtitle language or default to Norwegian
+      const language = item.missing_subtitles?.[0]?.code2 || 'no';
       const params = type === 'movie' 
-        ? { radarrId: item.radarrId }
-        : { sonarrId: item.sonarrSeriesId, episodeId: item.sonarrEpisodeId };
+        ? { radarrId: item.radarrId, language }
+        : { sonarrId: item.sonarrSeriesId, episodeId: item.sonarrEpisodeId, language };
       
       const { error } = await bazarrRequest(action, params);
       
@@ -327,18 +329,48 @@ export const BazarrDashboard = () => {
   };
 
   // Manual search for subtitles via Jellyfin
-  const handleJellyfinSearch = async (item: WantedItem | MovieItem) => {
+  const handleJellyfinSearch = async (item: WantedItem | MovieItem, jellyfinItemId?: string) => {
+    if (!jellyfinItemId) {
+      toast.error('Jellyfin item ID er ikke tilgjengelig for dette elementet');
+      return;
+    }
+    
     setSelectedItem(item);
     setManualSearchOpen(true);
     setManualSearchLoading(true);
     setManualSearchResults([]);
     setSearchSource('jellyfin');
     
-    toast.info('Jellyfin-søk krever Jellyfin item ID - denne funksjonen er under utvikling');
-    setManualSearchLoading(false);
-    
-    // TODO: Need to map Radarr/Sonarr ID to Jellyfin ID
-    // This would require additional integration
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-search-subtitles', {
+        body: { itemId: jellyfinItemId, language: 'nor' }
+      });
+      
+      if (error) throw error;
+      
+      // Map Jellyfin results to SearchResult format
+      const results: SearchResult[] = (data?.subtitles || []).map((sub: any) => ({
+        provider: sub.ProviderName || 'Unknown',
+        description: sub.Name || sub.Format || 'Ukjent',
+        language: sub.Language || 'nor',
+        hearing_impaired: sub.IsHashMatch || false,
+        forced: sub.IsForced || false,
+        score: sub.Score || 0,
+        subtitle: sub.Id,
+        release_info: [sub.Format, sub.Comment].filter(Boolean)
+      }));
+      
+      setManualSearchResults(results);
+      
+      if (results.length === 0) {
+        toast.info('Ingen undertekster funnet via Jellyfin');
+      }
+    } catch (err) {
+      console.error('Jellyfin search failed:', err);
+      toast.error('Kunne ikke søke etter undertekster via Jellyfin');
+    } finally {
+      setManualSearchLoading(false);
+    }
   };
 
   // Download subtitle from manual search
@@ -517,8 +549,11 @@ export const BazarrDashboard = () => {
     let failCount = 0;
 
     for (const radarrId of selectedMovies) {
+      const movie = wantedMovies.find(m => m.radarrId === radarrId);
+      const language = movie?.missing_subtitles?.[0]?.code2 || 'no';
+      
       try {
-        const { error } = await bazarrRequest('search-movie', { radarrId });
+        const { error } = await bazarrRequest('search-movie', { radarrId, language });
         if (error) throw error;
         successCount++;
       } catch (err) {
@@ -555,10 +590,13 @@ export const BazarrDashboard = () => {
       const episode = wantedEpisodes.find(e => e.sonarrEpisodeId === episodeId);
       if (!episode) continue;
       
+      const language = episode.missing_subtitles?.[0]?.code2 || 'no';
+      
       try {
         const { error } = await bazarrRequest('search-episode', { 
           sonarrId: episode.sonarrSeriesId, 
-          episodeId: episode.sonarrEpisodeId 
+          episodeId: episode.sonarrEpisodeId,
+          language
         });
         if (error) throw error;
         successCount++;
