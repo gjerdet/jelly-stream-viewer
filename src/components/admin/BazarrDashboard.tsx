@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -33,6 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Subtitles,
   Loader2,
@@ -50,7 +51,9 @@ import {
   History,
   Settings,
   CheckCircle2,
-  XCircle
+  XCircle,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBazarrApi } from "@/hooks/useBazarrApi";
@@ -124,6 +127,12 @@ export const BazarrDashboard = () => {
   const [manualSearchLoading, setManualSearchLoading] = useState(false);
   const [selectedItem, setSelectedItem] = useState<WantedItem | null>(null);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
+  
+  // Search and bulk selection state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedMovies, setSelectedMovies] = useState<Set<number>>(new Set());
+  const [selectedEpisodes, setSelectedEpisodes] = useState<Set<number>>(new Set());
+  const [bulkSearching, setBulkSearching] = useState(false);
 
   // Check connection and get status
   const checkConnection = async () => {
@@ -285,6 +294,140 @@ export const BazarrDashboard = () => {
     }
   };
 
+  // Filtered items based on search query
+  const filteredMovies = useMemo(() => {
+    if (!searchQuery.trim()) return wantedMovies;
+    const query = searchQuery.toLowerCase();
+    return wantedMovies.filter(item => 
+      item.title?.toLowerCase().includes(query)
+    );
+  }, [wantedMovies, searchQuery]);
+
+  const filteredEpisodes = useMemo(() => {
+    if (!searchQuery.trim()) return wantedEpisodes;
+    const query = searchQuery.toLowerCase();
+    return wantedEpisodes.filter(item => 
+      item.seriesTitle?.toLowerCase().includes(query) ||
+      item.episodeTitle?.toLowerCase().includes(query)
+    );
+  }, [wantedEpisodes, searchQuery]);
+
+  // Bulk selection helpers
+  const toggleMovieSelection = (radarrId: number) => {
+    setSelectedMovies(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(radarrId)) {
+        newSet.delete(radarrId);
+      } else {
+        newSet.add(radarrId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleEpisodeSelection = (episodeId: number) => {
+    setSelectedEpisodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(episodeId)) {
+        newSet.delete(episodeId);
+      } else {
+        newSet.add(episodeId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllMovies = () => {
+    if (selectedMovies.size === filteredMovies.length) {
+      setSelectedMovies(new Set());
+    } else {
+      setSelectedMovies(new Set(filteredMovies.map(m => m.radarrId!).filter(Boolean)));
+    }
+  };
+
+  const selectAllEpisodes = () => {
+    if (selectedEpisodes.size === filteredEpisodes.length) {
+      setSelectedEpisodes(new Set());
+    } else {
+      setSelectedEpisodes(new Set(filteredEpisodes.map(e => e.sonarrEpisodeId!).filter(Boolean)));
+    }
+  };
+
+  // Bulk search for selected items
+  const bulkSearchMovies = async () => {
+    if (selectedMovies.size === 0) {
+      toast.info('Velg minst én film');
+      return;
+    }
+
+    setBulkSearching(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const radarrId of selectedMovies) {
+      try {
+        const { error } = await bazarrRequest('search-movie', { radarrId });
+        if (error) throw error;
+        successCount++;
+      } catch (err) {
+        console.error('Bulk search failed for movie:', radarrId, err);
+        failCount++;
+      }
+    }
+
+    setBulkSearching(false);
+    setSelectedMovies(new Set());
+    
+    if (successCount > 0) {
+      toast.success(`Startet søk for ${successCount} film(er)`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} søk feilet`);
+    }
+    
+    setTimeout(() => loadWanted(), 3000);
+  };
+
+  const bulkSearchEpisodes = async () => {
+    if (selectedEpisodes.size === 0) {
+      toast.info('Velg minst én episode');
+      return;
+    }
+
+    setBulkSearching(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const episodeId of selectedEpisodes) {
+      const episode = wantedEpisodes.find(e => e.sonarrEpisodeId === episodeId);
+      if (!episode) continue;
+      
+      try {
+        const { error } = await bazarrRequest('search-episode', { 
+          sonarrId: episode.sonarrSeriesId, 
+          episodeId: episode.sonarrEpisodeId 
+        });
+        if (error) throw error;
+        successCount++;
+      } catch (err) {
+        console.error('Bulk search failed for episode:', episodeId, err);
+        failCount++;
+      }
+    }
+
+    setBulkSearching(false);
+    setSelectedEpisodes(new Set());
+    
+    if (successCount > 0) {
+      toast.success(`Startet søk for ${successCount} episode(r)`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} søk feilet`);
+    }
+    
+    setTimeout(() => loadWanted(), 3000);
+  };
+
   useEffect(() => {
     checkConnection();
   }, []);
@@ -396,40 +539,100 @@ export const BazarrDashboard = () => {
 
           {/* Wanted Tab */}
           <TabsContent value="wanted" className="mt-4">
-            <div className="flex justify-end mb-4">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={loadWanted}
-                disabled={loadingWanted}
-              >
-                {loadingWanted ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
+            {/* Search and controls */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Søk etter tittel..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex gap-2">
+                {(selectedMovies.size > 0 || selectedEpisodes.size > 0) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => {
+                      if (selectedMovies.size > 0) bulkSearchMovies();
+                      if (selectedEpisodes.size > 0) bulkSearchEpisodes();
+                    }}
+                    disabled={bulkSearching}
+                  >
+                    {bulkSearching ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Zap className="h-4 w-4 mr-2" />
+                    )}
+                    Søk valgte ({selectedMovies.size + selectedEpisodes.size})
+                  </Button>
                 )}
-              </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={loadWanted}
+                  disabled={loadingWanted}
+                >
+                  {loadingWanted ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Movies Wanted */}
-            {wantedMovies.length > 0 && (
+            {filteredMovies.length > 0 && (
               <div className="mb-6">
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Film className="h-4 w-4" />
-                  Filmer ({wantedMovies.length})
-                </h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Film className="h-4 w-4" />
+                    Filmer ({filteredMovies.length})
+                  </h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAllMovies}
+                    className="text-xs"
+                  >
+                    {selectedMovies.size === filteredMovies.length && filteredMovies.length > 0 ? (
+                      <>
+                        <CheckSquare className="h-3 w-3 mr-1" />
+                        Fjern alle
+                      </>
+                    ) : (
+                      <>
+                        <Square className="h-3 w-3 mr-1" />
+                        Velg alle
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="h-[250px] overflow-y-auto border rounded-md">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Tittel</TableHead>
                         <TableHead>Mangler</TableHead>
                         <TableHead className="text-right">Handlinger</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {wantedMovies.map((item, idx) => (
-                        <TableRow key={idx}>
+                      {filteredMovies.map((item, idx) => (
+                        <TableRow 
+                          key={idx}
+                          className={selectedMovies.has(item.radarrId!) ? "bg-primary/10" : ""}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedMovies.has(item.radarrId!)}
+                              onCheckedChange={() => toggleMovieSelection(item.radarrId!)}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{item.title}</TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
@@ -474,16 +677,37 @@ export const BazarrDashboard = () => {
             )}
 
             {/* Episodes Wanted */}
-            {wantedEpisodes.length > 0 && (
+            {filteredEpisodes.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
-                  <Tv className="h-4 w-4" />
-                  Episoder ({wantedEpisodes.length})
-                </h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium flex items-center gap-2">
+                    <Tv className="h-4 w-4" />
+                    Episoder ({filteredEpisodes.length})
+                  </h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAllEpisodes}
+                    className="text-xs"
+                  >
+                    {selectedEpisodes.size === filteredEpisodes.length && filteredEpisodes.length > 0 ? (
+                      <>
+                        <CheckSquare className="h-3 w-3 mr-1" />
+                        Fjern alle
+                      </>
+                    ) : (
+                      <>
+                        <Square className="h-3 w-3 mr-1" />
+                        Velg alle
+                      </>
+                    )}
+                  </Button>
+                </div>
                 <div className="h-[300px] overflow-y-auto border rounded-md">
                   <Table>
                     <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Serie</TableHead>
                         <TableHead>Episode</TableHead>
                         <TableHead>Mangler</TableHead>
@@ -491,8 +715,17 @@ export const BazarrDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {wantedEpisodes.map((item, idx) => (
-                        <TableRow key={idx}>
+                      {filteredEpisodes.map((item, idx) => (
+                        <TableRow 
+                          key={idx}
+                          className={selectedEpisodes.has(item.sonarrEpisodeId!) ? "bg-primary/10" : ""}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedEpisodes.has(item.sonarrEpisodeId!)}
+                              onCheckedChange={() => toggleEpisodeSelection(item.sonarrEpisodeId!)}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{item.seriesTitle}</TableCell>
                           <TableCell>
                             S{String(item.season).padStart(2, '0')}E{String(item.episode).padStart(2, '0')}
@@ -540,10 +773,19 @@ export const BazarrDashboard = () => {
               </div>
             )}
 
-            {wantedMovies.length === 0 && wantedEpisodes.length === 0 && !loadingWanted && (
+            {filteredMovies.length === 0 && filteredEpisodes.length === 0 && !loadingWanted && (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <CheckCircle2 className="h-12 w-12 mb-4 text-green-500" />
-                <p>Ingen manglende undertekster!</p>
+                {searchQuery ? (
+                  <>
+                    <Search className="h-12 w-12 mb-4 text-muted-foreground" />
+                    <p>Ingen treff for "{searchQuery}"</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-12 w-12 mb-4 text-green-500" />
+                    <p>Ingen manglende undertekster!</p>
+                  </>
+                )}
               </div>
             )}
           </TabsContent>
