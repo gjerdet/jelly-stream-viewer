@@ -265,6 +265,33 @@ export const UpdateManager = () => {
     return () => clearInterval(pollInterval);
   }, [updating]);
 
+  // Check if we're on a local network (private IP)
+  const isLocalNetwork = () => {
+    const hostname = window.location.hostname;
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.') ||
+      hostname.startsWith('172.16.') ||
+      hostname.startsWith('172.17.') ||
+      hostname.startsWith('172.18.') ||
+      hostname.startsWith('172.19.') ||
+      hostname.startsWith('172.20.') ||
+      hostname.startsWith('172.21.') ||
+      hostname.startsWith('172.22.') ||
+      hostname.startsWith('172.23.') ||
+      hostname.startsWith('172.24.') ||
+      hostname.startsWith('172.25.') ||
+      hostname.startsWith('172.26.') ||
+      hostname.startsWith('172.27.') ||
+      hostname.startsWith('172.28.') ||
+      hostname.startsWith('172.29.') ||
+      hostname.startsWith('172.30.') ||
+      hostname.startsWith('172.31.')
+    );
+  };
+
   const installUpdate = async () => {
     setUpdating(true);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
@@ -305,47 +332,146 @@ export const UpdateManager = () => {
         }]
       });
 
-      // Add log about contacting git-pull server via edge function
-      console.log('[UpdateManager] Calling git-pull-proxy edge function');
-      const contactingLog = [{
-        timestamp: new Date().toISOString(),
-        message: 'Oppdatering startet...',
-        level: 'info' as const
-      }, {
-        timestamp: new Date().toISOString(),
-        message: '🔄 Kontakter git-pull server via Edge Function...',
-        level: 'info' as const
-      }];
+      // Determine if we should call locally or via edge function
+      const useLocalCall = isLocalNetwork();
       
-      setUpdateStatus(prev => prev ? {
-        ...prev,
-        logs: contactingLog
-      } : null);
+      if (useLocalCall) {
+        // Try to get git_pull_server_url from database
+        const { data: settings } = await supabase
+          .from('server_settings')
+          .select('setting_value')
+          .eq('setting_key', 'git_pull_server_url')
+          .single();
+        
+        const gitPullUrl = settings?.setting_value;
+        
+        if (!gitPullUrl) {
+          throw new Error('git_pull_server_url er ikke konfigurert i database. Gå til Servere-fanen og sett opp Git Pull URL.');
+        }
+        
+        // Get secret for signature
+        const { data: secretSettings } = await supabase
+          .from('server_settings')
+          .select('setting_value')
+          .eq('setting_key', 'git_pull_secret')
+          .single();
+        
+        const gitPullSecret = secretSettings?.setting_value;
+        
+        console.log('[UpdateManager] Calling git-pull server directly (local mode):', gitPullUrl);
+        
+        const contactingLog = [{
+          timestamp: new Date().toISOString(),
+          message: 'Oppdatering startet...',
+          level: 'info' as const
+        }, {
+          timestamp: new Date().toISOString(),
+          message: `🏠 Lokal modus: Kontakter git-pull server direkte på ${gitPullUrl}`,
+          level: 'info' as const
+        }];
+        
+        setUpdateStatus(prev => prev ? {
+          ...prev,
+          logs: contactingLog
+        } : null);
 
-      // Update status in database with contacting log
-      await supabase
-        .from('update_status')
-        .update({
-          logs: JSON.stringify(contactingLog)
-        })
-        .eq('id', updateId);
+        // Update status in database
+        await supabase
+          .from('update_status')
+          .update({
+            logs: JSON.stringify(contactingLog)
+          })
+          .eq('id', updateId);
+        
+        // Ensure URL ends with /git-pull
+        let targetUrl = gitPullUrl;
+        if (!targetUrl.endsWith('/git-pull')) {
+          targetUrl = targetUrl.replace(/\/$/, '') + '/git-pull';
+        }
+        
+        // Build headers
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        
+        // Add signature if secret is available
+        if (gitPullSecret) {
+          const body = JSON.stringify({ updateId });
+          const encoder = new TextEncoder();
+          const key = await crypto.subtle.importKey(
+            'raw',
+            encoder.encode(gitPullSecret),
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+          );
+          const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
+          const signatureHex = Array.from(new Uint8Array(signature))
+            .map(b => b.toString(16).padStart(2, '0'))
+            .join('');
+          headers['X-Update-Signature'] = signatureHex;
+        }
+        
+        const response = await fetch(targetUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ updateId })
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Git-pull server svarte med feil: ${response.status} - ${errorText}`);
+        }
+        
+        console.log('[UpdateManager] Git pull triggered successfully (local mode)');
+        toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
+        
+      } else {
+        // Use edge function for remote access
+        console.log('[UpdateManager] Calling git-pull-proxy edge function (remote mode)');
+        
+        const contactingLog = [{
+          timestamp: new Date().toISOString(),
+          message: 'Oppdatering startet...',
+          level: 'info' as const
+        }, {
+          timestamp: new Date().toISOString(),
+          message: '☁️ Ekstern modus: Kontakter git-pull server via Edge Function...',
+          level: 'info' as const
+        }, {
+          timestamp: new Date().toISOString(),
+          message: '⚠️ OBS: Edge Functions kan ikke nå lokale IP-adresser. Sett opp en offentlig URL eller kjør lokalt.',
+          level: 'warning' as const
+        }];
+        
+        setUpdateStatus(prev => prev ? {
+          ...prev,
+          logs: contactingLog
+        } : null);
 
-      // Call the git-pull-proxy edge function
-      const { data, error: invokeError } = await supabase.functions.invoke('git-pull-proxy', {
-        body: { updateId }
-      });
+        await supabase
+          .from('update_status')
+          .update({
+            logs: JSON.stringify(contactingLog)
+          })
+          .eq('id', updateId);
 
-      if (invokeError) {
-        console.error('[UpdateManager] Edge function error:', invokeError);
-        throw new Error(invokeError.message || 'Edge function feilet');
+        const { data, error: invokeError } = await supabase.functions.invoke('git-pull-proxy', {
+          body: { updateId }
+        });
+
+        if (invokeError) {
+          console.error('[UpdateManager] Edge function error:', invokeError);
+          throw new Error(invokeError.message || 'Edge function feilet');
+        }
+
+        if (!data?.success) {
+          throw new Error(data?.error || 'Ukjent feil fra git-pull-proxy');
+        }
+
+        console.log('[UpdateManager] Git pull triggered successfully:', data);
+        toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
       }
-
-      if (!data?.success) {
-        throw new Error(data?.error || 'Ukjent feil fra git-pull-proxy');
-      }
-
-      console.log('[UpdateManager] Git pull triggered successfully:', data);
-      toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
       
     } catch (err: any) {
       console.error('Install update error:', err);
