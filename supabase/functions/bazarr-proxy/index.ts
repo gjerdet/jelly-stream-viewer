@@ -109,7 +109,8 @@ serve(async (req) => {
         method = 'POST';
         body = JSON.stringify({
           action: 'search',
-          radarrid: params.radarrId
+          radarrid: params.radarrId,
+          language: params.language || 'no'
         });
         break;
 
@@ -120,7 +121,8 @@ serve(async (req) => {
         body = JSON.stringify({
           action: 'search',
           seriesid: params.sonarrId,
-          episodeid: params.episodeId
+          episodeid: params.episodeId,
+          language: params.language || 'no'
         });
         break;
 
