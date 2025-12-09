@@ -57,7 +57,7 @@ export const MediaCompatibilityManager = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "needs_transcode" | "resolved">("needs_transcode");
-  const [cronExpression, setCronExpression] = useState("0 3 * * *");
+  
 
   // Fetch scan schedule
   const { data: scanSchedule, error: scheduleError, isLoading: scheduleLoading } = useQuery({
@@ -309,30 +309,51 @@ export const MediaCompatibilityManager = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <Label htmlFor="cron">Cron-uttrykk (tidsplan)</Label>
-              <Input 
-                id="cron"
-                value={cronExpression}
-                onChange={(e) => setCronExpression(e.target.value)}
-                placeholder="0 3 * * *"
-                className="bg-secondary/50"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Eksempel: "0 3 * * *" = kl. 03:00 hver dag
-              </p>
+          {/* Simple schedule presets */}
+          <div className="space-y-3">
+            <Label>Automatisk skanning</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 * * *" ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 * * *" })}
+                disabled={updateSchedule.isPending}
+              >
+                Hver natt (03:00)
+              </Button>
+              <Button 
+                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 * * 0" ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 * * 0" })}
+                disabled={updateSchedule.isPending}
+              >
+                Ukentlig (søndager)
+              </Button>
+              <Button 
+                variant={scanSchedule?.enabled && scanSchedule?.cron_expression === "0 3 1 * *" ? "default" : "outline"}
+                size="sm"
+                onClick={() => updateSchedule.mutate({ enabled: true, cron: "0 3 1 * *" })}
+                disabled={updateSchedule.isPending}
+              >
+                Månedlig
+              </Button>
+              <Button 
+                variant={!scanSchedule?.enabled ? "destructive" : "outline"}
+                size="sm"
+                onClick={() => updateSchedule.mutate({ enabled: false, cron: scanSchedule?.cron_expression || "0 3 * * *" })}
+                disabled={updateSchedule.isPending}
+              >
+                Av
+              </Button>
             </div>
-            <Button 
-              variant="outline"
-              onClick={() => updateSchedule.mutate({ 
-                enabled: !scanSchedule?.enabled, 
-                cron: cronExpression 
-              })}
-              disabled={updateSchedule.isPending}
-            >
-              {scanSchedule?.enabled ? "Deaktiver tidsplan" : "Aktiver tidsplan"}
-            </Button>
+            {scanSchedule?.enabled && (
+              <p className="text-xs text-muted-foreground">
+                Automatisk skanning er aktivert
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center gap-4">
             <Button 
               onClick={() => runScan.mutate()}
               disabled={runScan.isPending}
@@ -346,18 +367,17 @@ export const MediaCompatibilityManager = () => {
               ) : (
                 <>
                   <Play className="h-4 w-4" />
-                  Kjør nå
+                  Kjør manuell skanning
                 </>
               )}
             </Button>
+            
+            {scanSchedule && scanSchedule.last_run_items_scanned !== null && (
+              <p className="text-sm text-muted-foreground">
+                Siste: {scanSchedule.last_run_items_scanned} skannet, {scanSchedule.last_run_issues_found || 0} problemer
+              </p>
+            )}
           </div>
-          
-          {scanSchedule && scanSchedule.last_run_items_scanned !== null && (
-            <p className="text-sm text-muted-foreground">
-              Siste kjøring: {scanSchedule.last_run_items_scanned} elementer skannet, 
-              {scanSchedule.last_run_issues_found || 0} problemer funnet
-            </p>
-          )}
         </CardContent>
       </Card>
 
