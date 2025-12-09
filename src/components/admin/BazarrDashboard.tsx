@@ -328,13 +328,36 @@ export const BazarrDashboard = () => {
     }
   };
 
-  // Manual search for subtitles via Jellyfin
-  const handleJellyfinSearch = async (item: WantedItem | MovieItem, jellyfinItemId?: string) => {
-    if (!jellyfinItemId) {
-      toast.error('Jellyfin item ID er ikke tilgjengelig for dette elementet');
-      return;
+  // Find Jellyfin item by searching by title
+  const findJellyfinItem = async (title: string, type: 'Movie' | 'Episode'): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: { 
+          endpoint: `/Search/Hints?searchTerm=${encodeURIComponent(title)}&limit=10&includeItemTypes=${type}`,
+          method: 'GET'
+        }
+      });
+      
+      if (error) throw error;
+      
+      // Find best match
+      const hints = data?.SearchHints || [];
+      if (hints.length > 0) {
+        // Try to find exact match first
+        const exactMatch = hints.find((h: any) => 
+          h.Name?.toLowerCase() === title.toLowerCase()
+        );
+        return exactMatch?.Id || hints[0]?.Id || null;
+      }
+      return null;
+    } catch (err) {
+      console.error('Failed to search Jellyfin:', err);
+      return null;
     }
-    
+  };
+
+  // Manual search for subtitles via Jellyfin
+  const handleJellyfinSearch = async (item: WantedItem | MovieItem, type: 'movie' | 'episode') => {
     setSelectedItem(item);
     setManualSearchOpen(true);
     setManualSearchLoading(true);
@@ -342,6 +365,27 @@ export const BazarrDashboard = () => {
     setSearchSource('jellyfin');
     
     try {
+      // Get title to search for
+      const title = type === 'movie' 
+        ? (item as MovieItem).title 
+        : (item as WantedItem).episodeTitle || (item as WantedItem).seriesTitle;
+      
+      toast.info(`Søker etter "${title}" i Jellyfin...`);
+      
+      // First find the Jellyfin item ID by searching
+      const jellyfinItemId = await findJellyfinItem(
+        title, 
+        type === 'movie' ? 'Movie' : 'Episode'
+      );
+      
+      if (!jellyfinItemId) {
+        toast.error(`Kunne ikke finne "${title}" i Jellyfin`);
+        setManualSearchLoading(false);
+        return;
+      }
+      
+      console.log(`Found Jellyfin item ID: ${jellyfinItemId} for "${title}"`);
+      
       const { data, error } = await supabase.functions.invoke('jellyfin-search-subtitles', {
         body: { itemId: jellyfinItemId, language: 'nor' }
       });
@@ -864,7 +908,7 @@ export const BazarrDashboard = () => {
                                     <Subtitles className="h-4 w-4 mr-2" />
                                     Søk via Bazarr
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item)}>
+                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item, 'movie')}>
                                     <Play className="h-4 w-4 mr-2" />
                                     Søk via Jellyfin
                                   </DropdownMenuItem>
@@ -989,7 +1033,7 @@ export const BazarrDashboard = () => {
                                     <Subtitles className="h-4 w-4 mr-2" />
                                     Søk via Bazarr
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item)}>
+                                  <DropdownMenuItem onClick={() => handleJellyfinSearch(item, 'episode')}>
                                     <Play className="h-4 w-4 mr-2" />
                                     Søk via Jellyfin
                                   </DropdownMenuItem>
@@ -1411,7 +1455,7 @@ export const BazarrDashboard = () => {
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => selectedMovieForManage && handleJellyfinSearch(selectedMovieForManage)}
+                onClick={() => selectedMovieForManage && handleJellyfinSearch(selectedMovieForManage, 'movie')}
                 className="flex-1"
               >
                 <Play className="h-4 w-4 mr-2" />
