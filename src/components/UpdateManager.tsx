@@ -6,7 +6,9 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -53,6 +55,7 @@ export const UpdateManager = () => {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [showLogs, setShowLogs] = useState(false);
+  const [forceLocalMode, setForceLocalMode] = useState(false);
 
   const checkForUpdates = async () => {
     setChecking(true);
@@ -333,7 +336,8 @@ export const UpdateManager = () => {
       });
 
       // Determine if we should call locally or via edge function
-      const useLocalCall = isLocalNetwork();
+      const useLocalCall = forceLocalMode || isLocalNetwork();
+      console.log('[UpdateManager] forceLocalMode:', forceLocalMode, 'isLocalNetwork:', isLocalNetwork(), 'useLocalCall:', useLocalCall);
       
       if (useLocalCall) {
         // Try to get git_pull_server_url from database
@@ -521,6 +525,34 @@ export const UpdateManager = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Network mode toggle */}
+        <div className="p-3 bg-secondary/30 border border-border rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {forceLocalMode ? (
+                <Home className="h-4 w-4 text-green-400" />
+              ) : (
+                <Globe className="h-4 w-4 text-blue-400" />
+              )}
+              <div>
+                <Label htmlFor="force-local" className="text-sm font-medium">
+                  {forceLocalMode ? 'Lokal modus' : 'Ekstern modus'}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {forceLocalMode 
+                    ? 'Kaller git-pull server direkte (for lokalt nettverk)' 
+                    : 'Kaller via Edge Function (for ekstern tilgang)'}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="force-local"
+              checked={forceLocalMode}
+              onCheckedChange={setForceLocalMode}
+            />
+          </div>
+        </div>
+
         {/* Info banner explaining this is for self-hosted only */}
         <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <div className="flex items-start gap-2">
