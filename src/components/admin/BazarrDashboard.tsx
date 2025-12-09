@@ -418,9 +418,9 @@ export const BazarrDashboard = () => {
                   <Film className="h-4 w-4" />
                   Filmer ({wantedMovies.length})
                 </h4>
-                <ScrollArea className="h-[250px]">
+                <div className="h-[250px] overflow-y-auto border rounded-md">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead>Tittel</TableHead>
                         <TableHead>Mangler</TableHead>
@@ -469,7 +469,7 @@ export const BazarrDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               </div>
             )}
 
@@ -480,9 +480,9 @@ export const BazarrDashboard = () => {
                   <Tv className="h-4 w-4" />
                   Episoder ({wantedEpisodes.length})
                 </h4>
-                <ScrollArea className="h-[300px]">
+                <div className="h-[300px] overflow-y-auto border rounded-md">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead>Serie</TableHead>
                         <TableHead>Episode</TableHead>
@@ -536,7 +536,7 @@ export const BazarrDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               </div>
             )}
 
@@ -578,9 +578,9 @@ export const BazarrDashboard = () => {
               </TabsList>
 
               <TabsContent value="movies-history">
-                <ScrollArea className="max-h-[400px]">
+                <div className="h-[400px] overflow-y-auto border rounded-md">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Tittel</TableHead>
@@ -607,13 +607,13 @@ export const BazarrDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               </TabsContent>
 
               <TabsContent value="episodes-history">
-                <ScrollArea className="max-h-[400px]">
+                <div className="h-[400px] overflow-y-auto border rounded-md">
                   <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-background z-10">
                       <TableRow>
                         <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Serie</TableHead>
@@ -644,7 +644,7 @@ export const BazarrDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               </TabsContent>
             </Tabs>
           </TabsContent>
