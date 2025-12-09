@@ -92,6 +92,123 @@ export type Database = {
         }
         Relationships: []
       }
+      media_compatibility: {
+        Row: {
+          audio_codec: string | null
+          container: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_season_id: string | null
+          jellyfin_series_id: string | null
+          jellyfin_series_name: string | null
+          last_scanned_at: string
+          resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+          status: Database["public"]["Enums"]["compatibility_status"]
+          transcode_reason: string | null
+          updated_at: string
+          video_codec: string | null
+        }
+        Insert: {
+          audio_codec?: string | null
+          container?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_season_id?: string | null
+          jellyfin_series_id?: string | null
+          jellyfin_series_name?: string | null
+          last_scanned_at?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["compatibility_status"]
+          transcode_reason?: string | null
+          updated_at?: string
+          video_codec?: string | null
+        }
+        Update: {
+          audio_codec?: string | null
+          container?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id?: string
+          jellyfin_item_name?: string
+          jellyfin_item_type?: string
+          jellyfin_season_id?: string | null
+          jellyfin_series_id?: string | null
+          jellyfin_series_name?: string | null
+          last_scanned_at?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: Database["public"]["Enums"]["compatibility_status"]
+          transcode_reason?: string | null
+          updated_at?: string
+          video_codec?: string | null
+        }
+        Relationships: []
+      }
+      media_reports: {
+        Row: {
+          admin_notes: string | null
+          category: Database["public"]["Enums"]["media_report_category"]
+          created_at: string
+          id: string
+          image_url: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_series_name: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          category: Database["public"]["Enums"]["media_report_category"]
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_series_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          category?: Database["public"]["Enums"]["media_report_category"]
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id?: string
+          jellyfin_item_name?: string
+          jellyfin_item_type?: string
+          jellyfin_series_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       news_posts: {
         Row: {
           content: string
@@ -149,6 +266,45 @@ export type Database = {
           jellyfin_user_id?: string | null
           jellyfin_username?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      scan_schedule: {
+        Row: {
+          created_at: string
+          cron_expression: string
+          enabled: boolean
+          id: string
+          last_run_at: string | null
+          last_run_issues_found: number | null
+          last_run_items_scanned: number | null
+          last_run_status: string | null
+          next_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          cron_expression?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          last_run_issues_found?: number | null
+          last_run_items_scanned?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          cron_expression?: string
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          last_run_issues_found?: number | null
+          last_run_items_scanned?: number | null
+          last_run_status?: string | null
+          next_run_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -411,6 +567,19 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      compatibility_status:
+        | "compatible"
+        | "needs_transcode"
+        | "unknown"
+        | "error"
+      media_report_category:
+        | "buffering"
+        | "no_audio"
+        | "no_video"
+        | "subtitle_issues"
+        | "wrong_file"
+        | "quality_issues"
+        | "other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -539,6 +708,21 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      compatibility_status: [
+        "compatible",
+        "needs_transcode",
+        "unknown",
+        "error",
+      ],
+      media_report_category: [
+        "buffering",
+        "no_audio",
+        "no_video",
+        "subtitle_issues",
+        "wrong_file",
+        "quality_issues",
+        "other",
+      ],
     },
   },
 } as const

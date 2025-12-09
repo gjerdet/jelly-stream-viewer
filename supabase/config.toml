@@ -81,3 +81,6 @@ verify_jwt = true
 
 [functions.git-pull-proxy]
 verify_jwt = true
+
+[functions.scan-media-compatibility]
+verify_jwt = true
