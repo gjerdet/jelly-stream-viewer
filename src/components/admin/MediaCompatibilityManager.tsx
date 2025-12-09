@@ -60,7 +60,7 @@ export const MediaCompatibilityManager = () => {
   const [cronExpression, setCronExpression] = useState("0 3 * * *");
 
   // Fetch scan schedule
-  const { data: scanSchedule } = useQuery({
+  const { data: scanSchedule, error: scheduleError, isLoading: scheduleLoading } = useQuery({
     queryKey: ["scan-schedule"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -221,6 +221,26 @@ export const MediaCompatibilityManager = () => {
         return <Badge variant="outline">Ukjent</Badge>;
     }
   };
+
+  // Show error state if queries fail
+  if (scheduleError) {
+    return (
+      <Card>
+        <CardContent className="pt-6">
+          <div className="text-center py-8">
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="font-semibold text-lg mb-2">Kunne ikke laste kompatibilitetsseksjonen</h3>
+            <p className="text-muted-foreground text-sm">
+              Sjekk at databasen er riktig satt opp og at tabellene eksisterer.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Feil: {scheduleError.message}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
