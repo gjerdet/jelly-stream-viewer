@@ -84,76 +84,9 @@ function determineCompatibility(item: MediaItem): {
   return { status: "compatible", videoCodec, audioCodec, container, reason: null };
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+// Background scan function
+async function runScan(supabase: any, jellyfinUrl: string, apiKey: string) {
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Check if this is a cron job call (anon key in Authorization header) or admin call
-    const authHeader = req.headers.get("Authorization");
-    let isAuthorized = false;
-
-    if (authHeader) {
-      // Check if it's the anon key (cron job) - extract token from "Bearer <token>"
-      const token = authHeader.replace("Bearer ", "");
-      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-      
-      if (token === anonKey) {
-        // Cron job call - authorized
-        console.log("Scan triggered by cron job");
-        isAuthorized = true;
-      } else {
-        // User call - verify admin role
-        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-          global: { headers: { Authorization: authHeader } }
-        });
-        
-        const { data: { user }, error: authError } = await userClient.auth.getUser();
-        if (user && !authError) {
-          const { data: roleData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id)
-            .eq("role", "admin")
-            .maybeSingle();
-
-          if (roleData) {
-            console.log("Scan triggered by admin user:", user.id);
-            isAuthorized = true;
-          }
-        }
-      }
-    }
-
-    if (!isAuthorized) {
-      return new Response(
-        JSON.stringify({ error: "Authorization required" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get Jellyfin settings
-    const { data: settings } = await supabase
-      .from("server_settings")
-      .select("setting_key, setting_value")
-      .in("setting_key", ["jellyfin_server_url", "jellyfin_api_key"]);
-
-    const jellyfinUrl = settings?.find(s => s.setting_key === "jellyfin_server_url")?.setting_value;
-    const apiKey = settings?.find(s => s.setting_key === "jellyfin_api_key")?.setting_value;
-
-    if (!jellyfinUrl || !apiKey) {
-      console.error("Jellyfin not configured");
-      return new Response(
-        JSON.stringify({ error: "Jellyfin not configured" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Get users from Jellyfin
     const usersResponse = await fetch(`${jellyfinUrl}/Users`, {
       headers: { "X-Emby-Token": apiKey }
@@ -162,11 +95,7 @@ serve(async (req) => {
     const jellyfinUserId = users[0]?.Id;
 
     if (!jellyfinUserId) {
-      console.error("No Jellyfin users found");
-      return new Response(
-        JSON.stringify({ error: "No Jellyfin users found" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      throw new Error("No Jellyfin users found");
     }
 
     console.log("Starting media compatibility scan...");
@@ -246,7 +175,7 @@ serve(async (req) => {
       }
     }
 
-    // Update scan schedule with results
+    // Update scan schedule with success results
     const { data: scheduleData } = await supabase
       .from("scan_schedule")
       .select("id")
@@ -261,30 +190,18 @@ serve(async (req) => {
           last_run_status: "completed",
           last_run_items_scanned: totalScanned,
           last_run_issues_found: issuesFound,
+          scan_status: "idle", // Mark as idle when done
         })
         .eq("id", scheduleData.id);
     }
 
     console.log(`Scan complete: ${totalScanned} items scanned, ${issuesFound} issues found`);
 
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        itemsScanned: totalScanned, 
-        issuesFound: issuesFound 
-      }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-
   } catch (error) {
     console.error("Scan error:", error);
     
     // Update schedule with error status
     try {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
       const { data: scheduleData } = await supabase
         .from("scan_schedule")
         .select("id")
@@ -297,13 +214,139 @@ serve(async (req) => {
           .update({
             last_run_at: new Date().toISOString(),
             last_run_status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
+            scan_status: "idle", // Mark as idle even on error
           })
           .eq("id", scheduleData.id);
       }
     } catch (e) {
       console.error("Failed to update schedule status:", e);
     }
+  }
+}
 
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if this is a cron job call (anon key in Authorization header) or admin call
+    const authHeader = req.headers.get("Authorization");
+    let isAuthorized = false;
+
+    if (authHeader) {
+      // Check if it's the anon key (cron job) - extract token from "Bearer <token>"
+      const token = authHeader.replace("Bearer ", "");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      
+      if (token === anonKey) {
+        // Cron job call - authorized
+        console.log("Scan triggered by cron job");
+        isAuthorized = true;
+      } else {
+        // User call - verify admin role
+        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authHeader } }
+        });
+        
+        const { data: { user }, error: authError } = await userClient.auth.getUser();
+        if (user && !authError) {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+
+          if (roleData) {
+            console.log("Scan triggered by admin user:", user.id);
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized) {
+      return new Response(
+        JSON.stringify({ error: "Authorization required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Check if scan is already running
+    const { data: currentSchedule } = await supabase
+      .from("scan_schedule")
+      .select("id, scan_status")
+      .limit(1)
+      .single();
+
+    if (currentSchedule?.scan_status === "running") {
+      return new Response(
+        JSON.stringify({ error: "En skanning kjører allerede", alreadyRunning: true }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get Jellyfin settings
+    const { data: settings } = await supabase
+      .from("server_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", ["jellyfin_server_url", "jellyfin_api_key"]);
+
+    const jellyfinUrl = settings?.find(s => s.setting_key === "jellyfin_server_url")?.setting_value;
+    const apiKey = settings?.find(s => s.setting_key === "jellyfin_api_key")?.setting_value;
+
+    if (!jellyfinUrl || !apiKey) {
+      console.error("Jellyfin not configured");
+      return new Response(
+        JSON.stringify({ error: "Jellyfin not configured" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Mark scan as running BEFORE starting
+    if (currentSchedule) {
+      await supabase
+        .from("scan_schedule")
+        .update({ scan_status: "running" })
+        .eq("id", currentSchedule.id);
+    }
+
+    // Run scan as a background task using EdgeRuntime.waitUntil
+    // This allows the function to return immediately while the scan continues
+    // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(runScan(supabase, jellyfinUrl, apiKey));
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Skanning startet i bakgrunnen",
+          started: true
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } else {
+      // Fallback: run synchronously (for local dev or if EdgeRuntime not available)
+      await runScan(supabase, jellyfinUrl, apiKey);
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: "Skanning fullført"
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+  } catch (error) {
+    console.error("Scan error:", error);
+    
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
