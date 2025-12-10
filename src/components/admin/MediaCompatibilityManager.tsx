@@ -21,7 +21,9 @@ import {
   Check,
   X,
   Loader2,
-  ExternalLink
+  ExternalLink,
+  Cog,
+  Zap
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -237,6 +239,53 @@ export const MediaCompatibilityManager = () => {
       toast.success("Markering fjernet");
       queryClient.invalidateQueries({ queryKey: ["media-compatibility"] });
       queryClient.invalidateQueries({ queryKey: ["media-compatibility-stats"] });
+    },
+  });
+
+  // Check transcode server health
+  const { data: transcodeHealth } = useQuery({
+    queryKey: ["transcode-health"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("transcode-proxy", {
+          body: { action: "health" }
+        });
+        if (error) return { status: "error", message: error.message };
+        return data;
+      } catch {
+        return { status: "error", message: "Cannot reach transcode server" };
+      }
+    },
+    refetchInterval: 30000, // Check every 30 seconds
+  });
+
+  const transcodeServerAvailable = transcodeHealth?.status === "ok" && transcodeHealth?.handbrakeAvailable;
+
+  // Start transcode job
+  const startTranscode = useMutation({
+    mutationFn: async ({ jellyfinItemId, jellyfinItemName }: { jellyfinItemId: string; jellyfinItemName: string }) => {
+      const { data, error } = await supabase.functions.invoke("transcode-proxy", {
+        body: { 
+          action: "start",
+          jellyfinItemId,
+          jellyfinItemName,
+          outputFormat: "hevc"
+        }
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success("Omkoding startet!", {
+        description: `Jobb-ID: ${data.jobId?.slice(0, 8)}...`
+      });
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs"] });
+    },
+    onError: (error) => {
+      toast.error("Kunne ikke starte omkoding", {
+        description: error.message
+      });
     },
   });
 
@@ -639,6 +688,26 @@ export const MediaCompatibilityManager = () => {
                             <ExternalLink className="h-3 w-3 ml-1" />
                           </Link>
                         </Button>
+                        {/* Transcode button - only for unresolved items that need transcoding */}
+                        {item.status === "needs_transcode" && !item.resolved && (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => startTranscode.mutate({
+                              jellyfinItemId: item.jellyfin_item_id,
+                              jellyfinItemName: item.jellyfin_item_name
+                            })}
+                            disabled={!transcodeServerAvailable || startTranscode.isPending}
+                            title={!transcodeServerAvailable ? "Transcode-server ikke tilgjengelig" : "Start omkoding til H.265"}
+                          >
+                            {startTranscode.isPending ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Zap className="h-4 w-4 mr-1" />
+                            )}
+                            Omkod
+                          </Button>
+                        )}
                         {item.resolved ? (
                           <Button 
                             variant="ghost" 
