@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,9 @@ import {
   HelpCircle,
   Loader2,
   RefreshCw,
-  Trash2
+  Trash2,
+  Play,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -271,6 +274,17 @@ export const MediaReportsManager = () => {
 
                       {/* Actions */}
                       <div className="flex-shrink-0 flex gap-2">
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          asChild
+                        >
+                          <Link to={`/player/${report.jellyfin_item_id}`} target="_blank">
+                            <Play className="h-4 w-4 mr-1" />
+                            Spill av
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Link>
+                        </Button>
                         {report.status === "pending" && (
                           <Button 
                             variant="outline" 

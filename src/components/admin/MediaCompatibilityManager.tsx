@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,8 @@ import {
   Search,
   Check,
   X,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -625,7 +627,18 @@ export const MediaCompatibilityManager = () => {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 flex gap-2">
+                        <Button 
+                          variant="secondary" 
+                          size="sm"
+                          asChild
+                        >
+                          <Link to={`/player/${item.jellyfin_item_id}`} target="_blank">
+                            <Play className="h-4 w-4 mr-1" />
+                            Spill av
+                            <ExternalLink className="h-3 w-3 ml-1" />
+                          </Link>
+                        </Button>
                         {item.resolved ? (
                           <Button 
                             variant="ghost" 
