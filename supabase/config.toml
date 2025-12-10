@@ -83,4 +83,8 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.scan-media-compatibility]
+verify_jwt = false
+# Note: Called by pg_cron, validates authorization internally
+
+[functions.jellyfin-logs]
 verify_jwt = true

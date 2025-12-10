@@ -94,39 +94,46 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Verify user is admin
+    // Check if this is a cron job call (anon key in Authorization header) or admin call
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    let isAuthorized = false;
+
+    if (authHeader) {
+      // Check if it's the anon key (cron job) - extract token from "Bearer <token>"
+      const token = authHeader.replace("Bearer ", "");
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+      
+      if (token === anonKey) {
+        // Cron job call - authorized
+        console.log("Scan triggered by cron job");
+        isAuthorized = true;
+      } else {
+        // User call - verify admin role
+        const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+          global: { headers: { Authorization: authHeader } }
+        });
+        
+        const { data: { user }, error: authError } = await userClient.auth.getUser();
+        if (user && !authError) {
+          const { data: roleData } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .eq("role", "admin")
+            .maybeSingle();
+
+          if (roleData) {
+            console.log("Scan triggered by admin user:", user.id);
+            isAuthorized = true;
+          }
+        }
+      }
+    }
+
+    if (!isAuthorized) {
       return new Response(
         JSON.stringify({ error: "Authorization required" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
-      global: { headers: { Authorization: authHeader } }
-    });
-    
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Invalid authorization" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check admin role
-    const { data: roleData } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    if (!roleData) {
-      return new Response(
-        JSON.stringify({ error: "Admin access required" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -140,6 +147,7 @@ serve(async (req) => {
     const apiKey = settings?.find(s => s.setting_key === "jellyfin_api_key")?.setting_value;
 
     if (!jellyfinUrl || !apiKey) {
+      console.error("Jellyfin not configured");
       return new Response(
         JSON.stringify({ error: "Jellyfin not configured" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -154,6 +162,7 @@ serve(async (req) => {
     const jellyfinUserId = users[0]?.Id;
 
     if (!jellyfinUserId) {
+      console.error("No Jellyfin users found");
       return new Response(
         JSON.stringify({ error: "No Jellyfin users found" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -238,15 +247,23 @@ serve(async (req) => {
     }
 
     // Update scan schedule with results
-    await supabase
+    const { data: scheduleData } = await supabase
       .from("scan_schedule")
-      .update({
-        last_run_at: new Date().toISOString(),
-        last_run_status: "completed",
-        last_run_items_scanned: totalScanned,
-        last_run_issues_found: issuesFound,
-      })
-      .eq("id", (await supabase.from("scan_schedule").select("id").limit(1).single()).data?.id);
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (scheduleData) {
+      await supabase
+        .from("scan_schedule")
+        .update({
+          last_run_at: new Date().toISOString(),
+          last_run_status: "completed",
+          last_run_items_scanned: totalScanned,
+          last_run_issues_found: issuesFound,
+        })
+        .eq("id", scheduleData.id);
+    }
 
     console.log(`Scan complete: ${totalScanned} items scanned, ${issuesFound} issues found`);
 
@@ -261,6 +278,32 @@ serve(async (req) => {
 
   } catch (error) {
     console.error("Scan error:", error);
+    
+    // Update schedule with error status
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      const { data: scheduleData } = await supabase
+        .from("scan_schedule")
+        .select("id")
+        .limit(1)
+        .single();
+
+      if (scheduleData) {
+        await supabase
+          .from("scan_schedule")
+          .update({
+            last_run_at: new Date().toISOString(),
+            last_run_status: `error: ${error instanceof Error ? error.message : "Unknown error"}`,
+          })
+          .eq("id", scheduleData.id);
+      }
+    } catch (e) {
+      console.error("Failed to update schedule status:", e);
+    }
+
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
