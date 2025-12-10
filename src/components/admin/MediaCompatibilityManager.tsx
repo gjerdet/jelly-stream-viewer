@@ -118,6 +118,15 @@ export const MediaCompatibilityManager = () => {
 
   const isScanning = scanSchedule?.scan_status === "running";
 
+  // Refresh data when scan completes (status changes from running to idle)
+  useEffect(() => {
+    if (scanSchedule?.scan_status === "idle" && scanSchedule.last_run_status) {
+      // Invalidate queries to refresh data after scan completes
+      queryClient.invalidateQueries({ queryKey: ["media-compatibility"] });
+      queryClient.invalidateQueries({ queryKey: ["media-compatibility-stats"] });
+    }
+  }, [scanSchedule?.scan_status, scanSchedule?.last_run_at, queryClient]);
+
   // Fetch compatibility issues
   const { data: compatibilityItems, isLoading } = useQuery({
     queryKey: ["media-compatibility", filterStatus, searchTerm],
