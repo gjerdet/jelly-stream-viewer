@@ -23,6 +23,7 @@ import { SystemLogs } from "@/components/SystemLogs";
 import { MediaLibraryOverview } from "@/components/MediaLibraryOverview";
 import { BazarrDashboard } from "@/components/admin/BazarrDashboard";
 import { MediaCompatibilityManager } from "@/components/admin/MediaCompatibilityManager";
+import { TranscodeJobsDashboard } from "@/components/admin/TranscodeJobsDashboard";
 import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
 import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1739,6 +1740,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="compatibility" className="space-y-6 mt-0">
                 <MediaCompatibilityManager />
+                <TranscodeJobsDashboard />
               </TabsContent>
 
               <TabsContent value="reports" className="space-y-6 mt-0">
