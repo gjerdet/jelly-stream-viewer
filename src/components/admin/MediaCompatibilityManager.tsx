@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +18,8 @@ import {
   Tv,
   Search,
   Check,
-  X
+  X,
+  Loader2
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -51,6 +52,7 @@ interface ScanSchedule {
   last_run_status: string | null;
   last_run_items_scanned: number | null;
   last_run_issues_found: number | null;
+  scan_status: string;
 }
 
 type ScheduleFrequency = "daily" | "weekly" | "monthly" | "off";
@@ -94,7 +96,7 @@ export const MediaCompatibilityManager = () => {
   const [scheduleDayOfWeek, setScheduleDayOfWeek] = useState(0);
   const [scheduleDayOfMonth, setScheduleDayOfMonth] = useState(1);
 
-  // Fetch scan schedule
+  // Fetch scan schedule - poll every 3 seconds while scan is running
   const { data: scanSchedule, error: scheduleError, isLoading: scheduleLoading } = useQuery({
     queryKey: ["scan-schedule"],
     queryFn: async () => {
@@ -107,7 +109,14 @@ export const MediaCompatibilityManager = () => {
       if (error) throw error;
       return data as ScanSchedule | null;
     },
+    refetchInterval: (query) => {
+      // Poll every 3 seconds while scan is running
+      const data = query.state.data as ScanSchedule | null;
+      return data?.scan_status === "running" ? 3000 : false;
+    },
   });
+
+  const isScanning = scanSchedule?.scan_status === "running";
 
   // Fetch compatibility issues
   const { data: compatibilityItems, isLoading } = useQuery({
@@ -158,17 +167,25 @@ export const MediaCompatibilityManager = () => {
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke("scan-media-compatibility");
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (data?.error) {
+        if (data.alreadyRunning) {
+          throw new Error("En skanning kjører allerede");
+        }
+        throw new Error(data.error);
+      }
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Skanning fullført! ${data.itemsScanned} elementer skannet, ${data.issuesFound} problemer funnet.`);
-      queryClient.invalidateQueries({ queryKey: ["media-compatibility"] });
-      queryClient.invalidateQueries({ queryKey: ["media-compatibility-stats"] });
+      if (data.started) {
+        toast.success("Skanning startet i bakgrunnen");
+      } else {
+        toast.success(`Skanning fullført! ${data.itemsScanned || 0} elementer skannet.`);
+      }
       queryClient.invalidateQueries({ queryKey: ["scan-schedule"] });
     },
     onError: (error) => {
       toast.error(`Skanning feilet: ${error.message}`);
+      queryClient.invalidateQueries({ queryKey: ["scan-schedule"] });
     },
   });
 
@@ -466,13 +483,18 @@ export const MediaCompatibilityManager = () => {
           <div className="flex items-center gap-4 pt-2 border-t border-border/50">
             <Button 
               onClick={() => runScan.mutate()}
-              disabled={runScan.isPending}
+              disabled={runScan.isPending || isScanning}
               className="gap-2"
             >
-              {runScan.isPending ? (
+              {isScanning ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Skanner i bakgrunnen...
+                </>
+              ) : runScan.isPending ? (
                 <>
                   <RefreshCw className="h-4 w-4 animate-spin" />
-                  Skanner...
+                  Starter...
                 </>
               ) : (
                 <>

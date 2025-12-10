@@ -280,6 +280,7 @@ export type Database = {
           last_run_items_scanned: number | null
           last_run_status: string | null
           next_run_at: string | null
+          scan_status: string
           updated_at: string
         }
         Insert: {
@@ -292,6 +293,7 @@ export type Database = {
           last_run_items_scanned?: number | null
           last_run_status?: string | null
           next_run_at?: string | null
+          scan_status?: string
           updated_at?: string
         }
         Update: {
@@ -304,6 +306,7 @@ export type Database = {
           last_run_items_scanned?: number | null
           last_run_status?: string | null
           next_run_at?: string | null
+          scan_status?: string
           updated_at?: string
         }
         Relationships: []
