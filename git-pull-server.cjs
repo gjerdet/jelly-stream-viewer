@@ -225,9 +225,20 @@ function execCommand(command, cwd, logs) {
  */
 async function executeGitPull(updateId) {
   const logs = [];
+  const envPath = path.join(APP_DIR, '.env');
+  const envBackupPath = path.join(APP_DIR, '.env.backup');
   
   try {
     addLog(logs, '🚀 Starting update process...', 'info');
+    await updateStatus(updateId, 'running', 5, 'Backing up .env...', logs);
+
+    // Step 0: Backup .env file
+    if (fs.existsSync(envPath)) {
+      addLog(logs, '💾 Backing up .env file...', 'info');
+      fs.copyFileSync(envPath, envBackupPath);
+      addLog(logs, '✅ .env backed up successfully', 'success');
+    }
+
     await updateStatus(updateId, 'running', 10, 'Stashing changes...', logs);
 
     // Step 1: Git stash
@@ -238,6 +249,13 @@ async function executeGitPull(updateId) {
     // Step 2: Git pull
     addLog(logs, '⬇️ Pulling latest changes from GitHub...', 'info');
     await execCommand('git pull origin main', APP_DIR, logs);
+
+    // Step 2.5: Restore .env file immediately after git pull
+    if (fs.existsSync(envBackupPath)) {
+      addLog(logs, '🔄 Restoring .env file...', 'info');
+      fs.copyFileSync(envBackupPath, envPath);
+      addLog(logs, '✅ .env restored successfully', 'success');
+    }
     await updateStatus(updateId, 'running', 40, 'Getting commit SHA...', logs);
 
     // Step 3: Get new commit SHA
@@ -301,8 +319,24 @@ async function executeGitPull(updateId) {
     addLog(logs, '✅ Update completed successfully!', 'success');
     await updateStatus(updateId, 'completed', 100, 'Update completed', logs);
 
+    // Cleanup backup file
+    if (fs.existsSync(envBackupPath)) {
+      fs.unlinkSync(envBackupPath);
+      addLog(logs, '🧹 Cleaned up .env backup', 'info');
+    }
+
     return { success: true };
   } catch (error) {
+    // Restore .env on failure
+    if (fs.existsSync(envBackupPath)) {
+      try {
+        fs.copyFileSync(envBackupPath, envPath);
+        addLog(logs, '🔄 Restored .env from backup after failure', 'warning');
+        fs.unlinkSync(envBackupPath);
+      } catch (restoreErr) {
+        addLog(logs, `⚠️ Failed to restore .env: ${restoreErr.message}`, 'error');
+      }
+    }
     addLog(logs, `❌ Update failed: ${error.message}`, 'error');
     await updateStatus(updateId, 'failed', 0, 'Update failed', logs, error.message);
     return { success: false, error: error.message };
