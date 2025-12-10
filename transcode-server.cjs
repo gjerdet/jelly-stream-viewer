@@ -5,29 +5,21 @@
  * 
  * This server POLLS for transcode jobs from Supabase and executes HandBrakeCLI.
  * No incoming HTTP needed - works behind firewalls/NAT.
- * 
- * Requirements:
- * - HandBrakeCLI installed (sudo apt install handbrake-cli)
- * - Access to media files (NAS mount)
- * 
- * Setup:
- * 1. Install HandBrakeCLI: sudo apt install handbrake-cli
- * 2. Configure settings in server_settings table
- * 3. Run: node transcode-server.cjs
- * 4. Or use systemd service (see setup-transcode-service.sh)
  */
 
 const http = require('http');
+const https = require('https');
 const { spawn, exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const { URL } = require('url');
 
 const PORT = process.env.TRANSCODE_PORT || 3003;
 const HOST = process.env.TRANSCODE_HOST || '0.0.0.0';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 10000; // 10 seconds
+const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 10000;
 
 // Active jobs tracker
 const activeJobs = new Map();
@@ -41,13 +33,52 @@ console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'
 console.log(`📂 Media base path: ${mediaBasePath}`);
 
 /**
+ * Simple HTTP request helper (works without fetch)
+ */
+function httpRequest(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(url);
+    const isHttps = parsedUrl.protocol === 'https:';
+    const lib = isHttps ? https : http;
+    
+    const reqOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: options.method || 'GET',
+      headers: options.headers || {}
+    };
+
+    const req = lib.request(reqOptions, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          json: () => Promise.resolve(JSON.parse(data)),
+          text: () => Promise.resolve(data)
+        });
+      });
+    });
+
+    req.on('error', reject);
+    
+    if (options.body) {
+      req.write(options.body);
+    }
+    req.end();
+  });
+}
+
+/**
  * Fetch settings from Supabase
  */
 async function fetchSettings() {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
   
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/server_settings?select=setting_key,setting_value`, {
+    const res = await httpRequest(`${SUPABASE_URL}/rest/v1/server_settings?select=setting_key,setting_value`, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`
@@ -62,6 +93,7 @@ async function fetchSettings() {
         if (s.setting_key === 'jellyfin_api_key') jellyfinApiKey = s.setting_value;
       }
       console.log(`📂 Media base path updated: ${mediaBasePath}`);
+      console.log(`🎬 Jellyfin URL: ${jellyfinServerUrl ? 'Configured' : 'Not configured'}`);
     }
   } catch (err) {
     console.error('Failed to fetch settings:', err.message);
@@ -92,7 +124,7 @@ async function updateJobStatus(jobId, status, progress, logs = [], error = null)
       body.error = error;
     }
 
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}`, {
+    const res = await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -122,7 +154,7 @@ async function updateJobStatus(jobId, status, progress, logs = [], error = null)
 async function markMediaCompatible(jobId) {
   try {
     // Get the jellyfin_item_id from the job
-    const jobRes = await fetch(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}&select=jellyfin_item_id`, {
+    const jobRes = await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}&select=jellyfin_item_id`, {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`
@@ -136,7 +168,7 @@ async function markMediaCompatible(jobId) {
     const jellyfinItemId = jobs[0].jellyfin_item_id;
     
     // Update media_compatibility
-    await fetch(`${SUPABASE_URL}/rest/v1/media_compatibility?jellyfin_item_id=eq.${jellyfinItemId}`, {
+    await httpRequest(`${SUPABASE_URL}/rest/v1/media_compatibility?jellyfin_item_id=eq.${jellyfinItemId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -165,7 +197,7 @@ async function getFilePathFromJellyfin(jellyfinItemId) {
     throw new Error('Jellyfin not configured');
   }
 
-  const res = await fetch(`${jellyfinServerUrl}/Items/${jellyfinItemId}?api_key=${jellyfinApiKey}`);
+  const res = await httpRequest(`${jellyfinServerUrl}/Items/${jellyfinItemId}?api_key=${jellyfinApiKey}`);
   if (!res.ok) {
     throw new Error(`Jellyfin API error: ${res.status}`);
   }
@@ -207,7 +239,7 @@ async function pollForJobs() {
   isPolling = true;
 
   try {
-    const res = await fetch(
+    const res = await httpRequest(
       `${SUPABASE_URL}/rest/v1/transcode_jobs?status=eq.pending&order=created_at.asc&limit=1`,
       {
         headers: {
@@ -239,7 +271,7 @@ async function pollForJobs() {
         try {
           filePath = await getFilePathFromJellyfin(job.jellyfin_item_id);
           // Store the path for future reference
-          await fetch(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${job.id}`, {
+          await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${job.id}`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
