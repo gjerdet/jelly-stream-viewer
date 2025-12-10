@@ -242,48 +242,59 @@ export const MediaCompatibilityManager = () => {
     },
   });
 
-  // Check transcode server health
-  const { data: transcodeHealth } = useQuery({
-    queryKey: ["transcode-health"],
+  // Check for active transcode jobs (polling architecture - server picks up jobs from DB)
+  const { data: activeTranscodeJobs } = useQuery({
+    queryKey: ["transcode-jobs-active"],
     queryFn: async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("transcode-proxy", {
-          body: { action: "health" }
-        });
-        if (error) return { status: "error", message: error.message };
-        return data;
-      } catch {
-        return { status: "error", message: "Cannot reach transcode server" };
-      }
+      const { data, error } = await supabase
+        .from("transcode_jobs")
+        .select("*")
+        .in("status", ["pending", "processing"])
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
-    refetchInterval: 30000, // Check every 30 seconds
+    refetchInterval: 5000, // Poll every 5 seconds
   });
 
-  const transcodeServerAvailable = transcodeHealth?.status === "ok" && transcodeHealth?.handbrakeAvailable;
-
-  // Start transcode job
+  // Start transcode job - creates job in DB, server polls and picks it up
   const startTranscode = useMutation({
     mutationFn: async ({ jellyfinItemId, jellyfinItemName }: { jellyfinItemId: string; jellyfinItemName: string }) => {
-      const { data, error } = await supabase.functions.invoke("transcode-proxy", {
-        body: { 
-          action: "start",
-          jellyfinItemId,
-          jellyfinItemName,
-          outputFormat: "hevc"
-        }
-      });
+      // Check if job already exists for this item
+      const { data: existingJob } = await supabase
+        .from("transcode_jobs")
+        .select("id, status")
+        .eq("jellyfin_item_id", jellyfinItemId)
+        .in("status", ["pending", "processing"])
+        .maybeSingle();
+      
+      if (existingJob) {
+        throw new Error("En omkodingsjobb kjører allerede for dette elementet");
+      }
+
+      // Create job - transcode server will poll and pick it up
+      const { data, error } = await supabase
+        .from("transcode_jobs")
+        .insert({
+          jellyfin_item_id: jellyfinItemId,
+          jellyfin_item_name: jellyfinItemName,
+          output_format: "hevc",
+          status: "pending"
+        })
+        .select()
+        .single();
+      
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: (data) => {
-      toast.success("Omkoding startet!", {
-        description: `Jobb-ID: ${data.jobId?.slice(0, 8)}...`
+      toast.success("Omkodingsjobb opprettet!", {
+        description: "Serveren vil starte jobben automatisk"
       });
-      queryClient.invalidateQueries({ queryKey: ["transcode-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs-active"] });
     },
     onError: (error) => {
-      toast.error("Kunne ikke starte omkoding", {
+      toast.error("Kunne ikke opprette jobb", {
         description: error.message
       });
     },
@@ -697,8 +708,8 @@ export const MediaCompatibilityManager = () => {
                               jellyfinItemId: item.jellyfin_item_id,
                               jellyfinItemName: item.jellyfin_item_name
                             })}
-                            disabled={!transcodeServerAvailable || startTranscode.isPending}
-                            title={!transcodeServerAvailable ? "Transcode-server ikke tilgjengelig" : "Start omkoding til H.265"}
+                            disabled={startTranscode.isPending || activeTranscodeJobs?.some(j => j.jellyfin_item_id === item.jellyfin_item_id)}
+                            title={activeTranscodeJobs?.some(j => j.jellyfin_item_id === item.jellyfin_item_id) ? "Jobb kjører allerede" : "Start omkoding til H.265"}
                           >
                             {startTranscode.isPending ? (
                               <Loader2 className="h-4 w-4 mr-1 animate-spin" />

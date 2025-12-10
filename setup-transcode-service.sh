@@ -80,7 +80,7 @@ echo -e "${YELLOW}Creating systemd service...${NC}"
 
 cat > /etc/systemd/system/jelly-transcode.service << EOF
 [Unit]
-Description=Jelly Stream Transcode Server
+Description=Jelly Stream Transcode Server (Polling)
 After=network.target
 
 [Service]
@@ -89,9 +89,10 @@ User=${RUN_USER}
 WorkingDirectory=${APP_DIR}
 Environment=TRANSCODE_PORT=3003
 Environment=TRANSCODE_HOST=0.0.0.0
-Environment=TRANSCODE_SECRET=${TRANSCODE_SECRET}
 Environment=SUPABASE_URL=${SUPABASE_URL}
 Environment=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+Environment=MEDIA_BASE_PATH=${MEDIA_BASE_PATH}
+Environment=POLL_INTERVAL=10000
 ExecStart=${NODE_PATH} ${APP_DIR}/transcode-server.cjs
 Restart=always
 RestartSec=10
