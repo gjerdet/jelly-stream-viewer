@@ -39,20 +39,30 @@ function verifySignature(payload, signature, secret) {
 
 /**
  * Execute git pull and related commands
+ * Preserves .env file across updates
  */
 function executeGitPull(callback) {
+  // Backup .env, do git pull, restore .env, then build
   const commands = [
+    // Backup .env if it exists
+    'if [ -f .env ]; then cp .env .env.backup; fi',
     'git stash',
     'git pull origin main',
+    // Restore .env from backup
+    'if [ -f .env.backup ]; then cp .env.backup .env; fi',
     'npm install --production',
-    'npm run build'
+    'npm run build',
+    // Clean up backup
+    'rm -f .env.backup'
   ].join(' && ');
 
-  console.log('⚙️  Executing update commands...');
+  console.log('⚙️  Executing update commands (preserving .env)...');
   
   exec(commands, { cwd: APP_DIR }, (error, stdout, stderr) => {
     if (error) {
       console.error('❌ Update failed:', error.message);
+      // Try to restore .env on failure
+      exec('if [ -f .env.backup ]; then cp .env.backup .env; fi', { cwd: APP_DIR });
       callback({ success: false, error: error.message, stderr });
       return;
     }
