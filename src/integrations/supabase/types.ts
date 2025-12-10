@@ -359,6 +359,57 @@ export type Database = {
         }
         Relationships: []
       }
+      transcode_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error: string | null
+          file_path: string | null
+          id: string
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          logs: Json | null
+          output_format: string
+          progress: number
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_path?: string | null
+          id?: string
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          logs?: Json | null
+          output_format?: string
+          progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error?: string | null
+          file_path?: string | null
+          id?: string
+          jellyfin_item_id?: string
+          jellyfin_item_name?: string
+          logs?: Json | null
+          output_format?: string
+          progress?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       update_status: {
         Row: {
           completed_at: string | null
