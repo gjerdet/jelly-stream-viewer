@@ -226,7 +226,7 @@ async function updateDatabaseVersion(commitSha) {
   });
 }
 
-// Update function
+// Update function - preserves .env file across updates
 async function performUpdate() {
   log('Starting update process...');
   
@@ -235,10 +235,28 @@ async function performUpdate() {
     await setupNginxWebhook();
     await setupUpdateServerService();
     
+    // Step 0.5: Backup .env file before git pull
+    log('Backing up .env file...');
+    try {
+      await execAsync('if [ -f .env ]; then cp .env .env.backup; fi', { cwd: APP_DIR });
+      log('.env backed up successfully');
+    } catch (backupError) {
+      log('Warning: Could not backup .env:', backupError.message);
+    }
+    
     // Step 1: Git pull
     log('Pulling latest changes from GitHub...');
     const { stdout: gitOutput } = await execAsync('git pull', { cwd: APP_DIR });
     log('Git output:', gitOutput);
+    
+    // Step 1.5: Restore .env file after git pull
+    log('Restoring .env file...');
+    try {
+      await execAsync('if [ -f .env.backup ]; then cp .env.backup .env; fi', { cwd: APP_DIR });
+      log('.env restored successfully');
+    } catch (restoreError) {
+      log('Warning: Could not restore .env:', restoreError.message);
+    }
     
     // Step 2: Install dependencies
     log('Installing dependencies...');
@@ -263,6 +281,13 @@ async function performUpdate() {
     const { stdout: restartOutput } = await execAsync(RESTART_COMMAND, { cwd: APP_DIR });
     log('Restart output:', restartOutput);
     
+    // Step 6: Clean up backup
+    try {
+      await execAsync('rm -f .env.backup', { cwd: APP_DIR });
+    } catch (cleanupError) {
+      // Ignore cleanup errors
+    }
+    
     log('Update completed successfully!');
     
     return {
@@ -273,6 +298,13 @@ async function performUpdate() {
     
   } catch (error) {
     log('Update failed:', error);
+    // Try to restore .env on failure
+    try {
+      await execAsync('if [ -f .env.backup ]; then cp .env.backup .env; fi', { cwd: APP_DIR });
+      log('.env restored after failure');
+    } catch (restoreError) {
+      // Ignore restore errors
+    }
     throw error;
   }
 }
