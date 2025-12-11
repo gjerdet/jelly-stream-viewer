@@ -25,10 +25,11 @@ const activeJobs = new Map();
 let isPolling = false;
 let mediaBasePath = process.env.MEDIA_BASE_PATH || '/mnt/truenas';
 
-console.log('🎬 HandBrake Transcode Server starting...');
+console.log('🎬 HandBrake Transcode Server starting... (v2 - with NAS prefix strip)');
 console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'}`);
 console.log(`🔑 Transcode Secret: ${TRANSCODE_SECRET ? 'Configured' : 'Not configured'}`);
 console.log(`📂 Media base path: ${mediaBasePath}`);
+console.log(`📂 Prefixes to strip: /NAS, /media, /mnt/media, /data/media, /srv/media, /data`);
 
 /**
  * Simple HTTP request helper (works without fetch)
@@ -128,22 +129,29 @@ async function getFilePathFromJellyfin(jellyfinItemId) {
     }
     
     const jellyfinPath = result.path;
+    console.log(`📁 Raw Jellyfin path: ${jellyfinPath}`);
     
     // Convert Jellyfin path to local path
     // Jellyfin might use different mount paths than the host system
     const prefixesToStrip = ['/NAS', '/media', '/mnt/media', '/data/media', '/srv/media', '/data'];
     let relativePath = jellyfinPath;
+    let strippedPrefix = null;
     
     for (const prefix of prefixesToStrip) {
       if (jellyfinPath.startsWith(prefix)) {
         relativePath = jellyfinPath.substring(prefix.length);
+        strippedPrefix = prefix;
+        console.log(`📁 Stripped prefix '${prefix}' -> relative: ${relativePath}`);
         break;
       }
     }
     
+    if (!strippedPrefix) {
+      console.log(`📁 No prefix matched, using path as-is: ${relativePath}`);
+    }
+    
     const localPath = path.join(mediaBasePath, relativePath);
-    console.log(`📁 Jellyfin path: ${jellyfinPath}`);
-    console.log(`📁 Local path: ${localPath}`);
+    console.log(`📁 Final local path: ${localPath} (base: ${mediaBasePath})`);
     
     return localPath;
   } catch (err) {
