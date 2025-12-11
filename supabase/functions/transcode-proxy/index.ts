@@ -114,8 +114,22 @@ Deno.serve(async (req) => {
       
       if (jellyfinUrl && jellyfinApiKey && jellyfinItemId) {
         try {
-          const itemUrl = `${jellyfinUrl}/Items/${jellyfinItemId}?api_key=${jellyfinApiKey}`
-          const itemRes = await fetch(itemUrl)
+          const itemUrl = `${jellyfinUrl}/Items/${jellyfinItemId}`
+          console.log('Fetching item from Jellyfin:', itemUrl)
+          
+          const itemRes = await fetch(itemUrl, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
+            }
+          })
+          
+          if (!itemRes.ok) {
+            const errorText = await itemRes.text()
+            console.error('Jellyfin API error:', itemRes.status, errorText)
+            throw new Error(`Jellyfin API error: ${itemRes.status}`)
+          }
+          
           const item = await itemRes.json()
           filePath = item.Path || ''
           
