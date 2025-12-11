@@ -25,7 +25,7 @@ const activeJobs = new Map();
 let isPolling = false;
 let mediaBasePath = process.env.MEDIA_BASE_PATH || '/mnt/truenas';
 
-console.log('🎬 HandBrake Transcode Server starting... (v4 - improved error handling)');
+console.log('🎬 HandBrake Transcode Server starting... (v5 - detailed progress logging)');
 console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'}`);
 console.log(`🔑 Transcode Secret: ${TRANSCODE_SECRET ? 'Configured' : 'Not configured'}`);
 console.log(`📂 Media base path: ${mediaBasePath}`);
@@ -302,12 +302,27 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
 
     let lastProgress = 10;
 
+    // Track last logged progress to avoid spamming logs
+    let lastLoggedProgress = 0;
+    
     handbrake.stdout.on('data', (data) => {
       const output = data.toString();
       console.log(`[STDOUT] ${output.trim()}`);
       const progress = parseProgress(output);
       if (progress !== null && progress > lastProgress) {
         lastProgress = Math.min(progress * 0.8 + 10, 90);
+        
+        // Log progress every 5% increment
+        if (Math.floor(progress / 5) > Math.floor(lastLoggedProgress / 5)) {
+          // Extract ETA and fps from output
+          const etaMatch = output.match(/ETA\s+([\dhms]+)/);
+          const fpsMatch = output.match(/avg\s+([\d.]+)\s*fps/);
+          const eta = etaMatch ? etaMatch[1] : 'ukjent';
+          const fps = fpsMatch ? fpsMatch[1] : 'ukjent';
+          addLog(`Encoding: ${progress.toFixed(1)}% ferdig (${fps} fps, ETA: ${eta})`, 'info');
+          lastLoggedProgress = progress;
+        }
+        
         updateJobStatus(jobId, 'processing', Math.round(lastProgress), logs);
       }
     });
@@ -317,6 +332,17 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
       const progress = parseProgress(output);
       if (progress !== null && progress > lastProgress) {
         lastProgress = Math.min(progress * 0.8 + 10, 90);
+        
+        // Log progress every 5% increment
+        if (Math.floor(progress / 5) > Math.floor(lastLoggedProgress / 5)) {
+          const etaMatch = output.match(/ETA\s+([\dhms]+)/);
+          const fpsMatch = output.match(/avg\s+([\d.]+)\s*fps/);
+          const eta = etaMatch ? etaMatch[1] : 'ukjent';
+          const fps = fpsMatch ? fpsMatch[1] : 'ukjent';
+          addLog(`Encoding: ${progress.toFixed(1)}% ferdig (${fps} fps, ETA: ${eta})`, 'info');
+          lastLoggedProgress = progress;
+        }
+        
         updateJobStatus(jobId, 'processing', Math.round(lastProgress), logs);
       }
       // Filter out UDF/disc detection warnings - these are not actual errors
@@ -328,10 +354,6 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
         addLog(output.trim(), 'error');
       } else if (isDiscWarning) {
         console.log(`[WARN] Disc detection warning (ignoring): ${output.trim()}`);
-      }
-      // Also capture actual encoding progress and info
-      if (output.includes('Encoding:') || output.includes('task 1 of 1')) {
-        console.log(`[HANDBRAKE] ${output.trim()}`);
       }
     });
 
