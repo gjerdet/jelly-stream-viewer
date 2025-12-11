@@ -548,17 +548,19 @@ const Detail = () => {
                   Spill av
                 </Button>
 
-                {/* Chromecast Button */}
-                <Button
-                  variant={castState.isConnected ? "default" : "secondary"}
-                  size="lg"
-                  onClick={handleCastClick}
-                  className="gap-2"
-                  title={castState.isConnected ? "Koblet til Chromecast" : "Koble til Chromecast"}
-                >
-                  <Cast className="h-5 w-5" />
-                  {castState.isConnected ? "Koblet til" : "Cast"}
-                </Button>
+                {/* Chromecast Button - only show when available */}
+                {castState.isAvailable && (
+                  <Button
+                    variant={castState.isConnected ? "default" : "secondary"}
+                    size="lg"
+                    onClick={handleCastClick}
+                    className="gap-2"
+                    title={castState.isConnected ? "Koblet til Chromecast" : "Koble til Chromecast"}
+                  >
+                    <Cast className="h-5 w-5" />
+                    {castState.isConnected ? "Koblet til" : "Cast"}
+                  </Button>
+                )}
                 <Button 
                   size="lg" 
                   variant={isFavorite ? "default" : "outline"}
