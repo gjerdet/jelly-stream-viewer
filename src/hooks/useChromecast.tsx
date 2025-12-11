@@ -162,7 +162,7 @@ export const useChromecast = () => {
 
   const requestSession = useCallback(async () => {
     if (!castContext) {
-      console.warn('[Chromecast] requestSession called but context not initialized');
+      // Silently return if cast not available - this is expected in non-Chrome browsers
       return;
     }
     
