@@ -25,7 +25,7 @@ const activeJobs = new Map();
 let isPolling = false;
 let mediaBasePath = process.env.MEDIA_BASE_PATH || '/mnt/truenas';
 
-console.log('🎬 HandBrake Transcode Server starting... (v3 - with --no-dvdnav fix)');
+console.log('🎬 HandBrake Transcode Server starting... (v4 - improved error handling)');
 console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'}`);
 console.log(`🔑 Transcode Secret: ${TRANSCODE_SECRET ? 'Configured' : 'Not configured'}`);
 console.log(`📂 Media base path: ${mediaBasePath}`);
@@ -304,6 +304,7 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
 
     handbrake.stdout.on('data', (data) => {
       const output = data.toString();
+      console.log(`[STDOUT] ${output.trim()}`);
       const progress = parseProgress(output);
       if (progress !== null && progress > lastProgress) {
         lastProgress = Math.min(progress * 0.8 + 10, 90);
@@ -318,8 +319,19 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
         lastProgress = Math.min(progress * 0.8 + 10, 90);
         updateJobStatus(jobId, 'processing', Math.round(lastProgress), logs);
       }
-      if (output.includes('ERROR') || output.includes('error')) {
+      // Filter out UDF/disc detection warnings - these are not actual errors
+      const isDiscWarning = output.includes('udfread') || 
+                           output.includes('disc.c:') || 
+                           output.includes('BDMV') ||
+                           output.includes('bluray.c:');
+      if (!isDiscWarning && (output.includes('ERROR') || output.includes('error'))) {
         addLog(output.trim(), 'error');
+      } else if (isDiscWarning) {
+        console.log(`[WARN] Disc detection warning (ignoring): ${output.trim()}`);
+      }
+      // Also capture actual encoding progress and info
+      if (output.includes('Encoding:') || output.includes('task 1 of 1')) {
+        console.log(`[HANDBRAKE] ${output.trim()}`);
       }
     });
 
@@ -327,13 +339,17 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
     await new Promise((resolve, reject) => {
       handbrake.on('close', (code) => {
         activeJobs.delete(jobId);
+        console.log(`[INFO] HandBrakeCLI exited with code: ${code}`);
         if (code === 0) {
           resolve();
         } else {
           reject(new Error(`HandBrakeCLI exited with code ${code}`));
         }
       });
-      handbrake.on('error', reject);
+      handbrake.on('error', (err) => {
+        console.log(`[ERROR] HandBrake process error: ${err.message}`);
+        reject(err);
+      });
     });
 
     addLog('Transcoding complete, verifying output...', 'success');
