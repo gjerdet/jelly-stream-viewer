@@ -130,7 +130,8 @@ async function getFilePathFromJellyfin(jellyfinItemId) {
     const jellyfinPath = result.path;
     
     // Convert Jellyfin path to local path
-    const prefixesToStrip = ['/media', '/mnt/media', '/data/media', '/srv/media'];
+    // Jellyfin might use different mount paths than the host system
+    const prefixesToStrip = ['/NAS', '/media', '/mnt/media', '/data/media', '/srv/media', '/data'];
     let relativePath = jellyfinPath;
     
     for (const prefix of prefixesToStrip) {
