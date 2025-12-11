@@ -4,31 +4,64 @@ interface CastSdkState {
   isLoaded: boolean;
   isAvailable: boolean;
   loadPromise: Promise<boolean> | null;
+  resolvers: ((value: boolean) => void)[];
 }
 
 declare global {
   interface Window {
     __castSdkState?: CastSdkState;
     __onGCastApiAvailable?: (isAvailable: boolean) => void;
+    chrome?: {
+      cast?: {
+        isAvailable?: boolean;
+        framework?: any;
+      };
+    };
   }
 }
 
-// Initialize global state
-if (typeof window !== 'undefined' && !window.__castSdkState) {
-  window.__castSdkState = {
-    isLoaded: false,
-    isAvailable: false,
-    loadPromise: null,
-  };
+// Check if cast is already available (SDK loaded before our code ran)
+const checkExistingCast = (): boolean => {
+  const cast = window.chrome?.cast;
+  if (cast && (cast.isAvailable || cast.framework)) {
+    console.log('[CastSDK] Found existing Cast SDK');
+    return true;
+  }
+  return false;
+};
 
-  // Set up the callback immediately
+// Initialize global state immediately
+if (typeof window !== 'undefined') {
+  // Check if SDK already loaded before our code
+  const alreadyAvailable = checkExistingCast();
+  
+  if (!window.__castSdkState) {
+    window.__castSdkState = {
+      isLoaded: alreadyAvailable,
+      isAvailable: alreadyAvailable,
+      loadPromise: null,
+      resolvers: [],
+    };
+  }
+
+  // Set up the callback - this might be called by SDK or might have already been called
+  const existingCallback = window.__onGCastApiAvailable;
   window.__onGCastApiAvailable = (isAvailable: boolean) => {
     console.log('[CastSDK] __onGCastApiAvailable called, isAvailable:', isAvailable);
     if (window.__castSdkState) {
       window.__castSdkState.isLoaded = true;
       window.__castSdkState.isAvailable = isAvailable;
+      // Resolve all pending promises
+      window.__castSdkState.resolvers.forEach(resolve => resolve(isAvailable));
+      window.__castSdkState.resolvers = [];
     }
+    existingCallback?.(isAvailable);
   };
+  
+  // If SDK was already available, trigger the callback manually
+  if (alreadyAvailable && !window.__castSdkState.isLoaded) {
+    window.__onGCastApiAvailable(true);
+  }
 }
 
 export const waitForCastSdk = (): Promise<boolean> => {
@@ -45,10 +78,9 @@ export const waitForCastSdk = (): Promise<boolean> => {
       return;
     }
 
-    // Check if chrome.cast is already available (SDK loaded but callback missed)
-    const existingCast = (window as any).chrome?.cast;
-    if (existingCast?.framework) {
-      console.log('[CastSDK] SDK found (framework available)');
+    // Double-check for existing cast (race condition)
+    if (checkExistingCast()) {
+      console.log('[CastSDK] Found Cast SDK on second check');
       if (window.__castSdkState) {
         window.__castSdkState.isLoaded = true;
         window.__castSdkState.isAvailable = true;
@@ -57,37 +89,28 @@ export const waitForCastSdk = (): Promise<boolean> => {
       return;
     }
 
-    // Override the callback to resolve the promise
-    const originalCallback = window.__onGCastApiAvailable;
-    window.__onGCastApiAvailable = (isAvailable: boolean) => {
-      console.log('[CastSDK] Callback received, isAvailable:', isAvailable);
-      if (window.__castSdkState) {
-        window.__castSdkState.isLoaded = true;
-        window.__castSdkState.isAvailable = isAvailable;
-      }
-      originalCallback?.(isAvailable);
-      resolve(isAvailable);
-    };
+    // Add resolver to be called when SDK loads
+    window.__castSdkState?.resolvers.push(resolve);
 
-    // Timeout after 10 seconds
+    // Timeout after 5 seconds (reduced from 10)
     setTimeout(() => {
-      const cast = (window as any).chrome?.cast;
-      if (cast?.framework) {
-        console.log('[CastSDK] SDK found after timeout');
+      // Final check before giving up
+      if (checkExistingCast()) {
+        console.log('[CastSDK] Found Cast SDK before timeout');
         if (window.__castSdkState) {
           window.__castSdkState.isLoaded = true;
           window.__castSdkState.isAvailable = true;
         }
         resolve(true);
       } else {
-        console.warn('[CastSDK] SDK not available after timeout');
+        console.warn('[CastSDK] SDK not available - ensure you are using Chrome/Chromium');
         if (window.__castSdkState) {
           window.__castSdkState.isLoaded = true;
           window.__castSdkState.isAvailable = false;
         }
         resolve(false);
       }
-    }, 10000);
+    }, 5000);
   });
 
   if (window.__castSdkState) {
@@ -98,6 +121,13 @@ export const waitForCastSdk = (): Promise<boolean> => {
 };
 
 export const isCastSdkAvailable = (): boolean => {
+  // Always do a fresh check
+  if (checkExistingCast()) {
+    if (window.__castSdkState) {
+      window.__castSdkState.isAvailable = true;
+    }
+    return true;
+  }
   return window.__castSdkState?.isAvailable ?? false;
 };
 
