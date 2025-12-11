@@ -176,10 +176,15 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const apiUrl = `${jellyfinUrl}/Items/${itemId}?api_key=${jellyfinApiKey}`
-        console.log('Calling Jellyfin API:', apiUrl.replace(jellyfinApiKey, '***'))
+        const apiUrl = `${jellyfinUrl}/Items/${itemId}`
+        console.log('Calling Jellyfin API:', apiUrl)
         
-        const itemRes = await fetch(apiUrl)
+        const itemRes = await fetch(apiUrl, {
+          headers: {
+            'X-Emby-Token': jellyfinApiKey,
+            'Accept': 'application/json'
+          }
+        })
         console.log('Jellyfin response status:', itemRes.status)
         
         if (!itemRes.ok) {
