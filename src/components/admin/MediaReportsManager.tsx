@@ -267,6 +267,12 @@ export const MediaReportsManager = () => {
                             {report.status === "pending" ? "Ventende" : "Løst"}
                           </Badge>
                         </div>
+                        {/* Show user description for "other" category */}
+                        {report.category === "other" && report.admin_notes && (
+                          <p className="text-sm text-muted-foreground mt-2 p-2 bg-secondary/50 rounded border-l-2 border-primary/50 italic">
+                            "{report.admin_notes.replace('Bruker beskrev: ', '')}"
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground mt-1">
                           Rapportert: {format(new Date(report.created_at), "d. MMM yyyy HH:mm", { locale: nb })}
                         </p>
@@ -335,12 +341,22 @@ export const MediaReportsManager = () => {
                 {selectedReport && CATEGORY_CONFIG[selectedReport.category].label}
               </span>
             </div>
+
+            {/* Show user's description for "other" category */}
+            {selectedReport?.category === "other" && selectedReport.admin_notes && (
+              <div className="p-3 bg-secondary/50 rounded-lg border-l-2 border-primary">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Brukerens beskrivelse:</p>
+                <p className="text-sm italic">
+                  "{selectedReport.admin_notes.replace('Bruker beskrev: ', '')}"
+                </p>
+              </div>
+            )}
             
             <div className="space-y-2">
               <label className="text-sm font-medium">Admin-notater (valgfritt)</label>
               <Textarea 
                 placeholder="Beskriv hva som ble gjort for å løse problemet..."
-                value={adminNotes}
+                value={selectedReport?.category === "other" ? "" : adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 className="min-h-[100px]"
               />
