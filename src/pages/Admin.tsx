@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -27,6 +27,7 @@ import { TranscodeJobsDashboard } from "@/components/admin/TranscodeJobsDashboar
 import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
 import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
 import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
+import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -62,6 +63,12 @@ const Admin = () => {
   const [radarrApiKey, setRadarrApiKey] = useState("");
   const [testingRadarr, setTestingRadarr] = useState(false);
   const [radarrStatus, setRadarrStatus] = useState<string | null>(null);
+  
+  // Sonarr settings state
+  const [sonarrUrl, setSonarrUrl] = useState("");
+  const [sonarrApiKey, setSonarrApiKey] = useState("");
+  const [testingSonarr, setTestingSonarr] = useState(false);
+  const [sonarrStatus, setSonarrStatus] = useState<string | null>(null);
   
   // GitHub settings state
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
@@ -293,7 +300,9 @@ const Admin = () => {
           "bazarr_url",
           "bazarr_api_key",
           "radarr_url",
-          "radarr_api_key"
+          "radarr_api_key",
+          "sonarr_url",
+          "sonarr_api_key"
         ]);
       
       data?.forEach(setting => {
@@ -316,6 +325,8 @@ const Admin = () => {
         if (setting.setting_key === "bazarr_api_key") setBazarrApiKey(setting.setting_value || "");
         if (setting.setting_key === "radarr_url") setRadarrUrl(setting.setting_value || "");
         if (setting.setting_key === "radarr_api_key") setRadarrApiKey(setting.setting_value || "");
+        if (setting.setting_key === "sonarr_url") setSonarrUrl(setting.setting_value || "");
+        if (setting.setting_key === "sonarr_api_key") setSonarrApiKey(setting.setting_value || "");
       });
     };
     
@@ -779,7 +790,105 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     }
   };
 
-  // News posts query
+  // Sonarr URL mutation
+  const updateSonarrUrl = useMutation({
+    mutationFn: async (newUrl: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "sonarr_url",
+          setting_value: newUrl,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Sonarr URL oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Sonarr URL");
+    },
+  });
+
+  // Sonarr API key mutation
+  const updateSonarrApiKey = useMutation({
+    mutationFn: async (newApiKey: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "sonarr_api_key",
+          setting_value: newApiKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Sonarr API-nøkkel oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Sonarr API-nøkkel");
+    },
+  });
+
+  // Test Sonarr connection (direct call from browser)
+  const handleTestSonarr = async () => {
+    if (!sonarrUrl.trim() || !sonarrApiKey.trim()) {
+      setSonarrStatus("❌ Sonarr URL og API-nøkkel må være satt");
+      return;
+    }
+
+    setTestingSonarr(true);
+    setSonarrStatus(null);
+
+    try {
+      // Save settings first
+      await updateSonarrUrl.mutateAsync(sonarrUrl.trim());
+      await updateSonarrApiKey.mutateAsync(sonarrApiKey.trim());
+      
+      // Test connection directly from browser
+      const baseUrl = sonarrUrl.trim().replace(/\/$/, '');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${baseUrl}/api/v3/system/status`, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': sonarrApiKey.trim(),
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        setSonarrStatus(`❌ Feil: HTTP ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      setSonarrStatus(`✅ Tilkoblet! Sonarr v${data.version || 'ukjent'}`);
+      toast.success("Sonarr-tilkobling OK!");
+    } catch (error) {
+      console.error('Sonarr test exception:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        setSonarrStatus("❌ Timeout: Sonarr svarer ikke");
+      } else {
+        setSonarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      }
+    } finally {
+      setTestingSonarr(false);
+    }
+  };
+
   const { data: newsPosts } = useQuery({
     queryKey: ["admin-news-posts"],
     queryFn: async () => {
@@ -883,6 +992,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "health", label: "Health", icon: Activity },
     { value: "media", label: "Media", icon: Library },
     { value: "radarr", label: "Radarr", icon: Film },
+    { value: "sonarr", label: "Sonarr", icon: Tv },
     { value: "bazarr", label: "Bazarr", icon: Subtitles },
     { value: "compatibility", label: language === 'no' ? "Kompatibilitet" : "Compatibility", icon: AlertTriangle },
     { value: "reports", label: language === 'no' ? "Rapporter" : "Reports", icon: MessageSquare },
@@ -955,6 +1065,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="radarr" className="space-y-6 mt-0">
                 <RadarrDashboard />
+              </TabsContent>
+
+              <TabsContent value="sonarr" className="space-y-6 mt-0">
+                <SonarrDashboard />
               </TabsContent>
 
               <TabsContent value="bazarr" className="space-y-6 mt-0">
@@ -1376,6 +1490,83 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         : 'bg-red-500/10 text-red-400 border border-red-500/20'
                     }`}>
                       <div className="whitespace-pre-wrap">{radarrStatus}</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Tv className="h-5 w-5" />
+                    Sonarr
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'no' 
+                      ? 'Konfigurer Sonarr for serieadministrasjon og nedlastingsovervåking' 
+                      : 'Configure Sonarr for TV series management and download monitoring'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="sonarr-url">{language === 'no' ? 'Sonarr Server URL' : 'Sonarr Server URL'}</Label>
+                    <Input
+                      id="sonarr-url"
+                      type="url"
+                      placeholder="http://192.168.1.100:8989"
+                      value={sonarrUrl}
+                      onChange={(e) => setSonarrUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="sonarr-api-key">{language === 'no' ? 'Sonarr API-nøkkel' : 'Sonarr API Key'}</Label>
+                    <Input
+                      id="sonarr-api-key"
+                      type="password"
+                      placeholder={language === 'no' ? 'Finn i Sonarr → Settings → General' : 'Find in Sonarr → Settings → General'}
+                      value={sonarrApiKey}
+                      onChange={(e) => setSonarrApiKey(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        if (sonarrUrl.trim()) updateSonarrUrl.mutate(sonarrUrl.trim());
+                        if (sonarrApiKey.trim()) updateSonarrApiKey.mutate(sonarrApiKey.trim());
+                      }}
+                      disabled={updateSonarrUrl.isPending || updateSonarrApiKey.isPending}
+                      className="cinema-glow flex-1"
+                    >
+                      {(updateSonarrUrl.isPending || updateSonarrApiKey.isPending) 
+                        ? (admin.updating || "Updating...") 
+                        : (language === 'no' ? 'Lagre innstillinger' : 'Save Settings')}
+                    </Button>
+                    <Button 
+                      onClick={handleTestSonarr}
+                      disabled={testingSonarr}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {testingSonarr ? (admin.testing || "Testing...") : (admin.testConnection || "Test Connection")}
+                    </Button>
+                  </div>
+                  
+                  {testingSonarr && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">{language === 'no' ? 'Tester tilkobling...' : 'Testing connection...'}</span>
+                    </div>
+                  )}
+                  
+                  {!testingSonarr && sonarrStatus && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      sonarrStatus.startsWith('✅') 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{sonarrStatus}</div>
                     </div>
                   )}
                 </CardContent>
