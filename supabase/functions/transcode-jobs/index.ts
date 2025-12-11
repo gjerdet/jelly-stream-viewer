@@ -144,6 +144,15 @@ Deno.serve(async (req) => {
     if (action === 'jellyfin') {
       const { itemId } = body
 
+      console.log('Jellyfin action called with itemId:', itemId)
+
+      if (!itemId) {
+        return new Response(
+          JSON.stringify({ error: 'Missing itemId' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       const { data: settings } = await supabase
         .from('server_settings')
         .select('setting_key, setting_value')
@@ -156,6 +165,9 @@ Deno.serve(async (req) => {
       const jellyfinUrl = settingsMap['jellyfin_server_url']
       const jellyfinApiKey = settingsMap['jellyfin_api_key']
 
+      console.log('Jellyfin URL:', jellyfinUrl)
+      console.log('Jellyfin API Key configured:', !!jellyfinApiKey)
+
       if (!jellyfinUrl || !jellyfinApiKey) {
         return new Response(
           JSON.stringify({ error: 'Jellyfin not configured' }),
@@ -164,11 +176,21 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const itemRes = await fetch(`${jellyfinUrl}/Items/${itemId}?api_key=${jellyfinApiKey}`)
+        const apiUrl = `${jellyfinUrl}/Items/${itemId}?api_key=${jellyfinApiKey}`
+        console.log('Calling Jellyfin API:', apiUrl.replace(jellyfinApiKey, '***'))
+        
+        const itemRes = await fetch(apiUrl)
+        console.log('Jellyfin response status:', itemRes.status)
+        
         if (!itemRes.ok) {
-          throw new Error(`Jellyfin API error: ${itemRes.status}`)
+          const errorText = await itemRes.text()
+          console.error('Jellyfin error response:', errorText)
+          throw new Error(`Jellyfin API error: ${itemRes.status} - ${errorText}`)
         }
         const item = await itemRes.json()
+        
+        console.log('Jellyfin item name:', item.Name)
+        console.log('Jellyfin item path:', item.Path)
         
         return new Response(
           JSON.stringify({ path: item.Path }),
@@ -177,7 +199,7 @@ Deno.serve(async (req) => {
       } catch (err) {
         console.error('Jellyfin error:', err)
         return new Response(
-          JSON.stringify({ error: 'Failed to get path from Jellyfin' }),
+          JSON.stringify({ error: 'Failed to get path from Jellyfin', details: err instanceof Error ? err.message : 'Unknown error' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
