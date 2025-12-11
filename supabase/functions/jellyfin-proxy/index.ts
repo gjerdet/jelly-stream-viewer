@@ -6,6 +6,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Create HTTP client that ignores SSL certificate errors (for self-signed certs)
+const httpClient = Deno.createHttpClient({
+  caCerts: [],
+});
+
 interface JellyfinRequest {
   endpoint: string;
   method?: string;
@@ -115,7 +120,7 @@ serve(async (req) => {
 
     console.log(`Proxying request to Jellyfin: ${method} ${jellyfinServerUrl}${endpoint}`);
 
-    // Make request to Jellyfin API with authentication
+    // Make request to Jellyfin API with authentication (with SSL bypass)
     const jellyfinResponse = await fetch(`${jellyfinServerUrl}${endpoint}`, {
       method,
       headers: {
@@ -123,6 +128,7 @@ serve(async (req) => {
         'Authorization': `MediaBrowser Token="${apiKey}"`,
       },
       body: body ? JSON.stringify(body) : undefined,
+      client: httpClient,
     });
 
     // Check if response is JSON

@@ -7,6 +7,11 @@ const corsHeaders = {
   'Access-Control-Expose-Headers': 'content-length, content-range, accept-ranges',
 };
 
+// Create HTTP client that ignores SSL certificate errors (for self-signed certs)
+const httpClient = Deno.createHttpClient({
+  caCerts: [],
+});
+
 // Input validation helper
 function validateVideoId(videoId: string): boolean {
   // Jellyfin IDs are 32-character hex strings
@@ -82,10 +87,14 @@ serve(async (req) => {
     const jellyfinServerUrl = serverSettings.setting_value.replace(/\/$/, '');
     const apiKey = apiKeySettings.setting_value;
 
-    // Get user ID from Jellyfin
-    const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`);
+    console.log(`Connecting to Jellyfin server: ${jellyfinServerUrl}`);
+
+    // Get user ID from Jellyfin (with SSL bypass)
+    const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`, {
+      client: httpClient,
+    });
     if (!usersResponse.ok) {
-      console.error('Failed to fetch Jellyfin users');
+      console.error('Failed to fetch Jellyfin users:', usersResponse.status);
       return new Response('Service temporarily unavailable', { 
         status: 503,
         headers: corsHeaders 
@@ -103,9 +112,11 @@ serve(async (req) => {
       });
     }
 
-    // Get video info and check codec
+    // Get video info and check codec (with SSL bypass)
     const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}&Fields=MediaStreams`;
-    const infoResponse = await fetch(infoUrl);
+    const infoResponse = await fetch(infoUrl, {
+      client: httpClient,
+    });
     
     if (!infoResponse.ok) {
       console.error('Failed to fetch video info:', infoResponse.status);
@@ -158,9 +169,10 @@ serve(async (req) => {
       requestHeaders['Range'] = rangeHeader;
     }
 
-    // Fetch the video stream from Jellyfin
+    // Fetch the video stream from Jellyfin (with SSL bypass)
     const jellyfinResponse = await fetch(streamUrl, {
       headers: requestHeaders,
+      client: httpClient,
     });
 
     if (!jellyfinResponse.ok) {
