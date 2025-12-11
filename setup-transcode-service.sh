@@ -44,9 +44,8 @@ fi
 # Get or generate transcode secret
 TRANSCODE_SECRET="${TRANSCODE_SECRET:-$(openssl rand -hex 32)}"
 
-# Get Supabase config
-SUPABASE_URL="${VITE_SUPABASE_URL:-$SUPABASE_URL}"
-SUPABASE_ANON_KEY="${VITE_SUPABASE_PUBLISHABLE_KEY:-$SUPABASE_ANON_KEY}"
+# Fixed Supabase URL for Lovable Cloud
+SUPABASE_URL="https://ypjihlfhxqyrpfjfmjdm.supabase.co"
 
 # Prompt for media base path
 echo ""
@@ -90,7 +89,7 @@ WorkingDirectory=${APP_DIR}
 Environment=TRANSCODE_PORT=3003
 Environment=TRANSCODE_HOST=0.0.0.0
 Environment=SUPABASE_URL=${SUPABASE_URL}
-Environment=SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+Environment=TRANSCODE_SECRET=${TRANSCODE_SECRET}
 Environment=MEDIA_BASE_PATH=${MEDIA_BASE_PATH}
 Environment=POLL_INTERVAL=10000
 ExecStart=${NODE_PATH} ${APP_DIR}/transcode-server.cjs

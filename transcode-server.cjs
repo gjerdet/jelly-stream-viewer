@@ -3,8 +3,8 @@
 /**
  * HandBrake Transcode Server
  * 
- * This server POLLS for transcode jobs from Supabase and executes HandBrakeCLI.
- * No incoming HTTP needed - works behind firewalls/NAT.
+ * This server POLLS for transcode jobs via Edge Function and executes HandBrakeCLI.
+ * No service_role key needed - uses transcode_secret for authentication.
  */
 
 const http = require('http');
@@ -17,19 +17,17 @@ const { URL } = require('url');
 const PORT = process.env.TRANSCODE_PORT || 3003;
 const HOST = process.env.TRANSCODE_HOST || '0.0.0.0';
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+const TRANSCODE_SECRET = process.env.TRANSCODE_SECRET;
 const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL) || 10000;
 
 // Active jobs tracker
 const activeJobs = new Map();
 let isPolling = false;
 let mediaBasePath = process.env.MEDIA_BASE_PATH || '/mnt/truenas';
-let jellyfinServerUrl = '';
-let jellyfinApiKey = '';
 
 console.log('🎬 HandBrake Transcode Server starting...');
 console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'}`);
+console.log(`🔑 Transcode Secret: ${TRANSCODE_SECRET ? 'Configured' : 'Not configured'}`);
 console.log(`📂 Media base path: ${mediaBasePath}`);
 
 /**
@@ -72,215 +70,119 @@ function httpRequest(url, options = {}) {
 }
 
 /**
- * Fetch settings from Supabase
+ * Call the transcode-jobs edge function
  */
-async function fetchSettings() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
-  
-  try {
-    const res = await httpRequest(`${SUPABASE_URL}/rest/v1/server_settings?select=setting_key,setting_value`, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`
-      }
-    });
-    
-    if (res.ok) {
-      const settings = await res.json();
-      for (const s of settings) {
-        if (s.setting_key === 'media_base_path') mediaBasePath = s.setting_value;
-        if (s.setting_key === 'jellyfin_server_url') jellyfinServerUrl = s.setting_value;
-        if (s.setting_key === 'jellyfin_api_key') jellyfinApiKey = s.setting_value;
-      }
-      console.log(`📂 Media base path updated: ${mediaBasePath}`);
-      console.log(`🎬 Jellyfin URL: ${jellyfinServerUrl ? 'Configured' : 'Not configured'}`);
-    }
-  } catch (err) {
-    console.error('Failed to fetch settings:', err.message);
+async function callEdgeFunction(action, data = {}) {
+  if (!SUPABASE_URL || !TRANSCODE_SECRET) {
+    throw new Error('Supabase URL or Transcode Secret not configured');
   }
+
+  const edgeFunctionUrl = `${SUPABASE_URL}/functions/v1/transcode-jobs`;
+  
+  const res = await httpRequest(edgeFunctionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-transcode-secret': TRANSCODE_SECRET
+    },
+    body: JSON.stringify({ action, ...data })
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Edge function error: ${res.status} - ${errorText}`);
+  }
+
+  return res.json();
 }
 
 /**
- * Update job status directly in Supabase
+ * Update job status via edge function
  */
-async function updateJobStatus(jobId, status, progress, logs = [], error = null) {
-  if (!SUPABASE_URL || !jobId) return;
+async function updateJobStatus(jobId, status, progress, logs = [], error = null, filePath = null) {
+  if (!jobId) return;
 
   try {
-    const body = {
+    await callEdgeFunction('update', {
+      jobId,
       status,
       progress,
       logs,
-      updated_at: new Date().toISOString()
-    };
-    
-    if (status === 'processing' && !body.started_at) {
-      body.started_at = new Date().toISOString();
-    }
-    if (status === 'completed' || status === 'failed') {
-      body.completed_at = new Date().toISOString();
-    }
-    if (error) {
-      body.error = error;
-    }
-
-    const res = await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify(body)
+      error,
+      filePath
     });
-
-    if (!res.ok) {
-      console.error('Failed to update job status:', await res.text());
-    }
-
-    // If completed successfully, update media_compatibility
-    if (status === 'completed') {
-      await markMediaCompatible(jobId);
-    }
   } catch (err) {
     console.error('Failed to update job status:', err.message);
   }
 }
 
 /**
- * Mark media as compatible after successful transcode
- */
-async function markMediaCompatible(jobId) {
-  try {
-    // Get the jellyfin_item_id from the job
-    const jobRes = await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${jobId}&select=jellyfin_item_id`, {
-      headers: {
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`
-      }
-    });
-    
-    if (!jobRes.ok) return;
-    const jobs = await jobRes.json();
-    if (!jobs.length) return;
-    
-    const jellyfinItemId = jobs[0].jellyfin_item_id;
-    
-    // Update media_compatibility
-    await httpRequest(`${SUPABASE_URL}/rest/v1/media_compatibility?jellyfin_item_id=eq.${jellyfinItemId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal'
-      },
-      body: JSON.stringify({
-        status: 'compatible',
-        resolved: true,
-        resolved_at: new Date().toISOString()
-      })
-    });
-    
-    console.log(`✅ Marked media ${jellyfinItemId} as compatible`);
-  } catch (err) {
-    console.error('Failed to mark media compatible:', err.message);
-  }
-}
-
-/**
- * Get file path from Jellyfin
+ * Get file path from Jellyfin via edge function
  */
 async function getFilePathFromJellyfin(jellyfinItemId) {
-  if (!jellyfinServerUrl || !jellyfinApiKey) {
-    throw new Error('Jellyfin not configured');
-  }
-
-  const res = await httpRequest(`${jellyfinServerUrl}/Items/${jellyfinItemId}?api_key=${jellyfinApiKey}`);
-  if (!res.ok) {
-    throw new Error(`Jellyfin API error: ${res.status}`);
-  }
-  
-  const item = await res.json();
-  const jellyfinPath = item.Path;
-  
-  if (!jellyfinPath) {
-    throw new Error('No file path in Jellyfin response');
-  }
-  
-  // Convert Jellyfin path to local path
-  // Jellyfin might show: /media/Movies/Film.mkv
-  // We need: /mnt/truenas/Movies/Film.mkv
-  
-  // Try to extract the relative part after common prefixes
-  const prefixesToStrip = ['/media', '/mnt/media', '/data/media', '/srv/media'];
-  let relativePath = jellyfinPath;
-  
-  for (const prefix of prefixesToStrip) {
-    if (jellyfinPath.startsWith(prefix)) {
-      relativePath = jellyfinPath.substring(prefix.length);
-      break;
+  try {
+    const result = await callEdgeFunction('jellyfin', { itemId: jellyfinItemId });
+    
+    if (!result.path) {
+      throw new Error('No file path in response');
     }
+    
+    const jellyfinPath = result.path;
+    
+    // Convert Jellyfin path to local path
+    const prefixesToStrip = ['/media', '/mnt/media', '/data/media', '/srv/media'];
+    let relativePath = jellyfinPath;
+    
+    for (const prefix of prefixesToStrip) {
+      if (jellyfinPath.startsWith(prefix)) {
+        relativePath = jellyfinPath.substring(prefix.length);
+        break;
+      }
+    }
+    
+    const localPath = path.join(mediaBasePath, relativePath);
+    console.log(`📁 Jellyfin path: ${jellyfinPath}`);
+    console.log(`📁 Local path: ${localPath}`);
+    
+    return localPath;
+  } catch (err) {
+    throw new Error(`Failed to get path from Jellyfin: ${err.message}`);
   }
-  
-  const localPath = path.join(mediaBasePath, relativePath);
-  console.log(`📁 Jellyfin path: ${jellyfinPath}`);
-  console.log(`📁 Local path: ${localPath}`);
-  
-  return localPath;
 }
 
 /**
- * Poll for pending jobs
+ * Poll for pending jobs via edge function
  */
 async function pollForJobs() {
   if (isPolling || activeJobs.size > 0) return; // Only one job at a time
   isPolling = true;
 
   try {
-    const res = await httpRequest(
-      `${SUPABASE_URL}/rest/v1/transcode_jobs?status=eq.pending&order=created_at.asc&limit=1`,
-      {
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`
-        }
-      }
-    );
-
-    if (!res.ok) {
-      console.error('Failed to fetch jobs:', await res.text());
-      return;
-    }
-
-    const jobs = await res.json();
+    const result = await callEdgeFunction('poll');
     
-    if (jobs.length > 0) {
-      const job = jobs[0];
+    // Update settings from response
+    if (result.settings) {
+      if (result.settings.media_base_path) {
+        mediaBasePath = result.settings.media_base_path;
+      }
+    }
+    
+    if (result.jobs && result.jobs.length > 0) {
+      const job = result.jobs[0];
       console.log(`\n🎬 Found pending job: ${job.id}`);
       console.log(`   Item: ${job.jellyfin_item_name}`);
       
-      // Mark as processing immediately to prevent double-pickup
+      // Mark as processing immediately
       await updateJobStatus(job.id, 'processing', 1, []);
       
-      // Get file path from Jellyfin or use stored path
+      // Get file path
       let filePath = job.file_path;
       
       if (!filePath) {
         try {
           filePath = await getFilePathFromJellyfin(job.jellyfin_item_id);
-          // Store the path for future reference
-          await httpRequest(`${SUPABASE_URL}/rest/v1/transcode_jobs?id=eq.${job.id}`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY}`,
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({ file_path: filePath })
-          });
+          // Store the path
+          await updateJobStatus(job.id, 'processing', 2, [], null, filePath);
         } catch (err) {
           console.error('Failed to get file path:', err.message);
           await updateJobStatus(job.id, 'failed', 0, [], `Failed to get file path: ${err.message}`);
@@ -508,7 +410,9 @@ const server = http.createServer((req, res) => {
         handbrakeAvailable: !error,
         activeJobs: activeJobs.size,
         mediaBasePath,
-        polling: true
+        polling: true,
+        supabaseConfigured: !!SUPABASE_URL,
+        secretConfigured: !!TRANSCODE_SECRET
       }));
     });
     return;
@@ -519,8 +423,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       activeJobs: Array.from(activeJobs.keys()),
-      mediaBasePath,
-      jellyfinConfigured: !!jellyfinServerUrl
+      mediaBasePath
     }));
     return;
   }
@@ -549,8 +452,6 @@ const server = http.createServer((req, res) => {
 
 // Initialize
 async function init() {
-  await fetchSettings();
-  
   // Start polling for jobs
   console.log(`\n🔄 Starting job polling (every ${POLL_INTERVAL/1000}s)...`);
   setInterval(pollForJobs, POLL_INTERVAL);

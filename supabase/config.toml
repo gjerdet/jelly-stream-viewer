@@ -96,3 +96,7 @@ verify_jwt = true
 [functions.transcode-status]
 verify_jwt = false
 # Note: Server-to-server call from transcode-server, uses x-transcode-secret header
+
+[functions.transcode-jobs]
+verify_jwt = false
+# Note: Server-to-server call from transcode-server, uses x-transcode-secret header for auth
