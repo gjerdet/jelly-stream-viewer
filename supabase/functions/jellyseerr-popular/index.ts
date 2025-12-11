@@ -16,7 +16,7 @@ serve(async (req) => {
     
     if (!type || !['movie', 'tv'].includes(type)) {
       return new Response(
-        JSON.stringify({ error: 'Type må være "movie" eller "tv"' }),
+        JSON.stringify({ error: 'Type must be "movie" or "tv"' }),
         { 
           status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -24,7 +24,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Popular request:', { type, page });
+    console.log('Trending request:', { type, page });
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -50,7 +50,7 @@ serve(async (req) => {
     if (!rawUrl || !jellyseerrApiKey) {
       console.error('Missing Jellyseerr configuration');
       return new Response(
-        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
+        JSON.stringify({ error: 'Service temporarily unavailable' }),
         { 
           status: 503, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -59,16 +59,15 @@ serve(async (req) => {
     }
 
     const jellyseerrUrl = rawUrl.replace(/\/$/, '');
-    // Jellyseerr uses plural 'movies' but singular 'tv'
-    const endpoint = type === 'movie' ? 'movies' : type;
-    // Use sortBy=popularity.desc for popular content
-    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${endpoint}?page=${page}&language=no&sortBy=popularity.desc`;
     
-    console.log('Fetching from Jellyseerr:', discoverUrl);
+    // Use the trending endpoint for trending/popular content
+    const trendingUrl = `${jellyseerrUrl}/api/v1/discover/trending?page=${page}&language=no`;
+    
+    console.log('Fetching trending from Jellyseerr:', trendingUrl);
 
     let response;
     try {
-      response = await fetch(discoverUrl, {
+      response = await fetch(trendingUrl, {
         method: 'GET',
         headers: {
           'X-Api-Key': jellyseerrApiKey,
@@ -78,7 +77,7 @@ serve(async (req) => {
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
       return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
+        JSON.stringify({ error: 'Could not complete request' }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -90,7 +89,7 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error('Jellyseerr error:', response.status, errorText);
       return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
+        JSON.stringify({ error: 'Could not complete request' }),
         { 
           status: response.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -99,10 +98,19 @@ serve(async (req) => {
     }
 
     const data = await response.json();
-    console.log('Popular results count:', data.results?.length || 0);
+    
+    // Filter by media type (trending endpoint returns both movies and TV)
+    const filteredResults = data.results?.filter((item: any) => {
+      return item.mediaType === type;
+    }) || [];
+    
+    console.log('Trending results count:', filteredResults.length);
 
     return new Response(
-      JSON.stringify(data),
+      JSON.stringify({
+        ...data,
+        results: filteredResults
+      }),
       { 
         status: 200, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -112,7 +120,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in jellyseerr-popular:', error);
     return new Response(
-      JSON.stringify({ error: 'Det oppsto en feil' }),
+      JSON.stringify({ error: 'An error occurred' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
