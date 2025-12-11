@@ -28,6 +28,7 @@ import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
 import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
 import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
 import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
+import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -2117,7 +2118,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </Card>
               </TabsContent>
 
-              <TabsContent value="users" className="mt-0">
+              <TabsContent value="users" className="space-y-6 mt-0">
+                <UserAccessManagement />
                 <UserManagement />
               </TabsContent>
 
