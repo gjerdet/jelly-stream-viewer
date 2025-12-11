@@ -22,7 +22,16 @@ declare global {
 
 // Check if cast is already available (SDK loaded before our code ran)
 const checkExistingCast = (): boolean => {
+  console.log('[CastSDK] Checking for existing Cast SDK...');
+  console.log('[CastSDK] window.chrome exists:', !!window.chrome);
+  console.log('[CastSDK] window.chrome.cast exists:', !!window.chrome?.cast);
+  
   const cast = window.chrome?.cast;
+  if (cast) {
+    console.log('[CastSDK] cast.isAvailable:', cast.isAvailable);
+    console.log('[CastSDK] cast.framework exists:', !!cast.framework);
+  }
+  
   if (cast && (cast.isAvailable || cast.framework)) {
     console.log('[CastSDK] Found existing Cast SDK');
     return true;

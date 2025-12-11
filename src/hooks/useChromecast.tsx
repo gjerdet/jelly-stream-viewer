@@ -160,35 +160,35 @@ export const useChromecast = () => {
     };
   }, []);
 
-  const requestSession = useCallback(() => {
-    if (!castContext) return Promise.reject('Cast context not initialized');
+  const requestSession = useCallback(async () => {
+    if (!castContext) {
+      console.warn('[Chromecast] requestSession called but context not initialized');
+      return;
+    }
     
     const lastDevice = localStorage.getItem('last_cast_device');
     
-    return castContext.requestSession().then(
-      () => {
-        const session = castContext.getCurrentSession();
-        const deviceName = session?.getCastDevice().friendlyName;
-        
-        if (deviceName) {
-          if (lastDevice && lastDevice === deviceName) {
-            toast.success(`Koblet til ${deviceName} igjen!`);
-          } else {
-            toast.success(`Koblet til ${deviceName}`);
-          }
+    try {
+      await castContext.requestSession();
+      const session = castContext.getCurrentSession();
+      const deviceName = session?.getCastDevice().friendlyName;
+      
+      if (deviceName) {
+        if (lastDevice && lastDevice === deviceName) {
+          toast.success(`Koblet til ${deviceName} igjen!`);
         } else {
-          toast.success('Koblet til Chromecast');
+          toast.success(`Koblet til ${deviceName}`);
         }
-        
-        console.log('Cast session started');
-      },
-      (error: any) => {
-        if (error !== 'cancel') {
-          console.error('Cast session error:', error);
-          throw error;
-        }
+      } else {
+        toast.success('Koblet til Chromecast');
       }
-    );
+      
+      console.log('[Chromecast] Cast session started');
+    } catch (error: any) {
+      if (error !== 'cancel') {
+        console.error('[Chromecast] Cast session error:', error);
+      }
+    }
   }, [castContext]);
 
   const endSession = useCallback(() => {
