@@ -438,8 +438,8 @@ const Header = () => {
 
             {/* Action Buttons */}
             <div className="hidden sm:flex items-center gap-1">
-              {/* Chromecast Button with Popover */}
-              {(castState.isAvailable || castLoading) && (
+              {/* Chromecast Button with Popover - only show when available */}
+              {castState.isAvailable && (
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
