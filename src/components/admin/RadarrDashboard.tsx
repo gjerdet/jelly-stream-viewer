@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRadarrApi, RadarrMovie, RadarrHistoryRecord, RadarrQueueItem } from "@/hooks/useRadarrApi";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { 
   RefreshCw, 
@@ -19,7 +19,7 @@ import {
   EyeOff,
   Film,
   HardDrive,
-  Activity,
+  Search,
   AlertCircle
 } from "lucide-react";
 
@@ -45,6 +45,8 @@ export const RadarrDashboard = () => {
   const queryClient = useQueryClient();
   const { getHealth, getMovies, getHistory, getQueue, toggleMonitored } = useRadarrApi();
   const [selectedTab, setSelectedTab] = useState("downloads");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showOnlyMonitored, setShowOnlyMonitored] = useState(false);
 
   // Health check
   const { data: healthData, isLoading: healthLoading, error: healthError } = useQuery({
@@ -68,11 +70,11 @@ export const RadarrDashboard = () => {
     enabled: !healthError,
   });
 
-  // Download history (grabbed events)
+  // Download history (without event type filter since it causes errors)
   const { data: historyData, isLoading: historyLoading, refetch: refetchHistory } = useQuery({
     queryKey: ['radarr-history'],
     queryFn: async () => {
-      const result = await getHistory(1, 100, 'downloadFolderImported');
+      const result = await getHistory(1, 100);
       if (result.error) throw result.error;
       return result.data;
     },
@@ -88,7 +90,7 @@ export const RadarrDashboard = () => {
       return result.data;
     },
     enabled: !healthError,
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   // Reviewed downloads from database
@@ -160,8 +162,30 @@ export const RadarrDashboard = () => {
     );
   };
 
+  // Filter movies with files and apply search
+  const filteredMovies = useMemo(() => {
+    if (!moviesData) return [];
+    
+    let filtered = moviesData.filter(m => m.hasFile);
+    
+    if (showOnlyMonitored) {
+      filtered = filtered.filter(m => m.monitored);
+    }
+    
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(m => 
+        m.title.toLowerCase().includes(query) ||
+        m.year?.toString().includes(query)
+      );
+    }
+    
+    return filtered.sort((a, b) => a.title.localeCompare(b.title));
+  }, [moviesData, searchQuery, showOnlyMonitored]);
+
   const monitoredMovies = moviesData?.filter(m => m.monitored) || [];
   const totalSize = moviesData?.reduce((acc, m) => acc + (m.sizeOnDisk || 0), 0) || 0;
+  const moviesWithFiles = moviesData?.filter(m => m.hasFile).length || 0;
 
   if (healthError) {
     return (
@@ -192,6 +216,7 @@ export const RadarrDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{moviesData?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">{moviesWithFiles} med filer</p>
           </CardContent>
         </Card>
 
@@ -236,7 +261,7 @@ export const RadarrDashboard = () => {
         <TabsList>
           <TabsTrigger value="downloads">Nedlastingshistorikk</TabsTrigger>
           <TabsTrigger value="queue">Nedlastingskø</TabsTrigger>
-          <TabsTrigger value="monitoring">Kvalitetsovervåking</TabsTrigger>
+          <TabsTrigger value="monitoring">Kvalitetsovervåking ({moviesWithFiles})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="downloads" className="space-y-4">
@@ -396,10 +421,33 @@ export const RadarrDashboard = () => {
         <TabsContent value="monitoring" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Kvalitetsovervåking</CardTitle>
-              <CardDescription>
-                Slå av overvåking for filmer du ikke ønsker å oppgradere til bedre kvalitet
-              </CardDescription>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>Kvalitetsovervåking</CardTitle>
+                  <CardDescription>
+                    Slå av overvåking for filmer du ikke ønsker å oppgradere til bedre kvalitet
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Søk etter film..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-9 w-64"
+                    />
+                  </div>
+                  <Button
+                    variant={showOnlyMonitored ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOnlyMonitored(!showOnlyMonitored)}
+                  >
+                    <Eye className="h-4 w-4 mr-1" />
+                    {showOnlyMonitored ? 'Vis alle' : 'Kun overvåkede'}
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               {moviesLoading ? (
@@ -407,50 +455,57 @@ export const RadarrDashboard = () => {
                   <RefreshCw className="h-6 w-6 animate-spin" />
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Film</TableHead>
-                      <TableHead>År</TableHead>
-                      <TableHead>Kvalitet</TableHead>
-                      <TableHead>Størrelse</TableHead>
-                      <TableHead>Overvåket</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {moviesData?.filter(m => m.hasFile).slice(0, 100).map((movie: RadarrMovie) => (
-                      <TableRow key={movie.id}>
-                        <TableCell className="font-medium">{movie.title}</TableCell>
-                        <TableCell>{movie.year}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {movie.movieFile?.quality?.quality?.name || 'Ukjent'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{formatBytes(movie.sizeOnDisk)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              checked={movie.monitored}
-                              onCheckedChange={(checked) => 
-                                toggleMonitoringMutation.mutate({ 
-                                  movieId: movie.id, 
-                                  monitored: checked 
-                                })
-                              }
-                              disabled={toggleMonitoringMutation.isPending}
-                            />
-                            {movie.monitored ? (
-                              <Eye className="h-4 w-4 text-green-500" />
-                            ) : (
-                              <EyeOff className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Viser {filteredMovies.length} av {moviesWithFiles} filmer med filer
+                  </p>
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <Table>
+                      <TableHeader className="sticky top-0 bg-background">
+                        <TableRow>
+                          <TableHead>Film</TableHead>
+                          <TableHead>År</TableHead>
+                          <TableHead>Kvalitet</TableHead>
+                          <TableHead>Størrelse</TableHead>
+                          <TableHead>Overvåket</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredMovies.map((movie: RadarrMovie) => (
+                          <TableRow key={movie.id}>
+                            <TableCell className="font-medium">{movie.title}</TableCell>
+                            <TableCell>{movie.year}</TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">
+                                {movie.movieFile?.quality?.quality?.name || 'Ukjent'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{formatBytes(movie.sizeOnDisk)}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Switch
+                                  checked={movie.monitored}
+                                  onCheckedChange={(checked) => 
+                                    toggleMonitoringMutation.mutate({ 
+                                      movieId: movie.id, 
+                                      monitored: checked 
+                                    })
+                                  }
+                                  disabled={toggleMonitoringMutation.isPending}
+                                />
+                                {movie.monitored ? (
+                                  <Eye className="h-4 w-4 text-green-500" />
+                                ) : (
+                                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
