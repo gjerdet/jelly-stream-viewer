@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
 import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2, Flag } from "lucide-react";
@@ -355,16 +356,8 @@ const Detail = () => {
     },
   });
 
-  // First fetch users to get a valid user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users"],
-    {
-      endpoint: `/Users`,
-    },
-    !!user
-  );
-
-  const userId = usersData?.[0]?.Id;
+  // Get userId from localStorage session (not /Users endpoint which requires admin)
+  const { userId } = useJellyfinSession();
 
   // Fetch item details with media streams and backdrop images
   const { data: item, isLoading: itemLoading } = useJellyfinApi<JellyfinItemDetail>(
