@@ -57,6 +57,12 @@ const Admin = () => {
   const [testingBazarr, setTestingBazarr] = useState(false);
   const [bazarrStatus, setBazarrStatus] = useState<string | null>(null);
   
+  // Radarr settings state
+  const [radarrUrl, setRadarrUrl] = useState("");
+  const [radarrApiKey, setRadarrApiKey] = useState("");
+  const [testingRadarr, setTestingRadarr] = useState(false);
+  const [radarrStatus, setRadarrStatus] = useState<string | null>(null);
+  
   // GitHub settings state
   const [githubRepoUrl, setGithubRepoUrl] = useState("");
   const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
@@ -285,7 +291,9 @@ const Admin = () => {
           "supabase_url",
           "supabase_project_id",
           "bazarr_url",
-          "bazarr_api_key"
+          "bazarr_api_key",
+          "radarr_url",
+          "radarr_api_key"
         ]);
       
       data?.forEach(setting => {
@@ -306,6 +314,8 @@ const Admin = () => {
         if (setting.setting_key === "supabase_project_id") setSupabaseProjectId(setting.setting_value || "");
         if (setting.setting_key === "bazarr_url") setBazarrUrl(setting.setting_value || "");
         if (setting.setting_key === "bazarr_api_key") setBazarrApiKey(setting.setting_value || "");
+        if (setting.setting_key === "radarr_url") setRadarrUrl(setting.setting_value || "");
+        if (setting.setting_key === "radarr_api_key") setRadarrApiKey(setting.setting_value || "");
       });
     };
     
@@ -667,6 +677,105 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
       }
     } finally {
       setTestingBazarr(false);
+    }
+  };
+
+  // Radarr URL mutation
+  const updateRadarrUrl = useMutation({
+    mutationFn: async (newUrl: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "radarr_url",
+          setting_value: newUrl,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Radarr URL oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Radarr URL");
+    },
+  });
+
+  // Radarr API key mutation
+  const updateRadarrApiKey = useMutation({
+    mutationFn: async (newApiKey: string) => {
+      const { error } = await supabase
+        .from("server_settings")
+        .upsert({ 
+          setting_key: "radarr_api_key",
+          setting_value: newApiKey,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: "setting_key"
+        });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Radarr API-nøkkel oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere Radarr API-nøkkel");
+    },
+  });
+
+  // Test Radarr connection (direct call from browser)
+  const handleTestRadarr = async () => {
+    if (!radarrUrl.trim() || !radarrApiKey.trim()) {
+      setRadarrStatus("❌ Radarr URL og API-nøkkel må være satt");
+      return;
+    }
+
+    setTestingRadarr(true);
+    setRadarrStatus(null);
+
+    try {
+      // Save settings first
+      await updateRadarrUrl.mutateAsync(radarrUrl.trim());
+      await updateRadarrApiKey.mutateAsync(radarrApiKey.trim());
+      
+      // Test connection directly from browser
+      const baseUrl = radarrUrl.trim().replace(/\/$/, '');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${baseUrl}/api/v3/system/status`, {
+        method: 'GET',
+        headers: {
+          'X-Api-Key': radarrApiKey.trim(),
+          'Content-Type': 'application/json',
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        setRadarrStatus(`❌ Feil: HTTP ${response.status}`);
+        return;
+      }
+
+      const data = await response.json();
+      setRadarrStatus(`✅ Tilkoblet! Radarr v${data.version || 'ukjent'}`);
+      toast.success("Radarr-tilkobling OK!");
+    } catch (error) {
+      console.error('Radarr test exception:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        setRadarrStatus("❌ Timeout: Radarr svarer ikke");
+      } else {
+        setRadarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
+      }
+    } finally {
+      setTestingRadarr(false);
     }
   };
 
@@ -1190,6 +1299,83 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                         : 'bg-red-500/10 text-red-400 border border-red-500/20'
                     }`}>
                       <div className="whitespace-pre-wrap">{bazarrStatus}</div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Film className="h-5 w-5" />
+                    Radarr
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'no' 
+                      ? 'Konfigurer Radarr for filmadministrasjon og nedlastingsovervåking' 
+                      : 'Configure Radarr for movie management and download monitoring'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="radarr-url">{language === 'no' ? 'Radarr Server URL' : 'Radarr Server URL'}</Label>
+                    <Input
+                      id="radarr-url"
+                      type="url"
+                      placeholder="http://192.168.1.100:7878"
+                      value={radarrUrl}
+                      onChange={(e) => setRadarrUrl(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="radarr-api-key">{language === 'no' ? 'Radarr API-nøkkel' : 'Radarr API Key'}</Label>
+                    <Input
+                      id="radarr-api-key"
+                      type="password"
+                      placeholder={language === 'no' ? 'Finn i Radarr → Settings → General' : 'Find in Radarr → Settings → General'}
+                      value={radarrApiKey}
+                      onChange={(e) => setRadarrApiKey(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => {
+                        if (radarrUrl.trim()) updateRadarrUrl.mutate(radarrUrl.trim());
+                        if (radarrApiKey.trim()) updateRadarrApiKey.mutate(radarrApiKey.trim());
+                      }}
+                      disabled={updateRadarrUrl.isPending || updateRadarrApiKey.isPending}
+                      className="cinema-glow flex-1"
+                    >
+                      {(updateRadarrUrl.isPending || updateRadarrApiKey.isPending) 
+                        ? (admin.updating || "Updating...") 
+                        : (language === 'no' ? 'Lagre innstillinger' : 'Save Settings')}
+                    </Button>
+                    <Button 
+                      onClick={handleTestRadarr}
+                      disabled={testingRadarr}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      {testingRadarr ? (admin.testing || "Testing...") : (admin.testConnection || "Test Connection")}
+                    </Button>
+                  </div>
+                  
+                  {testingRadarr && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground">{language === 'no' ? 'Tester tilkobling...' : 'Testing connection...'}</span>
+                    </div>
+                  )}
+                  
+                  {!testingRadarr && radarrStatus && (
+                    <div className={`p-3 rounded-lg text-sm ${
+                      radarrStatus.startsWith('✅') 
+                        ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
+                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{radarrStatus}</div>
                     </div>
                   )}
                 </CardContent>

@@ -12,23 +12,38 @@ serve(async (req) => {
   }
 
   try {
-    const RADARR_URL = Deno.env.get('RADARR_URL');
-    const RADARR_API_KEY = Deno.env.get('RADARR_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Get Radarr settings from server_settings table
+    const { data: settings, error: settingsError } = await supabase
+      .from('server_settings')
+      .select('setting_key, setting_value')
+      .in('setting_key', ['radarr_url', 'radarr_api_key']);
+
+    if (settingsError) {
+      console.error('Error fetching Radarr settings:', settingsError);
+      return new Response(
+        JSON.stringify({ error: 'Could not fetch Radarr settings' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const RADARR_URL = settings?.find(s => s.setting_key === 'radarr_url')?.setting_value;
+    const RADARR_API_KEY = settings?.find(s => s.setting_key === 'radarr_api_key')?.setting_value;
 
     if (!RADARR_URL || !RADARR_API_KEY) {
       console.error('Radarr configuration missing');
       return new Response(
-        JSON.stringify({ error: 'Radarr is not configured' }),
+        JSON.stringify({ error: 'Radarr is not configured. Please add URL and API key in Admin → Servers.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const { action, params } = await req.json();
     console.log(`Radarr proxy request: ${action}`, params);
-
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Check if user is admin
     const authHeader = req.headers.get('Authorization');
