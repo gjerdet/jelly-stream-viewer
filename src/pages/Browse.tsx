@@ -141,6 +141,19 @@ const Browse = () => {
   const isDataLoading = itemsLoading || resumeLoading || !userId;
   const hasNoData = !isDataLoading && (!allItems || allItems.Items?.length === 0);
 
+  // Debug logging
+  console.log('Browse debug:', {
+    serverUrl,
+    userId,
+    isDemoMode,
+    hasApiError,
+    isDataLoading,
+    hasNoData,
+    itemsError: itemsError?.message,
+    resumeError: resumeError?.message,
+    itemsCount: allItems?.Items?.length
+  });
+
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items || !serverUrl) return [];
     return items.map((item) => ({
