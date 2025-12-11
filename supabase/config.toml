@@ -104,3 +104,7 @@ verify_jwt = false
 [functions.radarr-proxy]
 verify_jwt = true
 # Note: Admin-only endpoint for Radarr integration
+
+[functions.sonarr-proxy]
+verify_jwt = true
+# Note: Admin-only endpoint for Sonarr integration
