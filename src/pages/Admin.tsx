@@ -1006,6 +1006,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
     
     { value: "logs", label: admin.logs || "Logs", icon: FileText },
+    { value: "updates", label: language === 'no' ? "Oppdateringer" : "Updates", icon: Download },
     { value: "db-setup", label: language === 'no' ? "DB Oppsett" : "DB Setup", icon: BookOpen },
   ];
 
@@ -2134,6 +2135,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="logs" className="space-y-6 mt-0">
                 <SystemLogs />
+              </TabsContent>
+
+              <TabsContent value="updates" className="space-y-6 mt-0">
+                <UpdateManager />
               </TabsContent>
 
               <TabsContent value="db-setup" className="space-y-6 mt-0">
