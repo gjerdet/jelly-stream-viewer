@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,11 +18,13 @@ import {
   ChevronDown,
   ChevronUp,
   FileVideo,
-  HardDrive
+  HardDrive,
+  Trash2,
+  StopCircle
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
-import { useEffect } from "react";
+import { toast } from "sonner";
 
 interface LogEntry {
   timestamp: string;
@@ -118,6 +120,48 @@ export const TranscodeJobsDashboard = () => {
       };
     },
     refetchInterval: 10000,
+  });
+
+  // Delete job mutation
+  const deleteJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const { error } = await supabase
+        .from("transcode_jobs")
+        .delete()
+        .eq("id", jobId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs-stats"] });
+      toast.success("Jobb slettet");
+    },
+    onError: (error: Error) => {
+      toast.error(`Kunne ikke slette jobb: ${error.message}`);
+    },
+  });
+
+  // Cancel job mutation (set status to failed)
+  const cancelJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const { error } = await supabase
+        .from("transcode_jobs")
+        .update({ 
+          status: "failed", 
+          error: "Avbrutt av bruker",
+          completed_at: new Date().toISOString()
+        })
+        .eq("id", jobId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["transcode-jobs-stats"] });
+      toast.success("Jobb avbrutt");
+    },
+    onError: (error: Error) => {
+      toast.error(`Kunne ikke avbryte jobb: ${error.message}`);
+    },
   });
 
   const getStatusIcon = (status: string) => {
@@ -438,6 +482,45 @@ export const TranscodeJobsDashboard = () => {
                                 <p>{format(new Date(job.completed_at), "d. MMM yyyy HH:mm:ss", { locale: nb })}</p>
                               </div>
                             )}
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-2 pt-2 border-t border-border">
+                            {(job.status === "pending" || job.status === "processing") && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  cancelJobMutation.mutate(job.id);
+                                }}
+                                disabled={cancelJobMutation.isPending}
+                              >
+                                {cancelJobMutation.isPending ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <StopCircle className="h-4 w-4 mr-2" />
+                                )}
+                                Avbryt jobb
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteJobMutation.mutate(job.id);
+                              }}
+                              disabled={deleteJobMutation.isPending}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              {deleteJobMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 mr-2" />
+                              )}
+                              Slett jobb
+                            </Button>
                           </div>
                         </div>
                       )}
