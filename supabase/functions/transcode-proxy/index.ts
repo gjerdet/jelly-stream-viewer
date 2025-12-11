@@ -114,14 +114,30 @@ Deno.serve(async (req) => {
       
       if (jellyfinUrl && jellyfinApiKey && jellyfinItemId) {
         try {
-          const itemUrl = `${jellyfinUrl}/Items/${jellyfinItemId}`
+          // First get a user ID from Jellyfin (needed for item access)
+          const usersRes = await fetch(`${jellyfinUrl}/Users`, {
+            headers: { 'X-Emby-Token': jellyfinApiKey }
+          })
+          
+          if (!usersRes.ok) {
+            throw new Error(`Failed to get Jellyfin users: ${usersRes.status}`)
+          }
+          
+          const users = await usersRes.json()
+          const userId = users[0]?.Id
+          
+          if (!userId) {
+            throw new Error('No Jellyfin users found')
+          }
+          
+          console.log('Using Jellyfin user:', userId)
+          
+          // Get item with user context and Path field
+          const itemUrl = `${jellyfinUrl}/Users/${userId}/Items/${jellyfinItemId}?Fields=Path`
           console.log('Fetching item from Jellyfin:', itemUrl)
           
           const itemRes = await fetch(itemUrl, {
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
-            }
+            headers: { 'X-Emby-Token': jellyfinApiKey }
           })
           
           if (!itemRes.ok) {
