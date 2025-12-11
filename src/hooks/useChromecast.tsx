@@ -27,39 +27,58 @@ export const useChromecast = () => {
 
   // Initialize Chromecast
   useEffect(() => {
+    console.log('[Chromecast] Starting initialization...');
+    console.log('[Chromecast] Protocol:', window.location.protocol);
+    console.log('[Chromecast] Hostname:', window.location.hostname);
+    
+    // Check if we're on HTTPS (required for Cast SDK)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+      console.warn('[Chromecast] Cast SDK requires HTTPS. Current protocol:', window.location.protocol);
+    }
+
     const initializeCast = () => {
+      console.log('[Chromecast] initializeCast called');
       const cast = (window as any).chrome?.cast;
+      console.log('[Chromecast] chrome.cast available:', !!cast);
+      console.log('[Chromecast] chrome.cast.framework available:', !!cast?.framework);
+      
       if (!cast?.framework) {
-        console.error('Cast framework not available');
+        console.error('[Chromecast] Cast framework not available');
+        toast.error('Chromecast ikke tilgjengelig - krever Chrome browser med Cast-støtte');
+        setIsLoading(false);
         return;
       }
 
       try {
         const context = cast.framework.CastContext.getInstance();
         setCastContext(context);
+        console.log('[Chromecast] Got CastContext instance');
 
         context.setOptions({
           receiverApplicationId: cast.framework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
           autoJoinPolicy: cast.framework.AutoJoinPolicy.ORIGIN_SCOPED,
         });
+        console.log('[Chromecast] Options set');
 
         const player = new cast.framework.RemotePlayer();
         const playerController = new cast.framework.RemotePlayerController(player);
         
         setRemotePlayer(player);
         setRemotePlayerController(playerController);
+        console.log('[Chromecast] RemotePlayer and controller created');
 
         // Listen for cast state changes
         context.addEventListener(
           cast.framework.CastContextEventType.CAST_STATE_CHANGED,
           (event: any) => {
+            console.log('[Chromecast] Cast state changed:', event.castState);
             const isConnected = event.castState === cast.framework.CastState.CONNECTED;
             const session = context.getCurrentSession();
             
             if (isConnected && session) {
               const deviceName = session.getCastDevice().friendlyName;
-              // Save last used device
               localStorage.setItem('last_cast_device', deviceName);
+              console.log('[Chromecast] Connected to:', deviceName);
               
               setCastState(prev => ({
                 ...prev,
@@ -104,7 +123,6 @@ export const useChromecast = () => {
         setCastState(prev => ({ ...prev, isAvailable: true }));
         setIsLoading(false);
         
-        // Show success toast with last used device
         const lastDevice = localStorage.getItem('last_cast_device');
         if (lastDevice) {
           toast.success(`Chromecast klar! Sist brukt: ${lastDevice}`);
@@ -112,31 +130,49 @@ export const useChromecast = () => {
           toast.success('Chromecast klar!');
         }
         
-        console.log('Chromecast initialized successfully');
+        console.log('[Chromecast] Initialized successfully');
       } catch (error) {
-        console.warn('Cast initialization error:', error);
+        console.error('[Chromecast] Initialization error:', error);
+        toast.error('Kunne ikke initialisere Chromecast');
         setIsLoading(false);
       }
     };
+
+    // Check if SDK is already loaded
+    const existingCast = (window as any).chrome?.cast;
+    if (existingCast?.framework) {
+      console.log('[Chromecast] SDK already loaded, initializing...');
+      initializeCast();
+      return;
+    }
 
     // Use the official Cast SDK callback
     (window as any)['__onGCastApiAvailable'] = (isAvailable: boolean) => {
+      console.log('[Chromecast] __onGCastApiAvailable called, isAvailable:', isAvailable);
       if (isAvailable) {
-        console.log('Cast SDK loaded successfully');
         initializeCast();
       } else {
-        console.warn('Cast SDK not available - Chromecast vil ikke være tilgjengelig');
+        console.warn('[Chromecast] Cast SDK not available');
+        toast.error('Chromecast ikke tilgjengelig');
         setIsLoading(false);
       }
     };
 
-    // Fallback timeout after 30 seconds
+    // Fallback timeout after 10 seconds
     const timeout = setTimeout(() => {
       if (isLoading) {
-        console.warn('Cast SDK load timeout - Chromecast vil ikke være tilgjengelig');
-        setIsLoading(false);
+        console.warn('[Chromecast] SDK load timeout (10s)');
+        const cast = (window as any).chrome?.cast;
+        if (cast?.framework) {
+          console.log('[Chromecast] SDK found after timeout, trying to initialize');
+          initializeCast();
+        } else {
+          console.error('[Chromecast] SDK not found after timeout');
+          toast.error('Chromecast timeout - sjekk at du bruker Chrome');
+          setIsLoading(false);
+        }
       }
-    }, 30000);
+    }, 10000);
 
     return () => {
       clearTimeout(timeout);
