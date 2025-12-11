@@ -41,10 +41,10 @@ export const useChromecast = () => {
       console.log('[Chromecast] cast.framework available:', !!(cast?.framework));
       
       if (!cast?.framework) {
-        console.error('[Chromecast] Cast framework not available');
+        console.log('[Chromecast] Cast framework not available');
         if (mounted) {
-          toast.error('Chromecast ikke tilgjengelig - krever Chrome browser med Cast-støtte');
           setIsLoading(false);
+          // Don't show toast - just silently disable
         }
         return;
       }
@@ -149,9 +149,9 @@ export const useChromecast = () => {
       if (isAvailable) {
         initializeCast();
       } else {
-        console.warn('[Chromecast] Cast SDK not available');
-        toast.error('Chromecast ikke tilgjengelig - bruker du Chrome?');
+        console.log('[Chromecast] Cast SDK not available - hiding Chromecast features');
         setIsLoading(false);
+        // Don't show any toast - just silently disable the feature
       }
     });
 
