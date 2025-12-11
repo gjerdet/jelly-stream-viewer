@@ -119,6 +119,8 @@ const Header = () => {
   );
 
   const handleLogout = async () => {
+    localStorage.removeItem('jellyfin_session');
+    window.dispatchEvent(new Event('jellyfin-session-change'));
     await supabase.auth.signOut();
     toast.success(header.loggedOut || "Logged out");
     navigate("/");

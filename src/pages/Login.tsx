@@ -126,6 +126,7 @@ const Login = () => {
 
       // Lagre Jellyfin-sesjon i localStorage
       localStorage.setItem('jellyfin_session', JSON.stringify(authData.jellyfin_session));
+      window.dispatchEvent(new Event('jellyfin-session-change'));
       
       toast.success("Logget inn!");
       navigate("/browse");
