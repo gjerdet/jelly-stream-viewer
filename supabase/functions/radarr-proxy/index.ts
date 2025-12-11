@@ -124,12 +124,18 @@ serve(async (req) => {
 
     console.log(`Radarr API call: ${method} ${baseUrl}${endpoint}`);
 
-    const fetchOptions: RequestInit = {
+    // Create HTTP client that ignores SSL certificate errors (for self-signed certs)
+    const client = Deno.createHttpClient({
+      caCerts: [],
+    });
+
+    const fetchOptions: RequestInit & { client?: Deno.HttpClient } = {
       method,
       headers: {
         'X-Api-Key': RADARR_API_KEY,
         'Content-Type': 'application/json',
       },
+      client,
     };
 
     if (body) {
