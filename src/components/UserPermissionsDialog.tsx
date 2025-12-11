@@ -31,7 +31,13 @@ const ALL_PERMISSIONS: AppPermission[] = [
   'manage_settings',
   'manage_news',
   'view_statistics',
-  'manage_requests'
+  'manage_requests',
+  'view_radarr',
+  'view_sonarr',
+  'view_bazarr',
+  'view_media',
+  'view_compatibility',
+  'view_health'
 ];
 
 export const UserPermissionsDialog = ({
