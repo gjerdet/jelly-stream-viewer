@@ -212,43 +212,48 @@ export const useChromecast = () => {
     remotePlayerController.seek();
   }, [remotePlayerController, remotePlayer]);
 
-  const loadMedia = useCallback((mediaUrl: string, metadata: {
+  const loadMedia = useCallback(async (mediaUrl: string, metadata: {
     title: string;
     subtitle?: string;
     imageUrl?: string;
     currentTime?: number;
   }) => {
-    if (!castContext) return Promise.reject('Cast context not initialized');
+    if (!castContext) {
+      console.warn('[Chromecast] loadMedia called but context not initialized');
+      return;
+    }
 
     const session = castContext.getCurrentSession();
-    if (!session) return Promise.reject('No active cast session');
-
-    const cast = (window as any).chrome.cast;
-    const mediaInfo = new cast.media.MediaInfo(mediaUrl, 'video/mp4');
-    mediaInfo.metadata = new cast.media.GenericMediaMetadata();
-    mediaInfo.metadata.title = metadata.title;
-    
-    if (metadata.subtitle) {
-      mediaInfo.metadata.subtitle = metadata.subtitle;
+    if (!session) {
+      console.warn('[Chromecast] loadMedia called but no active session');
+      return;
     }
 
-    if (metadata.imageUrl) {
-      mediaInfo.metadata.images = [new cast.Image(metadata.imageUrl)];
-    }
-
-    const request = new cast.media.LoadRequest(mediaInfo);
-    
-    if (metadata.currentTime) {
-      request.currentTime = metadata.currentTime;
-    }
-
-    return session.loadMedia(request).then(
-      () => console.log('Media loaded to Cast'),
-      (error: any) => {
-        console.error('Cast load error:', error);
-        throw error;
+    try {
+      const cast = (window as any).chrome.cast;
+      const mediaInfo = new cast.media.MediaInfo(mediaUrl, 'video/mp4');
+      mediaInfo.metadata = new cast.media.GenericMediaMetadata();
+      mediaInfo.metadata.title = metadata.title;
+      
+      if (metadata.subtitle) {
+        mediaInfo.metadata.subtitle = metadata.subtitle;
       }
-    );
+
+      if (metadata.imageUrl) {
+        mediaInfo.metadata.images = [new cast.Image(metadata.imageUrl)];
+      }
+
+      const request = new cast.media.LoadRequest(mediaInfo);
+      
+      if (metadata.currentTime) {
+        request.currentTime = metadata.currentTime;
+      }
+
+      await session.loadMedia(request);
+      console.log('[Chromecast] Media loaded to Cast');
+    } catch (error) {
+      console.error('[Chromecast] Cast load error:', error);
+    }
   }, [castContext]);
 
   return {
