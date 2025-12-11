@@ -730,6 +730,12 @@ export type Database = {
         | "manage_news"
         | "view_statistics"
         | "manage_requests"
+        | "view_radarr"
+        | "view_sonarr"
+        | "view_bazarr"
+        | "view_media"
+        | "view_compatibility"
+        | "view_health"
       app_role: "admin" | "user"
       compatibility_status:
         | "compatible"
@@ -878,6 +884,12 @@ export const Constants = {
         "manage_news",
         "view_statistics",
         "manage_requests",
+        "view_radarr",
+        "view_sonarr",
+        "view_bazarr",
+        "view_media",
+        "view_compatibility",
+        "view_health",
       ],
       app_role: ["admin", "user"],
       compatibility_status: [
