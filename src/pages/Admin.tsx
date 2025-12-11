@@ -13,7 +13,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv } from "lucide-react";
-import { VersionManager } from "@/components/VersionManager";
+
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
 import { ServerMonitoring } from "@/components/ServerMonitoring";
@@ -1004,7 +1004,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "qbittorrent", label: "qBittorrent", icon: Download },
     { value: "users", label: admin.users || "Users", icon: Settings },
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
-    { value: "versions", label: admin.versions || "Versions", icon: Settings },
+    
     { value: "logs", label: admin.logs || "Logs", icon: FileText },
     { value: "db-setup", label: language === 'no' ? "DB Oppsett" : "DB Setup", icon: BookOpen },
   ];
@@ -2130,11 +2130,6 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="reports" className="space-y-6 mt-0">
                 <MediaReportsManager />
-              </TabsContent>
-
-              <TabsContent value="versions" className="space-y-6 mt-0">
-                <UpdateManager />
-                <VersionManager />
               </TabsContent>
 
               <TabsContent value="logs" className="space-y-6 mt-0">
