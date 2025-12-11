@@ -8,7 +8,13 @@ export type AppPermission =
   | 'manage_settings'
   | 'manage_news'
   | 'view_statistics'
-  | 'manage_requests';
+  | 'manage_requests'
+  | 'view_radarr'
+  | 'view_sonarr'
+  | 'view_bazarr'
+  | 'view_media'
+  | 'view_compatibility'
+  | 'view_health';
 
 export const PERMISSION_LABELS: Record<AppPermission, string> = {
   admin_panel: 'Admin Panel',
@@ -17,6 +23,12 @@ export const PERMISSION_LABELS: Record<AppPermission, string> = {
   manage_news: 'Administrer nyheter',
   view_statistics: 'Se statistikk',
   manage_requests: 'Administrer forespørsler',
+  view_radarr: 'Se Radarr',
+  view_sonarr: 'Se Sonarr',
+  view_bazarr: 'Se Bazarr',
+  view_media: 'Se Media',
+  view_compatibility: 'Se Kompatibilitetsskanning',
+  view_health: 'Se System Health',
 };
 
 interface UserPermission {
@@ -116,7 +128,13 @@ export const useUserPermissions = (userId: string | undefined) => {
         'manage_settings',
         'manage_news',
         'view_statistics',
-        'manage_requests'
+        'manage_requests',
+        'view_radarr',
+        'view_sonarr',
+        'view_bazarr',
+        'view_media',
+        'view_compatibility',
+        'view_health'
       ];
       
       const effectivePermissions: Record<AppPermission, { granted: boolean; source: 'role' | 'user' }> = {} as any;
