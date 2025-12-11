@@ -269,6 +269,54 @@ export type Database = {
         }
         Relationships: []
       }
+      radarr_downloads: {
+        Row: {
+          created_at: string
+          download_date: string
+          id: string
+          movie_title: string
+          needs_transcode: boolean | null
+          notes: string | null
+          quality: string | null
+          radarr_movie_id: number
+          reviewed: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          size_bytes: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          download_date?: string
+          id?: string
+          movie_title: string
+          needs_transcode?: boolean | null
+          notes?: string | null
+          quality?: string | null
+          radarr_movie_id: number
+          reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          size_bytes?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          download_date?: string
+          id?: string
+          movie_title?: string
+          needs_transcode?: boolean | null
+          notes?: string | null
+          quality?: string | null
+          radarr_movie_id?: number
+          reviewed?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          size_bytes?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scan_schedule: {
         Row: {
           created_at: string

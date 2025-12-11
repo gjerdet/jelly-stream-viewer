@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film } from "lucide-react";
 import { VersionManager } from "@/components/VersionManager";
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -26,6 +26,7 @@ import { MediaCompatibilityManager } from "@/components/admin/MediaCompatibility
 import { TranscodeJobsDashboard } from "@/components/admin/TranscodeJobsDashboard";
 import { MediaReportsManager } from "@/components/admin/MediaReportsManager";
 import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
+import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -772,6 +773,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
   const adminTabs = [
     { value: "health", label: "Health", icon: Activity },
     { value: "media", label: "Media", icon: Library },
+    { value: "radarr", label: "Radarr", icon: Film },
     { value: "bazarr", label: "Bazarr", icon: Subtitles },
     { value: "compatibility", label: language === 'no' ? "Kompatibilitet" : "Compatibility", icon: AlertTriangle },
     { value: "reports", label: language === 'no' ? "Rapporter" : "Reports", icon: MessageSquare },
@@ -840,6 +842,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
               <TabsContent value="media" className="space-y-6 mt-0">
                 <MediaLibraryOverview />
+              </TabsContent>
+
+              <TabsContent value="radarr" className="space-y-6 mt-0">
+                <RadarrDashboard />
               </TabsContent>
 
               <TabsContent value="bazarr" className="space-y-6 mt-0">
