@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -190,13 +191,8 @@ const Player = () => {
     }
   };
 
-  // Fetch users to get user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users"],
-    { endpoint: `/Users` },
-    !!user
-  );
-  const userId = usersData?.[0]?.Id;
+  // Get userId from localStorage session (not /Users endpoint which requires admin)
+  const { userId } = useJellyfinSession();
 
   // Direct streaming from Jellyfin with smart codec handling
   useEffect(() => {

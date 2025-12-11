@@ -6,6 +6,7 @@ import MediaGrid from "@/components/MediaGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { Button } from "@/components/ui/button";
 import { Film } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -50,6 +51,9 @@ const Browse = () => {
   // Check if user is in demo mode
   const isDemoMode = user?.email?.includes('demo');
 
+  // Get userId from localStorage session (not /Users endpoint which requires admin)
+  const { userId } = useJellyfinSession();
+
   // Determine what content type to show based on route
   const contentType = location.pathname === '/movies' ? 'movies' : 
                       location.pathname === '/series' ? 'series' : 
@@ -60,17 +64,6 @@ const Browse = () => {
       navigate("/");
     }
   }, [user, loading, navigate]);
-
-  // First fetch users to get a valid user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users"],
-    {
-      endpoint: `/Users`,
-    },
-    !!user
-  );
-
-  const userId = usersData?.[0]?.Id;
 
   // Fetch all media items based on content type (skip if demo mode)
   const includeItemTypes = contentType === 'movies' ? 'Movie' : 
@@ -140,19 +133,6 @@ const Browse = () => {
   const hasApiError = itemsError || resumeError;
   const isDataLoading = itemsLoading || resumeLoading || !userId;
   const hasNoData = !isDataLoading && (!allItems || allItems.Items?.length === 0);
-
-  // Debug logging
-  console.log('Browse debug:', {
-    serverUrl,
-    userId,
-    isDemoMode,
-    hasApiError,
-    isDataLoading,
-    hasNoData,
-    itemsError: itemsError?.message,
-    resumeError: resumeError?.message,
-    itemsCount: allItems?.Items?.length
-  });
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items || !serverUrl) return [];
@@ -255,13 +235,6 @@ const Browse = () => {
       ? getJellyfinImageUrl(serverUrl, item.id, 'Primary', { maxHeight: '800' })
       : "https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=1920&h=800&fit=crop"
   }));
-
-  console.log('Browse debug:', {
-    contentType,
-    carouselItemsLength: carouselItemsWithImages.length,
-    hasData: !!allItems,
-    itemsCount: allItems?.Items?.length || 0
-  });
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">

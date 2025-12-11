@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useChromecast } from "@/hooks/useChromecast";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -103,16 +104,8 @@ const Header = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Fetch users to get user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users-header"],
-    {
-      endpoint: `/Users`,
-    },
-    !!user
-  );
-
-  const userId = usersData?.[0]?.Id;
+  // Get userId from localStorage session (not /Users endpoint which requires admin)
+  const { userId } = useJellyfinSession();
 
   // Search suggestions
   const { data: suggestions } = useJellyfinApi<JellyfinResponse>(

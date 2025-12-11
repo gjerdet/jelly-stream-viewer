@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
+import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, User } from "lucide-react";
 
@@ -41,16 +42,8 @@ const Person = () => {
     }
   }, [user, loading, navigate]);
 
-  // Fetch users to get user ID
-  const { data: usersData } = useJellyfinApi<{ Id: string }[]>(
-    ["jellyfin-users"],
-    {
-      endpoint: `/Users`,
-    },
-    !!user
-  );
-
-  const userId = usersData?.[0]?.Id;
+  // Get userId from localStorage session (not /Users endpoint which requires admin)
+  const { userId } = useJellyfinSession();
 
   // Fetch person details
   const { data: person, isLoading: personLoading } = useJellyfinApi<PersonDetail>(
