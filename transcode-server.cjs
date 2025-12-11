@@ -25,7 +25,7 @@ const activeJobs = new Map();
 let isPolling = false;
 let mediaBasePath = process.env.MEDIA_BASE_PATH || '/mnt/truenas';
 
-console.log('🎬 HandBrake Transcode Server starting... (v2 - with NAS prefix strip)');
+console.log('🎬 HandBrake Transcode Server starting... (v3 - with --no-dvdnav fix)');
 console.log(`📡 Supabase URL: ${SUPABASE_URL ? 'Configured' : 'Not configured'}`);
 console.log(`🔑 Transcode Secret: ${TRANSCODE_SECRET ? 'Configured' : 'Not configured'}`);
 console.log(`📂 Media base path: ${mediaBasePath}`);
@@ -286,6 +286,7 @@ async function executeTranscode(jobId, inputPath, outputFormat, replaceOriginal 
       '-o', tempOutput,
       '-e', preset.encoder,
       ...preset.extraArgs,
+      '--no-dvdnav',  // Force file mode, don't try to interpret as disc
       '--audio-lang-list', 'any',
       '--all-audio',
       '--subtitle', 'scan,1,2,3,4,5',
