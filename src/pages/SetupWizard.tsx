@@ -9,15 +9,20 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Server, Database, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 
 type DeploymentType = "cloud" | "local" | null;
 type SetupStep = "welcome" | "deployment-type" | "database-config" | "jellyfin-config" | "monitoring-config" | "complete";
 
 const SetupWizard = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const [currentStep, setCurrentStep] = useState<SetupStep>("welcome");
   const [deploymentType, setDeploymentType] = useState<DeploymentType>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
 
   // Database settings
   const [dbHost, setDbHost] = useState("localhost");
@@ -46,6 +51,22 @@ const SetupWizard = () => {
   const [testingMonitoring, setTestingMonitoring] = useState(false);
   const [monitoringStatus, setMonitoringStatus] = useState<"idle" | "success" | "error">("idle");
 
+  // Check auth and redirect non-admins
+  useEffect(() => {
+    if (authLoading || roleLoading) return;
+    
+    if (!user) {
+      navigate("/");
+      return;
+    }
+    
+    if (userRole && userRole !== "admin") {
+      toast.error("Du har ikke tilgang til denne siden");
+      navigate("/browse");
+      return;
+    }
+  }, [user, userRole, authLoading, roleLoading, navigate]);
+
   // Check if setup is already completed
   useEffect(() => {
     checkExistingSetup();
@@ -65,8 +86,24 @@ const SetupWizard = () => {
       }
     } catch (error) {
       console.log("No existing setup found, continuing with wizard");
+    } finally {
+      setCheckingSetup(false);
     }
   };
+
+  // Show loading while checking auth/role/setup
+  if (authLoading || roleLoading || checkingSetup) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if not admin
+  if (!user || userRole !== "admin") {
+    return null;
+  }
 
   const getProgress = () => {
     const steps = ["welcome", "deployment-type", "database-config", "jellyfin-config", "monitoring-config", "complete"];

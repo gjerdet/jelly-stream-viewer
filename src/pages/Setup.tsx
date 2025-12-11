@@ -1,18 +1,66 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Server } from "lucide-react";
+import { Server, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 
 const Setup = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const [serverUrl, setServerUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSetup, setCheckingSetup] = useState(true);
+  const [setupCompleted, setSetupCompleted] = useState(false);
+
+  // Check if setup is already completed
+  useEffect(() => {
+    const checkSetup = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("server_settings")
+          .select("setting_key")
+          .eq("setting_key", "setup_completed")
+          .maybeSingle();
+
+        if (data && !error) {
+          setSetupCompleted(true);
+        }
+      } catch (error) {
+        console.log("No existing setup found");
+      } finally {
+        setCheckingSetup(false);
+      }
+    };
+    
+    checkSetup();
+  }, []);
+
+  // Check auth and redirect non-admins if setup is already completed
+  useEffect(() => {
+    if (authLoading || roleLoading || checkingSetup) return;
+    
+    // If setup is completed, require admin role
+    if (setupCompleted) {
+      if (!user) {
+        navigate("/");
+        return;
+      }
+      
+      if (userRole && userRole !== "admin") {
+        toast.error("Du har ikke tilgang til denne siden");
+        navigate("/browse");
+        return;
+      }
+    }
+  }, [user, userRole, authLoading, roleLoading, setupCompleted, checkingSetup, navigate]);
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,6 +90,20 @@ const Setup = () => {
       setLoading(false);
     }
   };
+
+  // Show loading while checking
+  if (checkingSetup || (setupCompleted && (authLoading || roleLoading))) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Don't render if setup is complete and user is not admin
+  if (setupCompleted && (!user || userRole !== "admin")) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
