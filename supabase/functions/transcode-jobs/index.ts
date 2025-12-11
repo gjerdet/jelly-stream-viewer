@@ -181,8 +181,8 @@ Deno.serve(async (req) => {
         
         const itemRes = await fetch(apiUrl, {
           headers: {
-            'X-Emby-Token': jellyfinApiKey,
-            'Accept': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
           }
         })
         console.log('Jellyfin response status:', itemRes.status)
