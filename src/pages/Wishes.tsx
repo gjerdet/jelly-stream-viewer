@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, AlertCircle, Film, Tv, Star, Search, ChevronLeft, ChevronRight, Check, Home, Grid3X3 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,50 +32,52 @@ interface DiscoverResult {
   };
 }
 
-// TMDB Genre IDs
+// TMDB Genre IDs with translation keys
 const MOVIE_GENRES = [
-  { id: 28, name: 'Action' },
-  { id: 12, name: 'Eventyr' },
-  { id: 16, name: 'Animasjon' },
-  { id: 35, name: 'Komedie' },
-  { id: 80, name: 'Krim' },
-  { id: 99, name: 'Dokumentar' },
-  { id: 18, name: 'Drama' },
-  { id: 10751, name: 'Familie' },
-  { id: 14, name: 'Fantasy' },
-  { id: 36, name: 'Historie' },
-  { id: 27, name: 'Skrekk' },
-  { id: 10402, name: 'Musikk' },
-  { id: 9648, name: 'Mysterium' },
-  { id: 10749, name: 'Romantikk' },
-  { id: 878, name: 'Sci-Fi' },
-  { id: 53, name: 'Thriller' },
-  { id: 10752, name: 'Krig' },
-  { id: 37, name: 'Western' },
+  { id: 28, key: 'action' },
+  { id: 12, key: 'adventure' },
+  { id: 16, key: 'animation' },
+  { id: 35, key: 'comedy' },
+  { id: 80, key: 'crime' },
+  { id: 99, key: 'documentary' },
+  { id: 18, key: 'drama' },
+  { id: 10751, key: 'family' },
+  { id: 14, key: 'fantasy' },
+  { id: 36, key: 'history' },
+  { id: 27, key: 'horror' },
+  { id: 10402, key: 'music' },
+  { id: 9648, key: 'mystery' },
+  { id: 10749, key: 'romance' },
+  { id: 878, key: 'scifi' },
+  { id: 53, key: 'thriller' },
+  { id: 10752, key: 'war' },
+  { id: 37, key: 'western' },
 ];
 
 const TV_GENRES = [
-  { id: 10759, name: 'Action & Eventyr' },
-  { id: 16, name: 'Animasjon' },
-  { id: 35, name: 'Komedie' },
-  { id: 80, name: 'Krim' },
-  { id: 99, name: 'Dokumentar' },
-  { id: 18, name: 'Drama' },
-  { id: 10751, name: 'Familie' },
-  { id: 10762, name: 'Barn' },
-  { id: 9648, name: 'Mysterium' },
-  { id: 10763, name: 'Nyheter' },
-  { id: 10764, name: 'Reality' },
-  { id: 10765, name: 'Sci-Fi & Fantasy' },
-  { id: 10766, name: 'Såpeopera' },
-  { id: 10767, name: 'Talkshow' },
-  { id: 10768, name: 'Krig & Politikk' },
-  { id: 37, name: 'Western' },
+  { id: 10759, key: 'actionAdventure' },
+  { id: 16, key: 'animation' },
+  { id: 35, key: 'comedy' },
+  { id: 80, key: 'crime' },
+  { id: 99, key: 'documentary' },
+  { id: 18, key: 'drama' },
+  { id: 10751, key: 'family' },
+  { id: 10762, key: 'kids' },
+  { id: 9648, key: 'mystery' },
+  { id: 10763, key: 'news' },
+  { id: 10764, key: 'reality' },
+  { id: 10765, key: 'scifiFantasy' },
+  { id: 10766, key: 'soap' },
+  { id: 10767, key: 'talk' },
+  { id: 10768, key: 'warPolitics' },
+  { id: 37, key: 'western' },
 ];
 
 const Wishes = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { t } = useLanguage();
+  const wishes = t.wishes as any;
   const [jellyseerrUrl, setJellyseerrUrl] = useState<string>("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [activeTab, setActiveTab] = useState("home");
@@ -116,6 +119,11 @@ const Wishes = () => {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<{ id: number; mediaType: 'movie' | 'tv' } | null>(null);
   const jellyseerrRequest = useJellyseerrRequest();
+
+  // Get genre name from translation
+  const getGenreName = (key: string) => {
+    return wishes.genres?.[key] || key;
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -503,7 +511,7 @@ const Wishes = () => {
                   : "bg-purple-600 hover:bg-purple-600 text-white"
               )}
             >
-              {result.mediaType === 'movie' ? 'FILM' : 'SERIE'}
+              {result.mediaType === 'movie' ? wishes.movie : wishes.series}
             </Badge>
           </div>
 
@@ -639,10 +647,10 @@ const Wishes = () => {
             disabled={page <= 1}
           >
             <ChevronLeft className="h-4 w-4" />
-            Forrige
+            {wishes.previous}
           </Button>
           <span className="text-sm text-muted-foreground px-4">
-            Side {page} av {Math.min(totalPages, 500)}
+            {wishes.page} {page} {wishes.of} {Math.min(totalPages, 500)}
           </span>
           <Button
             variant="outline"
@@ -650,7 +658,7 @@ const Wishes = () => {
             onClick={() => onPageChange(page + 1)}
             disabled={page >= totalPages || page >= 500}
           >
-            Neste
+            {wishes.next}
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -702,7 +710,7 @@ const Wishes = () => {
                       : "bg-purple-600 hover:bg-purple-600 text-white"
                   )}
                 >
-                  {result.mediaType === 'movie' ? 'FILM' : 'SERIE'}
+                  {result.mediaType === 'movie' ? wishes.movie : wishes.series}
                 </Badge>
               </div>
 
@@ -774,27 +782,27 @@ const Wishes = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Alle</SelectItem>
-                  <SelectItem value="movie">Filmer</SelectItem>
-                  <SelectItem value="tv">Serier</SelectItem>
+                  <SelectItem value="all">{wishes.allTypes}</SelectItem>
+                  <SelectItem value="movie">{wishes.movies}</SelectItem>
+                  <SelectItem value="tv">{wishes.series}</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Søk etter filmer og serier..."
+                  placeholder={wishes.searchPlaceholder}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-muted/50 border-muted"
                 />
               </div>
               <Button type="submit" disabled={isSearching || !searchQuery.trim()}>
-                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Søk"}
+                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : wishes.search}
               </Button>
               {searchResults.length > 0 && (
                 <Button type="button" variant="outline" onClick={clearSearch}>
-                  Tøm
+                  {wishes.clear}
                 </Button>
               )}
             </div>
@@ -806,7 +814,7 @@ const Wishes = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <p className="font-semibold">SSL Certificate Error</p>
-                <p>Your Jellyseerr server has an invalid SSL certificate. Try using HTTP instead.</p>
+                <p>{wishes.sslError}</p>
                 <Button onClick={() => navigate('/admin')} size="sm" className="mt-2">
                   Go to Admin Settings
                 </Button>
@@ -819,7 +827,7 @@ const Wishes = () => {
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
                 <p className="font-semibold">Network Error</p>
-                <p>Cannot reach Jellyseerr server. Make sure it's accessible from the internet.</p>
+                <p>{wishes.networkError}</p>
                 <Button onClick={() => navigate('/admin')} size="sm" className="mt-2">
                   Go to Admin Settings
                 </Button>
@@ -831,9 +839,9 @@ const Wishes = () => {
           {searchResults.length > 0 ? (
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Søkeresultater ({searchResults.length})</h2>
+                <h2 className="text-2xl font-bold">{wishes.searchResults} ({searchResults.length})</h2>
                 <Button variant="outline" onClick={clearSearch}>
-                  Tilbake
+                  {wishes.back}
                 </Button>
               </div>
               <SearchResultsGrid items={searchResults} />
@@ -843,36 +851,36 @@ const Wishes = () => {
               <TabsList className="mb-6">
                 <TabsTrigger value="home" className="gap-2">
                   <Home className="h-4 w-4" />
-                  Hjem
+                  {wishes.home}
                 </TabsTrigger>
                 <TabsTrigger value="movies" className="gap-2">
                   <Film className="h-4 w-4" />
-                  Filmer
+                  {wishes.movies}
                 </TabsTrigger>
                 <TabsTrigger value="series" className="gap-2">
                   <Tv className="h-4 w-4" />
-                  Serier
+                  {wishes.series}
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="home" className="mt-0">
                 <MediaRow 
-                  title="Populære Filmer" 
+                  title={wishes.popularMovies} 
                   items={trendingMovies} 
                   isLoading={isLoadingTrendingMovies} 
                 />
                 <MediaRow 
-                  title="Populære Serier" 
+                  title={wishes.popularSeries} 
                   items={trendingSeries} 
                   isLoading={isLoadingTrendingSeries} 
                 />
                 <MediaRow 
-                  title="Oppdag Filmer" 
+                  title={wishes.discoverMovies} 
                   items={discoverMovies} 
                   isLoading={isLoadingDiscoverMovies} 
                 />
                 <MediaRow 
-                  title="Oppdag Serier" 
+                  title={wishes.discoverSeries} 
                   items={discoverSeries} 
                   isLoading={isLoadingDiscoverSeries} 
                 />
@@ -880,7 +888,7 @@ const Wishes = () => {
 
               <TabsContent value="movies" className="mt-0">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold">Bla gjennom Filmer</h2>
+                  <h2 className="text-2xl font-bold">{wishes.browseMovies}</h2>
                   <Select 
                     value={movieGenre} 
                     onValueChange={(v) => {
@@ -890,13 +898,13 @@ const Wishes = () => {
                   >
                     <SelectTrigger className="w-48">
                       <Grid3X3 className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Velg sjanger" />
+                      <SelectValue placeholder={wishes.selectGenre} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Alle sjangre</SelectItem>
+                      <SelectItem value="all">{wishes.allGenres}</SelectItem>
                       {MOVIE_GENRES.map(genre => (
                         <SelectItem key={genre.id} value={String(genre.id)}>
-                          {genre.name}
+                          {getGenreName(genre.key)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -913,7 +921,7 @@ const Wishes = () => {
 
               <TabsContent value="series" className="mt-0">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold">Bla gjennom Serier</h2>
+                  <h2 className="text-2xl font-bold">{wishes.browseSeries}</h2>
                   <Select 
                     value={seriesGenre} 
                     onValueChange={(v) => {
@@ -923,13 +931,13 @@ const Wishes = () => {
                   >
                     <SelectTrigger className="w-48">
                       <Grid3X3 className="h-4 w-4 mr-2" />
-                      <SelectValue placeholder="Velg sjanger" />
+                      <SelectValue placeholder={wishes.selectGenre} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Alle sjangre</SelectItem>
+                      <SelectItem value="all">{wishes.allGenres}</SelectItem>
                       {TV_GENRES.map(genre => (
                         <SelectItem key={genre.id} value={String(genre.id)}>
-                          {genre.name}
+                          {getGenreName(genre.key)}
                         </SelectItem>
                       ))}
                     </SelectContent>
