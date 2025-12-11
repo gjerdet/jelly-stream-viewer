@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { type, page = 1 } = await req.json();
+    const { type, page = 1, genre, sortBy } = await req.json();
     
     if (!type || !['movie', 'tv'].includes(type)) {
       return new Response(
@@ -24,7 +24,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Discover request:', { type, page });
+    console.log('Discover request:', { type, page, genre, sortBy });
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -62,7 +62,22 @@ serve(async (req) => {
     const jellyseerrUrl = rawUrl.replace(/\/$/, ''); // Remove trailing slash
     // Jellyseerr uses plural 'movies' but singular 'tv'
     const endpoint = type === 'movie' ? 'movies' : type;
-    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${endpoint}?page=${page}&language=no`;
+    
+    // Build query params
+    const params = new URLSearchParams({
+      page: String(page),
+      language: 'no',
+    });
+    
+    if (genre) {
+      params.append('genre', String(genre));
+    }
+    
+    if (sortBy) {
+      params.append('sortBy', sortBy);
+    }
+    
+    const discoverUrl = `${jellyseerrUrl}/api/v1/discover/${endpoint}?${params.toString()}`;
     
     console.log('Fetching from Jellyseerr:', discoverUrl);
 

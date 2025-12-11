@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, AlertCircle, Film, Tv, Star, Calendar, Search, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Loader2, AlertCircle, Film, Tv, Star, Search, ChevronLeft, ChevronRight, Check, Home, Grid3X3 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useJellyseerrRequest } from "@/hooks/useJellyseerr";
 import { SeasonSelectDialog } from "@/components/SeasonSelectDialog";
 import { MediaDetailDialog } from "@/components/MediaDetailDialog";
@@ -29,11 +31,55 @@ interface DiscoverResult {
   };
 }
 
+// TMDB Genre IDs
+const MOVIE_GENRES = [
+  { id: 28, name: 'Action' },
+  { id: 12, name: 'Eventyr' },
+  { id: 16, name: 'Animasjon' },
+  { id: 35, name: 'Komedie' },
+  { id: 80, name: 'Krim' },
+  { id: 99, name: 'Dokumentar' },
+  { id: 18, name: 'Drama' },
+  { id: 10751, name: 'Familie' },
+  { id: 14, name: 'Fantasy' },
+  { id: 36, name: 'Historie' },
+  { id: 27, name: 'Skrekk' },
+  { id: 10402, name: 'Musikk' },
+  { id: 9648, name: 'Mysterium' },
+  { id: 10749, name: 'Romantikk' },
+  { id: 878, name: 'Sci-Fi' },
+  { id: 53, name: 'Thriller' },
+  { id: 10752, name: 'Krig' },
+  { id: 37, name: 'Western' },
+];
+
+const TV_GENRES = [
+  { id: 10759, name: 'Action & Eventyr' },
+  { id: 16, name: 'Animasjon' },
+  { id: 35, name: 'Komedie' },
+  { id: 80, name: 'Krim' },
+  { id: 99, name: 'Dokumentar' },
+  { id: 18, name: 'Drama' },
+  { id: 10751, name: 'Familie' },
+  { id: 10762, name: 'Barn' },
+  { id: 9648, name: 'Mysterium' },
+  { id: 10763, name: 'Nyheter' },
+  { id: 10764, name: 'Reality' },
+  { id: 10765, name: 'Sci-Fi & Fantasy' },
+  { id: 10766, name: 'Såpeopera' },
+  { id: 10767, name: 'Talkshow' },
+  { id: 10768, name: 'Krig & Politikk' },
+  { id: 37, name: 'Western' },
+];
+
 const Wishes = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const [jellyseerrUrl, setJellyseerrUrl] = useState<string>("");
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [activeTab, setActiveTab] = useState("home");
+  
+  // Home tab state
   const [trendingMovies, setTrendingMovies] = useState<DiscoverResult[]>([]);
   const [trendingSeries, setTrendingSeries] = useState<DiscoverResult[]>([]);
   const [discoverMovies, setDiscoverMovies] = useState<DiscoverResult[]>([]);
@@ -42,10 +88,29 @@ const Wishes = () => {
   const [isLoadingTrendingSeries, setIsLoadingTrendingSeries] = useState(false);
   const [isLoadingDiscoverMovies, setIsLoadingDiscoverMovies] = useState(false);
   const [isLoadingDiscoverSeries, setIsLoadingDiscoverSeries] = useState(false);
+  
+  // Browse Movies state
+  const [browseMovies, setBrowseMovies] = useState<DiscoverResult[]>([]);
+  const [moviePage, setMoviePage] = useState(1);
+  const [movieGenre, setMovieGenre] = useState<string>("all");
+  const [isLoadingBrowseMovies, setIsLoadingBrowseMovies] = useState(false);
+  const [totalMoviePages, setTotalMoviePages] = useState(1);
+  
+  // Browse Series state
+  const [browseSeries, setBrowseSeries] = useState<DiscoverResult[]>([]);
+  const [seriesPage, setSeriesPage] = useState(1);
+  const [seriesGenre, setSeriesGenre] = useState<string>("all");
+  const [isLoadingBrowseSeries, setIsLoadingBrowseSeries] = useState(false);
+  const [totalSeriesPages, setTotalSeriesPages] = useState(1);
+  
+  // Search state
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<DiscoverResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchType, setSearchType] = useState<'all' | 'movie' | 'tv'>('all');
+  
+  // Dialog state
   const [seasonDialogOpen, setSeasonDialogOpen] = useState(false);
   const [selectedTvShow, setSelectedTvShow] = useState<{ id: number; title: string } | null>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
@@ -78,13 +143,25 @@ const Wishes = () => {
   }, [user]);
 
   useEffect(() => {
-    if (user && jellyseerrUrl) {
+    if (user && jellyseerrUrl && activeTab === 'home') {
       loadTrendingMovies();
       loadTrendingSeries();
       loadDiscoverMovies();
       loadDiscoverSeries();
     }
-  }, [user, jellyseerrUrl]);
+  }, [user, jellyseerrUrl, activeTab]);
+
+  useEffect(() => {
+    if (user && jellyseerrUrl && activeTab === 'movies') {
+      loadBrowseMovies();
+    }
+  }, [user, jellyseerrUrl, activeTab, moviePage, movieGenre]);
+
+  useEffect(() => {
+    if (user && jellyseerrUrl && activeTab === 'series') {
+      loadBrowseSeries();
+    }
+  }, [user, jellyseerrUrl, activeTab, seriesPage, seriesGenre]);
 
   const loadTrendingMovies = async () => {
     setIsLoadingTrendingMovies(true);
@@ -162,6 +239,48 @@ const Wishes = () => {
     }
   };
 
+  const loadBrowseMovies = async () => {
+    setIsLoadingBrowseMovies(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyseerr-discover", {
+        body: { 
+          type: 'movie', 
+          page: moviePage,
+          genre: movieGenre !== 'all' ? movieGenre : undefined,
+        },
+      });
+      if (!error && data) {
+        setBrowseMovies(data.results || []);
+        setTotalMoviePages(data.totalPages || 1);
+      }
+    } catch (error) {
+      console.error('Browse movies error:', error);
+    } finally {
+      setIsLoadingBrowseMovies(false);
+    }
+  };
+
+  const loadBrowseSeries = async () => {
+    setIsLoadingBrowseSeries(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("jellyseerr-discover", {
+        body: { 
+          type: 'tv', 
+          page: seriesPage,
+          genre: seriesGenre !== 'all' ? seriesGenre : undefined,
+        },
+      });
+      if (!error && data) {
+        setBrowseSeries(data.results || []);
+        setTotalSeriesPages(data.totalPages || 1);
+      }
+    } catch (error) {
+      console.error('Browse series error:', error);
+    } finally {
+      setIsLoadingBrowseSeries(false);
+    }
+  };
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
@@ -183,7 +302,16 @@ const Wishes = () => {
         throw error;
       }
 
-      setSearchResults(data?.results || []);
+      let results = data?.results || [];
+      
+      // Filter by search type
+      if (searchType === 'movie') {
+        results = results.filter((r: DiscoverResult) => r.mediaType === 'movie');
+      } else if (searchType === 'tv') {
+        results = results.filter((r: DiscoverResult) => r.mediaType === 'tv');
+      }
+      
+      setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
@@ -207,7 +335,7 @@ const Wishes = () => {
   const handleRequestFromDetail = () => {
     if (!selectedMedia) return;
 
-    const allMedia = [...trendingMovies, ...trendingSeries, ...discoverMovies, ...discoverSeries, ...searchResults];
+    const allMedia = [...trendingMovies, ...trendingSeries, ...discoverMovies, ...discoverSeries, ...searchResults, ...browseMovies, ...browseSeries];
     const result = allMedia.find(r => r.id === selectedMedia.id);
 
     if (!result) return;
@@ -239,7 +367,7 @@ const Wishes = () => {
   const handleSeasonConfirm = (selection: { seasons: number[]; episodes: { [seasonNumber: number]: number[] } }) => {
     if (!selectedTvShow) return;
 
-    const allSeries = [...trendingSeries, ...discoverSeries, ...searchResults];
+    const allSeries = [...trendingSeries, ...discoverSeries, ...searchResults, ...browseSeries];
     const result = allSeries.find(r => r.id === selectedTvShow.id);
 
     if (!result) return;
@@ -326,6 +454,120 @@ const Wishes = () => {
           className="flex gap-3 overflow-x-auto scrollbar-hide pb-2"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
+          {items.map((result) => (
+            <MediaCard key={result.id} result={result} onClick={() => handleMediaClick(result)} />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Media card component
+  const MediaCard = ({ result, onClick }: { result: DiscoverResult; onClick: () => void }) => {
+    const mediaTitle = result.mediaType === 'movie' ? result.title : result.name;
+    const date = result.mediaType === 'movie' ? result.releaseDate : result.firstAirDate;
+    const year = getYear(date);
+    const posterUrl = result.posterPath
+      ? `https://image.tmdb.org/t/p/w300${result.posterPath}`
+      : null;
+
+    return (
+      <div
+        className="flex-shrink-0 w-36 cursor-pointer group"
+        onClick={onClick}
+      >
+        <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted mb-2">
+          {posterUrl ? (
+            <img
+              src={posterUrl}
+              alt={mediaTitle}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-muted">
+              {result.mediaType === 'movie' ? (
+                <Film className="h-12 w-12 text-muted-foreground" />
+              ) : (
+                <Tv className="h-12 w-12 text-muted-foreground" />
+              )}
+            </div>
+          )}
+          
+          <div className="absolute top-2 left-2">
+            <Badge 
+              className={cn(
+                "text-[10px] px-1.5 py-0.5 font-medium",
+                result.mediaType === 'movie' 
+                  ? "bg-blue-600 hover:bg-blue-600 text-white" 
+                  : "bg-purple-600 hover:bg-purple-600 text-white"
+              )}
+            >
+              {result.mediaType === 'movie' ? 'FILM' : 'SERIE'}
+            </Badge>
+          </div>
+
+          {isAvailable(result) && (
+            <div className="absolute top-2 right-2">
+              <div className="bg-green-500 rounded-full p-0.5">
+                <Check className="h-3 w-3 text-white" />
+              </div>
+            </div>
+          )}
+          {isRequested(result) && !isAvailable(result) && (
+            <div className="absolute top-2 right-2">
+              <div className="bg-yellow-500 rounded-full w-4 h-4 flex items-center justify-center">
+                <span className="text-[8px] font-bold text-black">●</span>
+              </div>
+            </div>
+          )}
+
+          <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+            <div>
+              <p className="text-white text-sm font-medium line-clamp-2">{mediaTitle}</p>
+              <div className="flex items-center gap-2 text-xs text-gray-300 mt-1">
+                {year && <span>{year}</span>}
+                {result.voteAverage > 0 && (
+                  <span className="flex items-center gap-0.5">
+                    <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                    {result.voteAverage.toFixed(1)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Browse grid component with pagination
+  const BrowseGrid = ({ 
+    items, 
+    isLoading, 
+    page, 
+    totalPages, 
+    onPageChange,
+  }: { 
+    items: DiscoverResult[]; 
+    isLoading: boolean; 
+    page: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+  }) => {
+    if (isLoading) {
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {[...Array(20)].map((_, i) => (
+            <div key={i} className="aspect-[2/3] bg-muted rounded-lg animate-pulse" />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {items.map((result) => {
             const mediaTitle = result.mediaType === 'movie' ? result.title : result.name;
             const date = result.mediaType === 'movie' ? result.releaseDate : result.firstAirDate;
@@ -337,7 +579,7 @@ const Wishes = () => {
             return (
               <div
                 key={result.id}
-                className="flex-shrink-0 w-36 cursor-pointer group"
+                className="cursor-pointer group"
                 onClick={() => handleMediaClick(result)}
               >
                 <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-muted mb-2">
@@ -358,21 +600,6 @@ const Wishes = () => {
                     </div>
                   )}
                   
-                  {/* Media type badge */}
-                  <div className="absolute top-2 left-2">
-                    <Badge 
-                      className={cn(
-                        "text-[10px] px-1.5 py-0.5 font-medium",
-                        result.mediaType === 'movie' 
-                          ? "bg-blue-600 hover:bg-blue-600 text-white" 
-                          : "bg-purple-600 hover:bg-purple-600 text-white"
-                      )}
-                    >
-                      {result.mediaType === 'movie' ? 'MOVIE' : 'TV'}
-                    </Badge>
-                  </div>
-
-                  {/* Status indicator */}
                   {isAvailable(result) && (
                     <div className="absolute top-2 right-2">
                       <div className="bg-green-500 rounded-full p-0.5">
@@ -387,26 +614,45 @@ const Wishes = () => {
                       </div>
                     </div>
                   )}
-
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
-                    <div>
-                      <p className="text-white text-sm font-medium line-clamp-2">{mediaTitle}</p>
-                      <div className="flex items-center gap-2 text-xs text-gray-300 mt-1">
-                        {year && <span>{year}</span>}
-                        {result.voteAverage > 0 && (
-                          <span className="flex items-center gap-0.5">
-                            <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
-                            {result.voteAverage.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                </div>
+                <p className="text-sm font-medium line-clamp-1">{mediaTitle}</p>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  {year && <span>{year}</span>}
+                  {result.voteAverage > 0 && (
+                    <span className="flex items-center gap-0.5">
+                      <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
+                      {result.voteAverage.toFixed(1)}
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })}
+        </div>
+        
+        {/* Pagination */}
+        <div className="flex items-center justify-center gap-2 mt-8">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Forrige
+          </Button>
+          <span className="text-sm text-muted-foreground px-4">
+            Side {page} av {Math.min(totalPages, 500)}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= totalPages || page >= 500}
+          >
+            Neste
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     );
@@ -456,7 +702,7 @@ const Wishes = () => {
                       : "bg-purple-600 hover:bg-purple-600 text-white"
                   )}
                 >
-                  {result.mediaType === 'movie' ? 'MOVIE' : 'TV'}
+                  {result.mediaType === 'movie' ? 'FILM' : 'SERIE'}
                 </Badge>
               </div>
 
@@ -520,25 +766,35 @@ const Wishes = () => {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
-          {/* Search bar */}
-          <form onSubmit={handleSearch} className="mb-8">
-            <div className="flex gap-2 max-w-2xl mx-auto">
+          {/* Search bar with type filter */}
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="flex gap-2 max-w-3xl mx-auto">
+              <Select value={searchType} onValueChange={(v) => setSearchType(v as any)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="movie">Filmer</SelectItem>
+                  <SelectItem value="tv">Serier</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   type="text"
-                  placeholder="Search Movies & TV"
+                  placeholder="Søk etter filmer og serier..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-muted/50 border-muted"
                 />
               </div>
               <Button type="submit" disabled={isSearching || !searchQuery.trim()}>
-                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Search"}
+                {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Søk"}
               </Button>
               {searchResults.length > 0 && (
                 <Button type="button" variant="outline" onClick={clearSearch}>
-                  Clear
+                  Tøm
                 </Button>
               )}
             </div>
@@ -571,40 +827,123 @@ const Wishes = () => {
             </Alert>
           )}
 
-          {/* Search results or discover content */}
+          {/* Search results or tabbed content */}
           {searchResults.length > 0 ? (
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold">Search Results ({searchResults.length})</h2>
+                <h2 className="text-2xl font-bold">Søkeresultater ({searchResults.length})</h2>
                 <Button variant="outline" onClick={clearSearch}>
-                  Back to Discover
+                  Tilbake
                 </Button>
               </div>
               <SearchResultsGrid items={searchResults} />
             </div>
           ) : (
-            <>
-              <MediaRow 
-                title="Trending Movies" 
-                items={trendingMovies} 
-                isLoading={isLoadingTrendingMovies} 
-              />
-              <MediaRow 
-                title="Trending TV Shows" 
-                items={trendingSeries} 
-                isLoading={isLoadingTrendingSeries} 
-              />
-              <MediaRow 
-                title="Discover Movies" 
-                items={discoverMovies} 
-                isLoading={isLoadingDiscoverMovies} 
-              />
-              <MediaRow 
-                title="Discover TV Shows" 
-                items={discoverSeries} 
-                isLoading={isLoadingDiscoverSeries} 
-              />
-            </>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="home" className="gap-2">
+                  <Home className="h-4 w-4" />
+                  Hjem
+                </TabsTrigger>
+                <TabsTrigger value="movies" className="gap-2">
+                  <Film className="h-4 w-4" />
+                  Filmer
+                </TabsTrigger>
+                <TabsTrigger value="series" className="gap-2">
+                  <Tv className="h-4 w-4" />
+                  Serier
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="home" className="mt-0">
+                <MediaRow 
+                  title="Populære Filmer" 
+                  items={trendingMovies} 
+                  isLoading={isLoadingTrendingMovies} 
+                />
+                <MediaRow 
+                  title="Populære Serier" 
+                  items={trendingSeries} 
+                  isLoading={isLoadingTrendingSeries} 
+                />
+                <MediaRow 
+                  title="Oppdag Filmer" 
+                  items={discoverMovies} 
+                  isLoading={isLoadingDiscoverMovies} 
+                />
+                <MediaRow 
+                  title="Oppdag Serier" 
+                  items={discoverSeries} 
+                  isLoading={isLoadingDiscoverSeries} 
+                />
+              </TabsContent>
+
+              <TabsContent value="movies" className="mt-0">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold">Bla gjennom Filmer</h2>
+                  <Select 
+                    value={movieGenre} 
+                    onValueChange={(v) => {
+                      setMovieGenre(v);
+                      setMoviePage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-48">
+                      <Grid3X3 className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Velg sjanger" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle sjangre</SelectItem>
+                      {MOVIE_GENRES.map(genre => (
+                        <SelectItem key={genre.id} value={String(genre.id)}>
+                          {genre.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <BrowseGrid
+                  items={browseMovies}
+                  isLoading={isLoadingBrowseMovies}
+                  page={moviePage}
+                  totalPages={totalMoviePages}
+                  onPageChange={setMoviePage}
+                />
+              </TabsContent>
+
+              <TabsContent value="series" className="mt-0">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold">Bla gjennom Serier</h2>
+                  <Select 
+                    value={seriesGenre} 
+                    onValueChange={(v) => {
+                      setSeriesGenre(v);
+                      setSeriesPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-48">
+                      <Grid3X3 className="h-4 w-4 mr-2" />
+                      <SelectValue placeholder="Velg sjanger" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle sjangre</SelectItem>
+                      {TV_GENRES.map(genre => (
+                        <SelectItem key={genre.id} value={String(genre.id)}>
+                          {genre.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <BrowseGrid
+                  items={browseSeries}
+                  isLoading={isLoadingBrowseSeries}
+                  page={seriesPage}
+                  totalPages={totalSeriesPages}
+                  onPageChange={setSeriesPage}
+                />
+              </TabsContent>
+            </Tabs>
           )}
 
           {selectedMedia && (
