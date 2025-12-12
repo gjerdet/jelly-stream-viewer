@@ -869,107 +869,84 @@ const Player = () => {
         className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 transition-opacity duration-300 pointer-events-none ${
           showControls ? 'opacity-100' : 'opacity-0'
         }`}
+        onClick={() => setShowControls(!showControls)}
       >
-        {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between pointer-events-auto">
+        {/* Top bar - Simplified for mobile */}
+        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 md:p-6 flex items-start justify-between pointer-events-auto safe-area-top">
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate(-1)}
-            className="text-white hover:bg-white/20"
+            onClick={(e) => { e.stopPropagation(); navigate(-1); }}
+            className="text-white hover:bg-white/20 h-10 px-2 sm:px-3"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Tilbake
+            <ArrowLeft className="h-5 w-5 sm:mr-2" />
+            <span className="hidden sm:inline">Tilbake</span>
           </Button>
 
-          <div className="flex-1 text-center">
-            <h1 className="text-2xl font-bold text-white">
+          {/* Title - Hidden on very small screens */}
+          <div className="flex-1 text-center px-2 hidden sm:block">
+            <h1 className="text-base sm:text-lg md:text-2xl font-bold text-white line-clamp-1">
               {item?.SeriesName && `${item.SeriesName} - `}
               {item?.IndexNumber && `E${item.IndexNumber}: `}
               {item?.Name}
             </h1>
           </div>
 
-          <div className="flex gap-2 items-center">
-            {/* Auto-mark watched setting */}
+          {/* Mobile-optimized controls */}
+          <div className="flex gap-1 sm:gap-2 items-center flex-wrap justify-end max-w-[60%] sm:max-w-none">
+            {/* Episode navigation - Always visible if episode */}
             {isEpisode && (
-              <div className="flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-md px-3 py-1.5 border border-white/20">
-                <Label htmlFor="auto-mark" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                  Auto-marker som sett
-                </Label>
-                <Switch
-                  id="auto-mark"
-                  checked={autoMarkWatched}
-                  onCheckedChange={setAutoMarkWatched}
-                  className="data-[state=checked]:bg-green-600"
-                />
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => { e.stopPropagation(); playPreviousEpisode(); }}
+                  disabled={!previousEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-50 h-10 w-10"
+                  title="Forrige episode"
+                >
+                  <SkipBack className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
+                  disabled={!nextEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-50 h-10 w-10"
+                  title="Neste episode"
+                >
+                  <SkipForward className="h-5 w-5" />
+                </Button>
               </div>
             )}
 
-            {/* Previous/Next Episode Buttons */}
-            {isEpisode && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={playPreviousEpisode}
-                  disabled={!previousEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Forrige episode"
-                >
-                  <SkipBack className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={playNextEpisode}
-                  disabled={!nextEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Neste episode"
-                >
-                  <SkipForward className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-
-            {/* Chromecast Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`text-white hover:bg-white/20 ${castState.isConnected ? 'bg-primary/20' : ''}`}
-              title={castState.isConnected ? "Koblet til Chromecast" : "Cast allerede tilkoblet i header"}
-              disabled
-            >
-              <Cast className="h-4 w-4" />
-            </Button>
-
+            {/* Episodes list button - Only on mobile */}
             {isEpisode && episodes.length > 0 && (
               <Button
                 variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="text-white hover:bg-white/20"
+                size="icon"
+                onClick={(e) => { e.stopPropagation(); setSidebarOpen(!sidebarOpen); }}
+                className="text-white hover:bg-white/20 h-10 w-10"
               >
-                {sidebarOpen ? <ChevronRight className="h-4 w-4 mr-2" /> : <ChevronLeft className="h-4 w-4 mr-2" />}
-                Episoder
+                <ChevronLeft className="h-5 w-5" />
               </Button>
             )}
             
+            {/* Subtitles dropdown - Simplified for mobile */}
             {subtitles.length > 0 && (
               <Select 
                 value={selectedSubtitle} 
                 onValueChange={(value) => {
                   console.log('User selected subtitle:', value);
-                  const sub = subtitles.find(s => s.Index.toString() === value);
-                  if (sub) {
-                    console.log('Subtitle details:', sub.DisplayTitle, 'Language:', sub.Language, 'Index:', sub.Index);
-                  }
                   setSelectedSubtitle(value);
                 }}
               >
-                <SelectTrigger className="w-[180px] bg-black/50 backdrop-blur-sm border-white/20 text-white">
-                  <Subtitles className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Undertekster" />
+                <SelectTrigger 
+                  className="w-auto sm:w-[150px] md:w-[180px] bg-black/50 backdrop-blur-sm border-white/20 text-white h-10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Subtitles className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline"><SelectValue placeholder="Undertekster" /></span>
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
                   <SelectItem value="none">Ingen</SelectItem>
@@ -982,23 +959,23 @@ const Player = () => {
               </Select>
             )}
 
-            {/* Subtitle Search Dialog */}
+            {/* Search subtitles - Hidden on mobile, shown as icon only */}
             <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="sm"
-                  className="text-white hover:bg-white/20"
-                  onClick={() => {
+                  size="icon"
+                  className="text-white hover:bg-white/20 h-10 w-10 hidden sm:flex"
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setSubtitleSearchOpen(true);
                     searchSubtitles('nor');
                   }}
                 >
-                  <Search className="h-4 w-4 mr-2" />
-                  Søk undertekster
+                  <Search className="h-5 w-5" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl">
+              <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh]">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Subtitles className="h-5 w-5" />
@@ -1006,14 +983,14 @@ const Player = () => {
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => searchSubtitles('nor')}
                       disabled={searchingSubtitles}
                     >
-                      Norsk
+                      🇳🇴 Norsk
                     </Button>
                     <Button
                       variant="outline"
@@ -1021,7 +998,7 @@ const Player = () => {
                       onClick={() => searchSubtitles('eng')}
                       disabled={searchingSubtitles}
                     >
-                      English
+                      🇬🇧 English
                     </Button>
                     <Button
                       variant="outline"
@@ -1029,11 +1006,11 @@ const Player = () => {
                       onClick={() => searchSubtitles('swe')}
                       disabled={searchingSubtitles}
                     >
-                      Svenska
+                      🇸🇪 Svenska
                     </Button>
                   </div>
                   
-                  <ScrollArea className="h-[400px] rounded-md border p-4">
+                  <ScrollArea className="h-[50vh] sm:h-[400px] rounded-md border p-2 sm:p-4">
                     {searchingSubtitles ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1044,36 +1021,28 @@ const Player = () => {
                         {remoteSubtitles.map((sub) => (
                           <div
                             key={sub.Id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors"
+                            className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors gap-2"
                           >
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-sm truncate">{sub.Name}</p>
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <p className="font-medium text-xs sm:text-sm truncate">{sub.Name}</p>
+                              <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
                                 <span>{sub.Language}</span>
                                 <span>•</span>
                                 <span>{sub.Provider}</span>
                                 {sub.Format && (
                                   <>
-                                    <span>•</span>
-                                    <span>{sub.Format}</span>
-                                  </>
-                                )}
-                                {sub.DownloadCount && (
-                                  <>
-                                    <span>•</span>
-                                    <span>{sub.DownloadCount} nedlastinger</span>
+                                    <span className="hidden sm:inline">•</span>
+                                    <span className="hidden sm:inline">{sub.Format}</span>
                                   </>
                                 )}
                               </div>
-                              {sub.Comment && (
-                                <p className="text-xs text-muted-foreground mt-1 truncate">{sub.Comment}</p>
-                              )}
                             </div>
                             <Button
                               variant="outline"
-                              size="sm"
+                              size="icon"
                               onClick={() => downloadSubtitle(sub.Id, sub.Name)}
                               disabled={downloadingSubtitle === sub.Id}
+                              className="h-9 w-9 flex-shrink-0"
                             >
                               {downloadingSubtitle === sub.Id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1085,10 +1054,9 @@ const Player = () => {
                         ))}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
                         <Subtitles className="h-12 w-12 mb-2 opacity-50" />
-                        <p>Velg et språk for å søke etter undertekster</p>
-                        <p className="text-xs mt-1">Krever at Jellyfin har et undertekstplugin installert</p>
+                        <p className="text-sm">Velg et språk for å søke</p>
                       </div>
                     )}
                   </ScrollArea>
@@ -1098,20 +1066,46 @@ const Player = () => {
           </div>
         </div>
 
+        {/* Mobile title bar - Only on small screens */}
+        <div className="absolute top-14 left-0 right-0 px-3 sm:hidden pointer-events-none">
+          <p className="text-white text-sm font-medium line-clamp-1 text-center">
+            {item?.SeriesName && `${item.SeriesName} - `}
+            {item?.IndexNumber && `E${item.IndexNumber}: `}
+            {item?.Name}
+          </p>
+        </div>
+
+        {/* Bottom controls for mobile - Auto mark watched */}
+        {isEpisode && (
+          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 sm:left-6 sm:right-auto pointer-events-auto">
+            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 w-fit">
+              <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
+                Auto-marker sett
+              </Label>
+              <Switch
+                id="auto-mark-mobile"
+                checked={autoMarkWatched}
+                onCheckedChange={setAutoMarkWatched}
+                className="data-[state=checked]:bg-green-600 scale-90"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Cast Controls */}
         {castState.isConnected && castState.mediaInfo && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 space-y-4 pointer-events-auto">
-            <div className="bg-black/80 backdrop-blur-md rounded-lg p-4 space-y-3">
+          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-6 space-y-4 pointer-events-auto safe-area-bottom">
+            <div className="bg-black/80 backdrop-blur-md rounded-lg p-3 sm:p-4 space-y-3">
               <div className="flex items-center justify-between text-white">
-                <span className="text-sm">Caster til {castState.deviceName}</span>
+                <span className="text-xs sm:text-sm">Caster til {castState.deviceName}</span>
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => endSession()}
-                  className="text-white hover:bg-white/20"
+                  className="text-white hover:bg-white/20 h-9"
                 >
-                  <Square className="h-4 w-4 mr-2" />
-                  Stopp casting
+                  <Square className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Stopp</span>
                 </Button>
               </div>
 
@@ -1129,12 +1123,12 @@ const Player = () => {
                   variant="ghost"
                   size="lg"
                   onClick={playOrPause}
-                  className="text-white hover:bg-white/20 w-16 h-16"
+                  className="text-white hover:bg-white/20 w-14 h-14 sm:w-16 sm:h-16"
                 >
                   {castState.mediaInfo.isPaused ? (
-                    <Play className="h-8 w-8" />
+                    <Play className="h-6 w-6 sm:h-8 sm:w-8" />
                   ) : (
-                    <Pause className="h-8 w-8" />
+                    <Pause className="h-6 w-6 sm:h-8 sm:w-8" />
                   )}
                 </Button>
               </div>
@@ -1143,7 +1137,7 @@ const Player = () => {
         )}
       </div>
 
-      {/* Next Episode Preview */}
+      {/* Next Episode Preview - Mobile optimized */}
       {showNextEpisodePreview && (() => {
         const nextEpisode = getNextEpisode();
         if (!nextEpisode) return null;
@@ -1153,9 +1147,9 @@ const Player = () => {
           : null;
 
         return (
-          <div className="absolute bottom-24 right-6 w-80 bg-background/95 backdrop-blur-xl rounded-lg p-4 shadow-2xl border border-border animate-fade-in pointer-events-auto">
-            <div className="flex items-start gap-3">
-              <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary">
+          <div className="absolute bottom-20 sm:bottom-24 right-2 sm:right-6 left-2 sm:left-auto w-auto sm:w-80 bg-background/95 backdrop-blur-xl rounded-lg p-3 sm:p-4 shadow-2xl border border-border animate-fade-in pointer-events-auto">
+            <div className="flex items-start gap-2 sm:gap-3">
+              <div className="w-20 sm:w-32 h-14 sm:h-20 flex-shrink-0 rounded overflow-hidden bg-secondary">
                 {nextEpisodeImageUrl ? (
                   <img
                     src={nextEpisodeImageUrl}
@@ -1170,14 +1164,14 @@ const Player = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-muted-foreground">Neste episode</p>
+                  <p className="text-xs text-muted-foreground">Neste</p>
                   {countdown !== null && countdown > 0 && (
                     <span className="text-xs font-semibold text-primary">
                       {countdown}s
                     </span>
                   )}
                 </div>
-                <h3 className="font-semibold text-sm line-clamp-2 mb-3">
+                <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mb-2 sm:mb-3">
                   {nextEpisode.IndexNumber && `${nextEpisode.IndexNumber}. `}{nextEpisode.Name}
                 </h3>
                 <div className="flex gap-2">
@@ -1187,7 +1181,7 @@ const Player = () => {
                     className="h-8 text-xs flex-1"
                   >
                     <Play className="h-3 w-3 mr-1" />
-                    Spill nå
+                    Spill
                   </Button>
                   <Button
                     size="sm"
@@ -1199,9 +1193,9 @@ const Player = () => {
                         clearInterval(countdownInterval.current);
                       }
                     }}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs px-2"
                   >
-                    Lukk
+                    ✕
                   </Button>
                 </div>
               </div>
