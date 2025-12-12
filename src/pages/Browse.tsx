@@ -240,14 +240,14 @@ const Browse = () => {
     <div className="min-h-screen bg-background overflow-x-hidden">
       {/* Featured Carousel - Only on home page */}
       {contentType === 'all' && carouselItemsWithImages.length > 0 && (
-        <div className="w-full px-4 pt-8">
+        <div className="w-full px-2 sm:px-4 pt-4 sm:pt-8">
           <div className="container mx-auto">
             <FeaturedCarousel items={carouselItemsWithImages} onItemClick={handleItemClick} />
           </div>
         </div>
       )}
       
-      <div className="space-y-12 py-12">
+      <div className="space-y-6 sm:space-y-8 md:space-y-12 py-6 sm:py-8 md:py-12">
         {contentType === 'all' && recommendedItems?.Items && recommendedItems.Items.length > 0 && (
           <MediaRow
             title={browse.recommendedForYou}
@@ -303,11 +303,11 @@ const Browse = () => {
 
         {/* Movies page with genre filter */}
         {contentType === 'movies' && (
-          <div className="container mx-auto px-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">{browse.movies}</h2>
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold">{browse.movies}</h2>
               <Select value={selectedGenre} onValueChange={setSelectedGenre}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[180px] md:w-[200px] h-10">
                   <SelectValue placeholder={browse.selectGenre} />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
@@ -327,16 +327,16 @@ const Browse = () => {
                 onItemClick={handleItemClick}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                  <h3 className="text-xl font-semibold mb-2">{browse.noMoviesFound}</h3>
-                  <p className="text-muted-foreground mb-4">
+              <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center px-4">
+                <div className="p-4 sm:p-6 rounded-xl bg-card border border-border max-w-md w-full">
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2">{browse.noMoviesFound}</h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-4">
                     {user?.email?.includes('demo') 
                       ? browse.noMoviesDemo
                       : browse.noMoviesServer}
                   </p>
                   {user?.email?.includes('demo') && (
-                    <Button onClick={() => navigate("/setup")} variant="outline">
+                    <Button onClick={() => navigate("/setup")} variant="outline" className="w-full sm:w-auto">
                       {browse.setupJellyfinServer}
                     </Button>
                   )}
@@ -348,11 +348,11 @@ const Browse = () => {
 
         {/* Series page with genre filter */}
         {contentType === 'series' && (
-          <div className="container mx-auto px-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold">{browse.series}</h2>
+          <div className="container mx-auto px-3 sm:px-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold">{browse.series}</h2>
               <Select value={selectedGenre} onValueChange={setSelectedGenre}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-full sm:w-[180px] md:w-[200px] h-10">
                   <SelectValue placeholder={browse.selectGenre} />
                 </SelectTrigger>
                 <SelectContent className="bg-background z-50">
@@ -372,16 +372,16 @@ const Browse = () => {
                 onItemClick={handleItemClick}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                  <h3 className="text-xl font-semibold mb-2">{browse.noSeriesFound}</h3>
-                  <p className="text-muted-foreground mb-4">
+              <div className="flex flex-col items-center justify-center py-12 sm:py-20 text-center px-4">
+                <div className="p-4 sm:p-6 rounded-xl bg-card border border-border max-w-md w-full">
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2">{browse.noSeriesFound}</h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-4">
                     {user?.email?.includes('demo') 
                       ? browse.noSeriesDemo
                       : browse.noSeriesServer}
                   </p>
                   {user?.email?.includes('demo') && (
-                    <Button onClick={() => navigate("/setup")} variant="outline">
+                    <Button onClick={() => navigate("/setup")} variant="outline" className="w-full sm:w-auto">
                       {browse.setupJellyfinServer}
                     </Button>
                   )}

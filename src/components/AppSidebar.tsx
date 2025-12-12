@@ -46,12 +46,21 @@ export function AppSidebar() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
+  const { setOpen } = useSidebar();
+
+  const handleNavClick = () => {
+    // Close sidebar on mobile after navigation
+    if (window.innerWidth < 768) {
+      setOpen(false);
+    }
+  };
+
   return (
     <Sidebar 
       collapsible="icon" 
-      className="border-r border-border/50 group/sidebar hover:w-64 transition-all duration-300"
+      className="border-r border-border/50 group/sidebar md:hover:w-64 transition-all duration-300"
     >
-      <SidebarContent>
+      <SidebarContent className="pt-2">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -62,16 +71,17 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
                       <NavLink
                         to={item.url}
+                        onClick={handleNavClick}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 ${
+                          `flex items-center gap-3 min-h-[44px] ${
                             isActive
                               ? "bg-primary/10 text-primary font-medium"
                               : "hover:bg-accent"
                           }`
                         }
                       >
-                        <Icon className="h-4 w-4 flex-shrink-0" />
-                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                        <Icon className="h-5 w-5 flex-shrink-0" />
+                        <span className="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">
                           {item.title}
                         </span>
                       </NavLink>
@@ -85,16 +95,17 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild tooltip={collapsed ? (sidebar.requests || "Requests") : undefined}>
                       <NavLink
                         to="/requests-admin"
+                        onClick={handleNavClick}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 ${
+                          `flex items-center gap-3 min-h-[44px] ${
                             isActive
                               ? "bg-primary/10 text-primary font-medium"
                               : "hover:bg-accent"
                           }`
                         }
                       >
-                        <MessageSquare className="h-4 w-4 flex-shrink-0" />
-                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center gap-2">
+                        <MessageSquare className="h-5 w-5 flex-shrink-0" />
+                        <span className="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap flex items-center gap-2 text-sm">
                           {sidebar.requests || "Requests"}
                           {pendingCount && pendingCount > 0 && (
                             <Badge variant="destructive" className="h-5 min-w-5 px-1 text-xs">
@@ -109,16 +120,17 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild tooltip={collapsed ? (sidebar.statistics || "Statistics") : undefined}>
                       <NavLink
                         to="/statistics"
+                        onClick={handleNavClick}
                         className={({ isActive }) =>
-                          `flex items-center gap-3 ${
+                          `flex items-center gap-3 min-h-[44px] ${
                             isActive
                               ? "bg-primary/10 text-primary font-medium"
                               : "hover:bg-accent"
                           }`
                         }
                       >
-                        <BarChart3 className="h-4 w-4 flex-shrink-0" />
-                        <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap">
+                        <BarChart3 className="h-5 w-5 flex-shrink-0" />
+                        <span className="opacity-100 md:opacity-0 md:group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap text-sm">
                           {sidebar.statistics || "Statistics"}
                         </span>
                       </NavLink>

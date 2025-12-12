@@ -148,7 +148,7 @@ const Login = () => {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background p-3 sm:p-4 relative overflow-hidden">
       {loginBackgroundUrl ? (
         <div 
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -160,15 +160,15 @@ const Login = () => {
         <div className="absolute inset-0 gradient-hero opacity-50" />
       )}
       
-      <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/95 backdrop-blur-xl">
-        <CardHeader className="space-y-4 text-center">
+      <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/95 backdrop-blur-xl mx-2 sm:mx-4">
+        <CardHeader className="space-y-3 sm:space-y-4 text-center px-4 sm:px-6 pt-4 sm:pt-6">
           <div className="flex justify-center">
-            <div className="p-4 rounded-2xl bg-primary/10 cinema-glow">
-              <Film className="h-12 w-12 text-primary" />
+            <div className="p-3 sm:p-4 rounded-2xl bg-primary/10 cinema-glow">
+              <Film className="h-8 w-8 sm:h-12 sm:w-12 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-3xl font-bold">Jellyfin Streaming</CardTitle>
-          <CardDescription className="text-base">
+          <CardTitle className="text-2xl sm:text-3xl font-bold">Jellyfin Streaming</CardTitle>
+          <CardDescription className="text-sm sm:text-base">
             Logg inn på din Jellyfin-server for å se innhold
           </CardDescription>
           {!serverUrl && (
@@ -177,39 +177,39 @@ const Login = () => {
             </p>
           )}
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Brukernavn</Label>
+        <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+          <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4">
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="username" className="text-sm">Brukernavn</Label>
               <Input
                 id="username"
                 type="text"
                 placeholder="Skriv inn brukernavn"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-secondary/50 border-border/50"
+                className="bg-secondary/50 border-border/50 h-11 text-base"
               />
               {errors.username && (
-                <p className="text-sm text-destructive">{errors.username}</p>
+                <p className="text-xs sm:text-sm text-destructive">{errors.username}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Passord</Label>
+            <div className="space-y-1.5 sm:space-y-2">
+              <Label htmlFor="password" className="text-sm">Passord</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="Skriv inn passord"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-secondary/50 border-border/50"
+                className="bg-secondary/50 border-border/50 h-11 text-base"
               />
               {errors.password && (
-                <p className="text-sm text-destructive">{errors.password}</p>
+                <p className="text-xs sm:text-sm text-destructive">{errors.password}</p>
               )}
             </div>
             <Button 
               type="submit" 
-              className="w-full cinema-glow smooth-transition hover:scale-[1.02]"
+              className="w-full cinema-glow smooth-transition hover:scale-[1.02] h-11 sm:h-12 text-base"
               disabled={loading}
             >
               {loading ? "Logger inn..." : "Logg inn"}

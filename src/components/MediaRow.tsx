@@ -49,28 +49,28 @@ const MediaRow = ({ title, items, onItemClick }: MediaRowProps) => {
   };
 
   return (
-    <div className="space-y-4 group/row">
-      <h2 className="text-2xl font-bold px-4">{title}</h2>
+    <div className="space-y-3 sm:space-y-4 group/row">
+      <h2 className="text-lg sm:text-xl md:text-2xl font-bold px-3 sm:px-4">{title}</h2>
       
       <div className="relative">
         {showLeftArrow && (
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-full w-12 rounded-none bg-gradient-to-r from-background to-transparent opacity-0 group-hover/row:opacity-100 smooth-transition hover:scale-110"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-full w-8 sm:w-12 rounded-none bg-gradient-to-r from-background to-transparent opacity-0 group-hover/row:opacity-100 smooth-transition hover:scale-110 hidden sm:flex"
             onClick={() => scroll("left")}
           >
-            <ChevronLeft className="h-8 w-8" />
+            <ChevronLeft className="h-6 w-6 sm:h-8 sm:w-8" />
           </Button>
         )}
 
         <div
           ref={scrollRef}
-          className="flex gap-4 overflow-x-auto scrollbar-hide px-4 pb-4"
+          className="flex gap-2 sm:gap-3 md:gap-4 overflow-x-auto scrollbar-hide px-3 sm:px-4 pb-2 sm:pb-4 snap-x snap-mandatory"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           {items.map((item) => (
-            <div key={item.id} className="flex-none w-48">
+            <div key={item.id} className="flex-none w-28 sm:w-36 md:w-44 lg:w-48 snap-start">
               <MediaCard
                 title={item.title}
                 image={item.image}
@@ -88,10 +88,10 @@ const MediaRow = ({ title, items, onItemClick }: MediaRowProps) => {
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-full w-12 rounded-none bg-gradient-to-l from-background to-transparent opacity-0 group-hover/row:opacity-100 smooth-transition hover:scale-110"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-full w-8 sm:w-12 rounded-none bg-gradient-to-l from-background to-transparent opacity-0 group-hover/row:opacity-100 smooth-transition hover:scale-110 hidden sm:flex"
             onClick={() => scroll("right")}
           >
-            <ChevronRight className="h-8 w-8" />
+            <ChevronRight className="h-6 w-6 sm:h-8 sm:w-8" />
           </Button>
         )}
       </div>
