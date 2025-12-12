@@ -469,7 +469,7 @@ const Detail = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section with Backdrop */}
-      <div className="relative h-[70vh] overflow-hidden">
+      <div className="relative min-h-[60vh] sm:min-h-[70vh] overflow-hidden">
         {/* Backdrop Image with Blur */}
         <div className="absolute inset-0">
           <img
@@ -495,21 +495,21 @@ const Detail = () => {
           <div className="absolute inset-0 opacity-[0.02] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMzAwdjMwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')]" />
         </div>
 
-        <div className="relative container mx-auto px-4 h-full flex flex-col justify-start pt-20 pb-20">
+        <div className="relative container mx-auto px-3 sm:px-4 h-full flex flex-col justify-end pb-6 sm:pb-8 pt-16 sm:pt-20">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate(-1)}
-            className="absolute top-4 left-4 text-white hover:bg-white/20"
+            className="absolute top-3 left-3 sm:top-4 sm:left-4 text-white hover:bg-white/20 h-9 px-2 sm:px-3"
           >
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Tilbake
+            <ChevronLeft className="mr-1 sm:mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">Tilbake</span>
           </Button>
 
-          {/* Cover Image */}
-          <div className="flex items-start gap-6">
+          {/* Cover Image + Info Layout - Stack on mobile */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
             {item.ImageTags?.Primary && serverUrl && (
-              <div className="w-48 h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
+              <div className="w-32 h-48 sm:w-40 sm:h-60 md:w-48 md:h-72 flex-shrink-0 rounded-lg overflow-hidden shadow-2xl border-2 border-white/20">
                 <img
                   src={getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })}
                   alt={item.Name}
@@ -518,12 +518,12 @@ const Detail = () => {
               </div>
             )}
             
-            <div className="flex-1 min-h-[288px]">
-              <h1 className="text-5xl font-bold mb-4 text-white drop-shadow-lg">
+            <div className="flex-1 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-2 sm:mb-4 text-white drop-shadow-lg line-clamp-2">
                 {item.Name}
               </h1>
 
-              <div className="flex items-center gap-4 mb-6 text-sm text-white/90">
+              <div className="flex items-center justify-center sm:justify-start gap-2 sm:gap-4 mb-4 sm:mb-6 text-xs sm:text-sm text-white/90 flex-wrap">
                 {item.CommunityRating && (
                   <span className="font-semibold text-green-400">
                     {item.CommunityRating.toFixed(1)} ⭐
@@ -531,20 +531,21 @@ const Detail = () => {
                 )}
                 {item.ProductionYear && <span>{item.ProductionYear}</span>}
                 {item.OfficialRating && (
-                  <span className="px-2 py-1 border border-white/50 rounded">
+                  <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 border border-white/50 rounded text-xs">
                     {item.OfficialRating}
                   </span>
                 )}
                 {runtime && <span>{runtime} min</span>}
               </div>
 
-              <div className="flex flex-wrap gap-3 mb-6">
+              {/* Action Buttons - Grid on mobile */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
                 <Button 
-                  size="lg" 
-                  className="gap-2"
+                  size="default"
+                  className="gap-1.5 sm:gap-2 text-sm sm:text-base h-10 sm:h-11 col-span-2 sm:col-span-1"
                   onClick={() => navigate(`/player/${id}`)}
                 >
-                  <Play className="h-5 w-5" />
+                  <Play className="h-4 w-4 sm:h-5 sm:w-5" />
                   Spill av
                 </Button>
 
@@ -552,43 +553,44 @@ const Detail = () => {
                 {castState.isAvailable && (
                   <Button
                     variant={castState.isConnected ? "default" : "secondary"}
-                    size="lg"
+                    size="default"
                     onClick={handleCastClick}
-                    className="gap-2"
+                    className="gap-1.5 sm:gap-2 h-10 sm:h-11"
                     title={castState.isConnected ? "Koblet til Chromecast" : "Koble til Chromecast"}
                   >
-                    <Cast className="h-5 w-5" />
-                    {castState.isConnected ? "Koblet til" : "Cast"}
+                    <Cast className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline">{castState.isConnected ? "Koblet til" : "Cast"}</span>
                   </Button>
                 )}
                 <Button 
-                  size="lg" 
+                  size="default"
                   variant={isFavorite ? "default" : "outline"}
-                  className="gap-2"
+                  className="gap-1.5 sm:gap-2 h-10 sm:h-11"
                   onClick={() => toggleFavorite.mutate()}
                   disabled={toggleFavorite.isPending}
                 >
-                  {isFavorite ? <Check className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                  Min liste
+                  {isFavorite ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <Plus className="h-4 w-4 sm:h-5 sm:w-5" />}
+                  <span className="hidden sm:inline">Min liste</span>
                 </Button>
                 <Button 
-                  size="lg" 
+                  size="default"
                   variant={isLiked ? "default" : "outline"}
                   onClick={() => toggleLike.mutate()}
                   disabled={toggleLike.isPending}
+                  className="h-10 sm:h-11"
                 >
-                  <ThumbsUp className={`h-5 w-5 ${isLiked ? 'fill-current' : ''}`} />
+                  <ThumbsUp className={`h-4 w-4 sm:h-5 sm:w-5 ${isLiked ? 'fill-current' : ''}`} />
                 </Button>
 
                 {/* Report Problem Button */}
                 <Button
-                  size="lg"
+                  size="default"
                   variant="outline"
-                  className="gap-2"
+                  className="gap-1.5 sm:gap-2 h-10 sm:h-11"
                   onClick={() => setReportDialogOpen(true)}
                 >
-                  <Flag className="h-5 w-5" />
-                  Rapporter
+                  <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="hidden sm:inline">Rapporter</span>
                 </Button>
 
                 {/* Subtitle Dialog - Show existing subtitles and search for new */}
