@@ -116,23 +116,31 @@ All colors MUST be HSL.
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* Safe area for mobile devices */
+  /* Safe area for mobile devices with notch */
   @supports (padding: env(safe-area-inset-bottom)) {
     body {
       padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    .safe-area-top {
+      padding-top: max(0.5rem, env(safe-area-inset-top));
+    }
+    
+    .safe-area-bottom {
+      padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
     }
   }
 
   /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Better tap targets on mobile */
   @media (hover: none) and (pointer: coarse) {
-    button, a {
+    button, a, [role="button"] {
       min-height: 44px;
-      min-width: 44px;
     }
   }
 
@@ -141,8 +149,27 @@ All colors MUST be HSL.
     input[type="text"],
     input[type="email"],
     input[type="password"],
-    textarea {
+    input[type="search"],
+    textarea,
+    select {
       font-size: 16px;
+    }
+  }
+
+  /* Video player fullscreen improvements */
+  video::-webkit-media-controls {
+    z-index: 100;
+  }
+  
+  video::-webkit-media-controls-panel {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  /* Landscape mode improvements for player */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .landscape-compact {
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
     }
   }
 }
