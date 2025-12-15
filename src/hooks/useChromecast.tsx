@@ -58,13 +58,16 @@ export const useChromecast = () => {
         const context = castFramework.CastContext.getInstance();
         console.log('[Chromecast] Got CastContext instance');
 
+        // Default Media Receiver App ID - this is the official Google default
+        const DEFAULT_RECEIVER_APP_ID = 'CC1AD845';
+        
         const autoJoinPolicy =
           chromeCast?.AutoJoinPolicy?.ORIGIN_SCOPED ??
           chromeCast?.AutoJoinPolicy?.TAB_AND_ORIGIN_SCOPED ??
           castFramework.AutoJoinPolicy?.ORIGIN_SCOPED;
 
         context.setOptions({
-          receiverApplicationId: castFramework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          receiverApplicationId: DEFAULT_RECEIVER_APP_ID,
           ...(autoJoinPolicy ? { autoJoinPolicy } : {}),
         });
         console.log('[Chromecast] Options set');
