@@ -55,7 +55,7 @@ const Header = () => {
   const { user } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, apiKey } = useServerSettings();
-  const { castState, isLoading: castLoading, requestSession, endSession, playOrPause } = useChromecast();
+  const { castState, isLoading: castLoading, scanForDevices, requestSession, endSession, playOrPause } = useChromecast();
   const { t } = useLanguage();
   const header = t.header as any;
   
@@ -438,128 +438,177 @@ const Header = () => {
 
             {/* Action Buttons */}
             <div className="hidden sm:flex items-center gap-1">
-              {/* Chromecast Button with Popover - only show when available */}
-              {castState.isAvailable && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
-                      title={
-                        castLoading 
-                          ? (header.loadingChromecast || "Loading Chromecast...") 
+              {/* Chromecast Button with Popover - always visible */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''} ${!castState.isAvailable && !castLoading ? 'opacity-50' : ''}`}
+                    title={
+                      castLoading 
+                        ? (header.loadingChromecast || "Loading Chromecast...") 
+                        : !castState.isAvailable
+                          ? "Søk etter Chromecast"
                           : castState.isConnected 
                             ? `${header.connectedTo || "Connected to"} ${castState.deviceName}` 
                             : (header.connectToChromecast || "Connect to Chromecast")
-                      }
-                      disabled={castLoading}
-                    >
-                      <Cast className="h-4 w-4" />
-                      {castLoading && (
-                        <span className="absolute top-0 right-0 h-2 w-2 bg-yellow-500 rounded-full animate-ping" />
-                      )}
-                      {castState.isConnected && !castLoading && (
-                        <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80" align="end">
-                    {castLoading ? (
+                    }
+                    disabled={castLoading}
+                  >
+                    <Cast className="h-4 w-4" />
+                    {castLoading && (
+                      <span className="absolute top-0 right-0 h-2 w-2 bg-yellow-500 rounded-full animate-ping" />
+                    )}
+                    {castState.isConnected && !castLoading && (
+                      <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
+                    )}
+                    {castState.isScanning && (
+                      <span className="absolute top-0 right-0 h-2 w-2 bg-blue-500 rounded-full animate-ping" />
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80" align="end">
+                  {castLoading ? (
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Laster Chromecast...</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Venter på at Cast SDK skal laste inn
+                      </p>
+                    </div>
+                  ) : !castState.isAvailable ? (
+                    <div className="space-y-4">
                       <div className="space-y-2">
-                        <h4 className="font-semibold">Laster Chromecast...</h4>
+                        <h4 className="font-semibold">Chromecast</h4>
                         <p className="text-sm text-muted-foreground">
-                          Venter på at Cast SDK skal laste inn
+                          Cast er ikke tilgjengelig. Bruk Chrome eller Edge for Chromecast-støtte.
                         </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <h4 className="font-semibold">Chromecast</h4>
-                          {castState.isConnected ? (
+                        <Button
+                          onClick={() => scanForDevices()}
+                          className="w-full"
+                          size="sm"
+                          disabled={castState.isScanning}
+                        >
+                          {castState.isScanning ? (
                             <>
-                              <p className="text-sm text-muted-foreground">
-                                Koblet til: <span className="text-foreground font-medium">{castState.deviceName}</span>
-                              </p>
-                              
-                              {castState.mediaInfo && (
-                                <div className="space-y-3 pt-2 border-t">
-                                  <div>
-                                    <p className="text-sm font-medium">{castState.mediaInfo.title}</p>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      {formatCastTime(castState.mediaInfo.currentTime)} / {formatCastTime(castState.mediaInfo.duration)}
-                                    </p>
-                                  </div>
-                                  
-                                  <div className="flex gap-2">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={playOrPause}
-                                      className="flex-1"
-                                    >
-                                      {castState.mediaInfo.isPaused ? (
-                                        <>
-                                          <Play className="h-4 w-4 mr-2" />
-                                          Spill av
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Pause className="h-4 w-4 mr-2" />
-                                          Pause
-                                        </>
-                                      )}
-                                    </Button>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => {
-                                        endSession();
-                                      }}
-                                    >
-                                      <Square className="h-4 w-4 mr-2" />
-                                      Stopp
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                              
-                              {!castState.mediaInfo && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    endSession();
-                                  }}
-                                  className="w-full mt-2"
-                                >
-                                  Koble fra
-                                </Button>
-                              )}
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                              Søker...
                             </>
                           ) : (
                             <>
-                              <p className="text-sm text-muted-foreground">
-                                Ikke koblet til
-                              </p>
+                              <Search className="h-4 w-4 mr-2" />
+                              Prøv likevel
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <h4 className="font-semibold">Chromecast</h4>
+                        {castState.isConnected ? (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Koblet til: <span className="text-foreground font-medium">{castState.deviceName}</span>
+                            </p>
+                            
+                            {castState.mediaInfo && (
+                              <div className="space-y-3 pt-2 border-t">
+                                <div>
+                                  <p className="text-sm font-medium">{castState.mediaInfo.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {formatCastTime(castState.mediaInfo.currentTime)} / {formatCastTime(castState.mediaInfo.duration)}
+                                  </p>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={playOrPause}
+                                    className="flex-1"
+                                  >
+                                    {castState.mediaInfo.isPaused ? (
+                                      <>
+                                        <Play className="h-4 w-4 mr-2" />
+                                        Spill av
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Pause className="h-4 w-4 mr-2" />
+                                        Pause
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      endSession();
+                                    }}
+                                  >
+                                    <Square className="h-4 w-4 mr-2" />
+                                    Stopp
+                                  </Button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {!castState.mediaInfo && (
                               <Button
+                                variant="outline"
+                                size="sm"
                                 onClick={() => {
-                                  requestSession();
+                                  endSession();
                                 }}
+                                className="w-full mt-2"
+                              >
+                                Koble fra
+                              </Button>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm text-muted-foreground">
+                              Ikke koblet til
+                            </p>
+                            <div className="flex flex-col gap-2">
+                              <Button
+                                onClick={() => scanForDevices()}
+                                className="w-full"
+                                size="sm"
+                                disabled={castState.isScanning}
+                              >
+                                {castState.isScanning ? (
+                                  <>
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                    Søker...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Search className="h-4 w-4 mr-2" />
+                                    Søk etter enheter
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                onClick={() => requestSession()}
+                                variant="outline"
                                 className="w-full"
                                 size="sm"
                               >
                                 <Cast className="h-4 w-4 mr-2" />
                                 Koble til
                               </Button>
-                            </>
-                          )}
-                        </div>
+                            </div>
+                          </>
+                        )}
                       </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              )}
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
               
               <Button
                 variant="ghost"

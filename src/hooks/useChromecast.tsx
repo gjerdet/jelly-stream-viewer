@@ -5,6 +5,7 @@ import { waitForCastSdk } from "@/lib/castSdkLoader";
 interface CastState {
   isAvailable: boolean;
   isConnected: boolean;
+  isScanning: boolean;
   deviceName: string | null;
   mediaInfo: {
     title: string | null;
@@ -18,6 +19,7 @@ export const useChromecast = () => {
   const [castState, setCastState] = useState<CastState>({
     isAvailable: false,
     isConnected: false,
+    isScanning: false,
     deviceName: null,
     mediaInfo: null,
   });
@@ -160,6 +162,48 @@ export const useChromecast = () => {
     };
   }, []);
 
+  // Scan for available Chromecast devices
+  const scanForDevices = useCallback(async () => {
+    if (!castContext) {
+      toast.error('Chromecast er ikke tilgjengelig i denne nettleseren. Bruk Chrome eller Edge.');
+      return;
+    }
+
+    setCastState(prev => ({ ...prev, isScanning: true }));
+    toast.info('Søker etter Chromecast-enheter...', { duration: 2000 });
+
+    try {
+      // The Cast SDK automatically discovers devices when we request a session
+      // Opening the Cast dialog shows all available devices
+      await castContext.requestSession();
+      
+      const session = castContext.getCurrentSession();
+      const deviceName = session?.getCastDevice().friendlyName;
+      
+      if (deviceName) {
+        const lastDevice = localStorage.getItem('last_cast_device');
+        if (lastDevice && lastDevice === deviceName) {
+          toast.success(`Koblet til ${deviceName} igjen!`);
+        } else {
+          toast.success(`Koblet til ${deviceName}`);
+        }
+      } else {
+        toast.success('Koblet til Chromecast');
+      }
+      
+      console.log('[Chromecast] Cast session started via scan');
+    } catch (error: any) {
+      if (error === 'cancel') {
+        toast.info('Søk avbrutt');
+      } else {
+        console.error('[Chromecast] Scan error:', error);
+        toast.error('Fant ingen Chromecast-enheter');
+      }
+    } finally {
+      setCastState(prev => ({ ...prev, isScanning: false }));
+    }
+  }, [castContext]);
+
   const requestSession = useCallback(async () => {
     if (!castContext) {
       // Silently return if cast not available - this is expected in non-Chrome browsers
@@ -259,6 +303,7 @@ export const useChromecast = () => {
   return {
     castState,
     isLoading,
+    scanForDevices,
     requestSession,
     endSession,
     playOrPause,
