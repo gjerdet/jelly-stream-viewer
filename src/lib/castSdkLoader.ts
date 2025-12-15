@@ -11,10 +11,14 @@ declare global {
   interface Window {
     __castSdkState?: CastSdkState;
     __onGCastApiAvailable?: (isAvailable: boolean) => void;
+    // Cast Framework API
+    cast?: {
+      framework?: any;
+    };
+    // Legacy / chrome.cast API
     chrome?: {
       cast?: {
         isAvailable?: boolean;
-        framework?: any;
       };
     };
   }
@@ -25,17 +29,22 @@ const checkExistingCast = (): boolean => {
   console.log('[CastSDK] Checking for existing Cast SDK...');
   console.log('[CastSDK] window.chrome exists:', !!window.chrome);
   console.log('[CastSDK] window.chrome.cast exists:', !!window.chrome?.cast);
-  
-  const cast = window.chrome?.cast;
-  if (cast) {
-    console.log('[CastSDK] cast.isAvailable:', cast.isAvailable);
-    console.log('[CastSDK] cast.framework exists:', !!cast.framework);
+  console.log('[CastSDK] window.cast exists:', !!(window as any).cast);
+  console.log('[CastSDK] window.cast.framework exists:', !!(window as any).cast?.framework);
+
+  const chromeCast = window.chrome?.cast;
+  if (chromeCast) {
+    console.log('[CastSDK] chrome.cast.isAvailable:', chromeCast.isAvailable);
   }
-  
-  if (cast && (cast.isAvailable || cast.framework)) {
+
+  const hasFramework = !!(window as any).cast?.framework;
+  const isAvailable = !!chromeCast?.isAvailable;
+
+  if (hasFramework || isAvailable) {
     console.log('[CastSDK] Found existing Cast SDK');
     return true;
   }
+
   return false;
 };
 

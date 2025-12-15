@@ -38,11 +38,14 @@ export const useChromecast = () => {
 
     const initializeCast = () => {
       console.log('[Chromecast] initializeCast called');
-      const cast = (window as any).chrome?.cast;
-      console.log('[Chromecast] chrome.cast available:', !!cast);
-      console.log('[Chromecast] cast.framework available:', !!(cast?.framework));
-      
-      if (!cast?.framework) {
+
+      const chromeCast = (window as any).chrome?.cast;
+      const castFramework = (window as any).cast?.framework;
+
+      console.log('[Chromecast] chrome.cast available:', !!chromeCast);
+      console.log('[Chromecast] window.cast.framework available:', !!castFramework);
+
+      if (!castFramework) {
         console.log('[Chromecast] Cast framework not available');
         if (mounted) {
           setIsLoading(false);
@@ -52,17 +55,17 @@ export const useChromecast = () => {
       }
 
       try {
-        const context = cast.framework.CastContext.getInstance();
+        const context = castFramework.CastContext.getInstance();
         console.log('[Chromecast] Got CastContext instance');
 
         context.setOptions({
-          receiverApplicationId: cast.framework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: cast.framework.AutoJoinPolicy.ORIGIN_SCOPED,
+          receiverApplicationId: castFramework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
+          autoJoinPolicy: castFramework.AutoJoinPolicy.ORIGIN_SCOPED,
         });
         console.log('[Chromecast] Options set');
 
-        const player = new cast.framework.RemotePlayer();
-        const playerController = new cast.framework.RemotePlayerController(player);
+        const player = new castFramework.RemotePlayer();
+        const playerController = new castFramework.RemotePlayerController(player);
         console.log('[Chromecast] RemotePlayer and controller created');
 
         if (!mounted) return;
@@ -73,25 +76,25 @@ export const useChromecast = () => {
 
         // Listen for cast state changes
         context.addEventListener(
-          cast.framework.CastContextEventType.CAST_STATE_CHANGED,
+          castFramework.CastContextEventType.CAST_STATE_CHANGED,
           (event: any) => {
             console.log('[Chromecast] Cast state changed:', event.castState);
-            const isConnected = event.castState === cast.framework.CastState.CONNECTED;
+            const isConnected = event.castState === castFramework.CastState.CONNECTED;
             const session = context.getCurrentSession();
-            
+
             if (isConnected && session) {
               const deviceName = session.getCastDevice().friendlyName;
               localStorage.setItem('last_cast_device', deviceName);
               console.log('[Chromecast] Connected to:', deviceName);
-              
-              setCastState(prev => ({
+
+              setCastState((prev) => ({
                 ...prev,
                 isAvailable: true,
                 isConnected,
                 deviceName,
               }));
             } else {
-              setCastState(prev => ({
+              setCastState((prev) => ({
                 ...prev,
                 isAvailable: true,
                 isConnected: false,
@@ -103,10 +106,10 @@ export const useChromecast = () => {
 
         // Listen for media info changes
         playerController.addEventListener(
-          cast.framework.RemotePlayerEventType.ANY_CHANGE,
+          castFramework.RemotePlayerEventType.ANY_CHANGE,
           () => {
             if (player.isConnected && player.isMediaLoaded) {
-              setCastState(prev => ({
+              setCastState((prev) => ({
                 ...prev,
                 mediaInfo: {
                   title: player.title || null,
@@ -116,7 +119,7 @@ export const useChromecast = () => {
                 },
               }));
             } else {
-              setCastState(prev => ({
+              setCastState((prev) => ({
                 ...prev,
                 mediaInfo: null,
               }));
@@ -124,16 +127,16 @@ export const useChromecast = () => {
           }
         );
 
-        setCastState(prev => ({ ...prev, isAvailable: true }));
+        setCastState((prev) => ({ ...prev, isAvailable: true }));
         setIsLoading(false);
-        
+
         const lastDevice = localStorage.getItem('last_cast_device');
         if (lastDevice) {
           toast.success(`Chromecast klar! Sist brukt: ${lastDevice}`);
         } else {
           toast.success('Chromecast klar!');
         }
-        
+
         console.log('[Chromecast] Initialized successfully');
       } catch (error) {
         console.error('[Chromecast] Initialization error:', error);
@@ -274,7 +277,12 @@ export const useChromecast = () => {
     }
 
     try {
-      const cast = (window as any).chrome.cast;
+      const cast = (window as any).chrome?.cast;
+      if (!cast?.media) {
+        console.warn('[Chromecast] chrome.cast.media not available');
+        return;
+      }
+
       const mediaInfo = new cast.media.MediaInfo(mediaUrl, 'video/mp4');
       mediaInfo.metadata = new cast.media.GenericMediaMetadata();
       mediaInfo.metadata.title = metadata.title;
