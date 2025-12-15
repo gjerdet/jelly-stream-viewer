@@ -58,9 +58,14 @@ export const useChromecast = () => {
         const context = castFramework.CastContext.getInstance();
         console.log('[Chromecast] Got CastContext instance');
 
+        const autoJoinPolicy =
+          chromeCast?.AutoJoinPolicy?.ORIGIN_SCOPED ??
+          chromeCast?.AutoJoinPolicy?.TAB_AND_ORIGIN_SCOPED ??
+          castFramework.AutoJoinPolicy?.ORIGIN_SCOPED;
+
         context.setOptions({
           receiverApplicationId: castFramework.CastContext.DEFAULT_MEDIA_RECEIVER_APP_ID,
-          autoJoinPolicy: castFramework.AutoJoinPolicy.ORIGIN_SCOPED,
+          ...(autoJoinPolicy ? { autoJoinPolicy } : {}),
         });
         console.log('[Chromecast] Options set');
 
