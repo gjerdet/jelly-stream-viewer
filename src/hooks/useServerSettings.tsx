@@ -15,7 +15,7 @@ export const useServerSettings = () => {
         .maybeSingle();
 
       if (error) throw error;
-      return data?.setting_value || "http://jellyfin.gjerdet.casa/";
+      return data?.setting_value || "";
     },
   });
 
