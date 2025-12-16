@@ -105,7 +105,7 @@ const Player = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { serverUrl } = useServerSettings();
-  const { castState, playOrPause, endSession, loadMedia } = useChromecast();
+  const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
@@ -894,6 +894,35 @@ const Player = () => {
 
           {/* Mobile-optimized controls */}
           <div className="flex gap-1 sm:gap-2 items-center flex-wrap justify-end max-w-[60%] sm:max-w-none">
+            {/* Cast button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (castLoading) return;
+
+                if (castState.isConnected) {
+                  endSession();
+                  return;
+                }
+
+                if (!castState.isAvailable) {
+                  toast.info('Cast er ikkje tilgjengelig i denne nettlesaren (prøv Chrome/Edge).');
+                  return;
+                }
+
+                await requestSession();
+              }}
+              className="text-white hover:bg-white/20 h-10 w-10 relative"
+              title={castState.isConnected ? 'Koble frå Chromecast' : 'Koble til Chromecast'}
+            >
+              <Cast className="h-5 w-5" />
+              {castState.isConnected && !castLoading && (
+                <span className="absolute top-2 right-2 h-2 w-2 bg-primary rounded-full" />
+              )}
+            </Button>
+
             {/* Episode navigation - Always visible if episode */}
             {isEpisode && (
               <div className="flex gap-1">
@@ -1056,7 +1085,7 @@ const Player = () => {
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
                         <Subtitles className="h-12 w-12 mb-2 opacity-50" />
-                        <p className="text-sm">Velg et språk for å søke</p>
+                        <p className="text-sm">Velg eit språk for å søke</p>
                       </div>
                     )}
                   </ScrollArea>
