@@ -103,7 +103,8 @@ const Detail = () => {
   const seasonIdFromUrl = searchParams.get('seasonId');
   const { user, loading } = useAuth();
   const { serverUrl, apiKey } = useServerSettings();
-  const { castState, requestSession } = useChromecast();
+  const { castState, requestSession, loadMedia } = useChromecast();
+  const { serverUrl: castServerUrl, apiKey: castApiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
@@ -240,6 +241,45 @@ const Detail = () => {
 
   const handleCastClick = () => {
     requestSession();
+  };
+
+  // Handle play - either cast or navigate to player
+  const handlePlayClick = async () => {
+    if (castState.isConnected && item) {
+      // Build stream URL for casting
+      const streamUrl = `${castServerUrl}/Videos/${id}/stream?Static=true&api_key=${castApiKey}`;
+      const imageUrl = item.ImageTags?.Primary && castServerUrl
+        ? `${castServerUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        : undefined;
+      
+      await loadMedia(streamUrl, {
+        title: item.Name,
+        subtitle: item.ProductionYear?.toString(),
+        imageUrl,
+      });
+      toast.success(`Spiller av "${item.Name}" på ${castState.deviceName}`);
+    } else {
+      navigate(`/player/${id}`);
+    }
+  };
+
+  // Handle episode play - either cast or navigate to player
+  const handleEpisodePlayClick = async (episode: Episode) => {
+    if (castState.isConnected && item) {
+      const streamUrl = `${castServerUrl}/Videos/${episode.Id}/stream?Static=true&api_key=${castApiKey}`;
+      const imageUrl = episode.ImageTags?.Primary && castServerUrl
+        ? `${castServerUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=600`
+        : undefined;
+      
+      await loadMedia(streamUrl, {
+        title: episode.Name,
+        subtitle: `${item.Name} - Episode ${episode.IndexNumber}`,
+        imageUrl,
+      });
+      toast.success(`Spiller av "${episode.Name}" på ${castState.deviceName}`);
+    } else {
+      navigate(`/player/${episode.Id}`);
+    }
   };
 
   // Scroll to top when opening a detail page
@@ -543,10 +583,10 @@ const Detail = () => {
                 <Button 
                   size="default"
                   className="gap-1.5 sm:gap-2 text-sm sm:text-base h-10 sm:h-11 col-span-2 sm:col-span-1"
-                  onClick={() => navigate(`/player/${id}`)}
+                  onClick={handlePlayClick}
                 >
-                  <Play className="h-4 w-4 sm:h-5 sm:w-5" />
-                  Spill av
+                  {castState.isConnected ? <Cast className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
+                  {castState.isConnected ? `Cast til ${castState.deviceName}` : 'Spill av'}
                 </Button>
 
                 {/* Chromecast Button - only show when available */}
@@ -932,7 +972,7 @@ const Detail = () => {
                   >
                     <div 
                       className="relative w-52 h-28 flex-shrink-0 bg-secondary rounded overflow-hidden cursor-pointer"
-                      onClick={() => navigate(`/player/${episode.Id}`)}
+                      onClick={() => handleEpisodePlayClick(episode)}
                     >
                       {episodeImageUrl ? (
                         <img
@@ -959,12 +999,12 @@ const Detail = () => {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
-                      <Play className="h-8 w-8 text-white" />
+                        {castState.isConnected ? <Cast className="h-8 w-8 text-white" /> : <Play className="h-8 w-8 text-white" />}
                       </div>
                     </div>
                     <div 
                       className="flex-1 min-w-0 py-1 cursor-pointer"
-                      onClick={() => navigate(`/player/${episode.Id}`)}
+                      onClick={() => handleEpisodePlayClick(episode)}
                     >
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <h3 className="font-semibold text-lg">
