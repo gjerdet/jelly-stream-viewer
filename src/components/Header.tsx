@@ -274,6 +274,54 @@ const Header = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+            {/* Mobile Chromecast Button */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`sm:hidden h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
+                  disabled={castLoading}
+                >
+                  <Cast className="h-4 w-4" />
+                  {castState.isConnected && !castLoading && (
+                    <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72" align="end">
+                {castLoading ? (
+                  <div className="space-y-2">
+                    <h4 className="font-semibold text-sm">Laster Chromecast...</h4>
+                  </div>
+                ) : !castState.isAvailable ? (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm">Chromecast</h4>
+                    <p className="text-xs text-muted-foreground">
+                      Cast er ikke tilgjengelig i denne nettleseren.
+                    </p>
+                    <Button onClick={() => scanForDevices()} size="sm" className="w-full" disabled={castState.isScanning}>
+                      {castState.isScanning ? "Søker..." : "Søk etter enheter"}
+                    </Button>
+                  </div>
+                ) : castState.isConnected ? (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm">Koblet til {castState.deviceName}</h4>
+                    <Button variant="destructive" size="sm" onClick={endSession} className="w-full">
+                      Koble fra
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm">Chromecast</h4>
+                    <Button onClick={requestSession} size="sm" className="w-full">
+                      Koble til
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+
             {/* Mobile Search Button */}
             <Sheet open={showMobileSearch} onOpenChange={setShowMobileSearch}>
               <SheetTrigger asChild>
