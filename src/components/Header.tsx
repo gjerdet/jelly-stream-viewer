@@ -274,13 +274,13 @@ const Header = () => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-            {/* Mobile Chromecast Button */}
+            {/* Chromecast Button - Always visible */}
             <Popover>
               <PopoverTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`sm:hidden h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
+                  className={`h-9 w-9 relative ${castState.isConnected ? 'text-primary' : ''} ${castLoading ? 'animate-pulse' : ''}`}
                   disabled={castLoading}
                 >
                   <Cast className="h-4 w-4" />
