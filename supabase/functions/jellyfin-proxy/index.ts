@@ -18,17 +18,21 @@ interface JellyfinRequest {
 }
 
 // Whitelist of allowed Jellyfin API endpoints (base paths only, query params allowed)
+// Note: Jellyfin IDs can be both upper and lowercase hex
 const ALLOWED_ENDPOINT_PATTERNS = [
-  /^\/Users$/,
-  /^\/Users\/[a-f0-9]{32}\/Items/,
-  /^\/Users\/[a-f0-9]{32}\/Suggestions/,
-  /^\/Users\/[a-f0-9]{32}\/Views$/,
-  /^\/Items\/[a-f0-9]{32}/,
-  /^\/Shows\/[a-f0-9]{32}\/Seasons/,
-  /^\/Shows\/[a-f0-9]{32}\/Episodes/,
-  /^\/Persons\/[a-f0-9]{32}/,
-  /^\/Search\/Hints/,
-  /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/,
+  /^\/Users$/i,
+  /^\/Users\/[a-f0-9]{32}\/Items/i,
+  /^\/Users\/[a-f0-9]{32}\/Suggestions/i,
+  /^\/Users\/[a-f0-9]{32}\/Views$/i,
+  /^\/Users\/[a-f0-9]{32}\/FavoriteItems/i,
+  /^\/Items\/[a-f0-9]{32}/i,
+  /^\/Items$/i,
+  /^\/Shows\/[a-f0-9]{32}\/Seasons/i,
+  /^\/Shows\/[a-f0-9]{32}\/Episodes/i,
+  /^\/Persons\/[a-f0-9]{32}/i,
+  /^\/Search\/Hints/i,
+  /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/i,
+  /^\/Sessions\/Playing/i,
 ];
 
 function validateEndpoint(endpoint: string): boolean {
