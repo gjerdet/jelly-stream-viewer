@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerSettings } from "./useServerSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 interface JellyfinRequest {
   endpoint: string;
@@ -8,8 +9,8 @@ interface JellyfinRequest {
 }
 
 /**
- * @deprecated Use useJellyfinDirect instead for local network deployments
- * This hook uses edge function proxy which won't work with local Jellyfin
+ * Jellyfin API hook using edge function proxy
+ * This ensures compatibility with Chrome's Private Network Access restrictions
  */
 export const useJellyfinApi = <T,>(
   queryKey: string[],
@@ -21,44 +22,31 @@ export const useJellyfinApi = <T,>(
   return useQuery<T>({
     queryKey,
     queryFn: async () => {
-      // Hent AccessToken fra localStorage (satt ved innlogging)
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-
-      if (!serverUrl || !accessToken) {
-        throw new Error("Jellyfin server URL eller access token mangler");
+      if (!serverUrl) {
+        throw new Error("Jellyfin server URL mangler");
       }
 
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
+      // Skip empty endpoints
+      if (!request.endpoint) {
+        throw new Error("Endpoint mangler");
       }
 
-      const url = `${normalizedUrl.replace(/\/$/, '')}${request.endpoint}`;
-      const method = request.method || "GET";
+      // Use edge function proxy to avoid Chrome CORS/PNA issues
+      const { data, error } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: {
+          endpoint: request.endpoint,
+          method: request.method || 'GET',
+          body: request.body,
+        },
+      });
 
-      const headers: Record<string, string> = {
-        "X-Emby-Token": accessToken,
-        "Content-Type": "application/json",
-      };
-
-      const options: RequestInit = {
-        method,
-        headers,
-      };
-
-      if (request.body && method !== "GET") {
-        options.body = JSON.stringify(request.body);
+      if (error) {
+        console.error('Jellyfin proxy error:', error);
+        throw new Error(`Jellyfin API error: ${error.message}`);
       }
 
-      const response = await fetch(url, options);
-
-      if (!response.ok) {
-        throw new Error(`Jellyfin API error: ${response.status} ${response.statusText}`);
-      }
-
-      return response.json() as T;
+      return data as T;
     },
-    enabled: enabled && !!serverUrl,
+    enabled: enabled && !!serverUrl && !!request.endpoint,
   });
 };
