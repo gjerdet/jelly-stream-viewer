@@ -1104,19 +1104,34 @@ const Player = () => {
           </p>
         </div>
 
-        {/* Bottom controls for mobile - Auto mark watched */}
+        {/* Bottom controls for episodes - Next episode + Auto mark watched */}
         {isEpisode && (
-          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 sm:left-6 sm:right-auto pointer-events-auto">
-            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 w-fit">
-              <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                Auto-marker sett
-              </Label>
-              <Switch
-                id="auto-mark-mobile"
-                checked={autoMarkWatched}
-                onCheckedChange={setAutoMarkWatched}
-                className="data-[state=checked]:bg-green-600 scale-90"
-              />
+          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto">
+            <div className="flex items-center justify-between gap-3">
+              {/* Auto mark watched */}
+              <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
+                  Auto-marker sett
+                </Label>
+                <Switch
+                  id="auto-mark-mobile"
+                  checked={autoMarkWatched}
+                  onCheckedChange={setAutoMarkWatched}
+                  className="data-[state=checked]:bg-green-600 scale-90"
+                />
+              </div>
+              
+              {/* Prominent Next Episode button */}
+              {nextEpisode && (
+                <Button
+                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-lg"
+                >
+                  <SkipForward className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Neste episode</span>
+                  <span className="sm:hidden">Neste</span>
+                </Button>
+              )}
             </div>
           </div>
         )}
