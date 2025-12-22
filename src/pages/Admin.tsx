@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type, Edit, Save, X } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -95,6 +95,8 @@ const Admin = () => {
   const [newPostTitle, setNewPostTitle] = useState("");
   const [newPostContent, setNewPostContent] = useState("");
   const [editingPost, setEditingPost] = useState<string | null>(null);
+  const [editPostTitle, setEditPostTitle] = useState("");
+  const [editPostContent, setEditPostContent] = useState("");
   
   // Connection test state
   const [testingConnection, setTestingConnection] = useState(false);
@@ -972,6 +974,54 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
       toast.error("Kunne ikke oppdatere nyhet");
     },
   });
+
+  // Update news post mutation
+  const updateNewsPost = useMutation({
+    mutationFn: async ({ postId, title, content }: { postId: string; title: string; content: string }) => {
+      const { error } = await supabase
+        .from("news_posts")
+        .update({ title, content, updated_at: new Date().toISOString() })
+        .eq("id", postId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-news-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["news-posts"] });
+      setEditingPost(null);
+      setEditPostTitle("");
+      setEditPostContent("");
+      toast.success("Nyhet oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere nyhet");
+    },
+  });
+
+  // Start editing a post
+  const startEditingPost = (post: { id: string; title: string; content: string }) => {
+    setEditingPost(post.id);
+    setEditPostTitle(post.title);
+    setEditPostContent(post.content);
+  };
+
+  // Cancel editing
+  const cancelEditing = () => {
+    setEditingPost(null);
+    setEditPostTitle("");
+    setEditPostContent("");
+  };
+
+  // Save edited post
+  const saveEditedPost = () => {
+    if (editingPost && editPostTitle.trim() && editPostContent.trim()) {
+      updateNewsPost.mutate({
+        postId: editingPost,
+        title: editPostTitle.trim(),
+        content: editPostContent.trim(),
+      });
+    }
+  };
 
   const handleCreatePost = () => {
     if (newPostTitle.trim() && newPostContent.trim()) {
@@ -2296,39 +2346,93 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                      <div className="space-y-4">
                       {newsPosts.map((post) => (
                         <div key={post.id} className="p-4 border border-border rounded-lg space-y-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="font-semibold">{post.title}</h3>
-                                {post.pinned && (
-                                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
-                                    {admin.pinned || "Pinned"}
-                                  </span>
-                                )}
+                          {editingPost === post.id ? (
+                            // Edit mode
+                            <div className="space-y-3">
+                              <Input
+                                value={editPostTitle}
+                                onChange={(e) => setEditPostTitle(e.target.value)}
+                                placeholder="Tittel..."
+                                className="bg-secondary/50 border-border/50"
+                              />
+                              <Textarea
+                                value={editPostContent}
+                                onChange={(e) => setEditPostContent(e.target.value)}
+                                placeholder="Innhold..."
+                                className="bg-secondary/50 border-border/50 min-h-[150px]"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Tips: Bruk **tekst** for fet, *tekst* for kursiv
+                              </p>
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={cancelEditing}
+                                  disabled={updateNewsPost.isPending}
+                                >
+                                  <X className="h-4 w-4 mr-1" />
+                                  Avbryt
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={saveEditedPost}
+                                  disabled={updateNewsPost.isPending || !editPostTitle.trim() || !editPostContent.trim()}
+                                  className="cinema-glow"
+                                >
+                                  {updateNewsPost.isPending ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <Save className="h-4 w-4 mr-1" />
+                                  )}
+                                  Lagre
+                                </Button>
                               </div>
-                              <p className="text-sm text-muted-foreground line-clamp-2">{post.content}</p>
                             </div>
-                            <div className="flex gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => togglePin.mutate({ postId: post.id, currentPinned: post.pinned })}
-                                disabled={togglePin.isPending}
-                                title={post.pinned ? (admin.unpinFromTop || "Unpin from top") : (admin.pinToTop || "Pin to top")}
-                              >
-                                <Pin className={`h-4 w-4 ${post.pinned ? 'fill-current text-primary' : ''}`} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => deleteNewsPost.mutate(post.id)}
-                                disabled={deleteNewsPost.isPending}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                          ) : (
+                            // View mode
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold">{post.title}</h3>
+                                  {post.pinned && (
+                                    <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+                                      {admin.pinned || "Pinned"}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground line-clamp-2">{post.content}</p>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => startEditingPost(post)}
+                                  title="Rediger"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => togglePin.mutate({ postId: post.id, currentPinned: post.pinned })}
+                                  disabled={togglePin.isPending}
+                                  title={post.pinned ? (admin.unpinFromTop || "Unpin from top") : (admin.pinToTop || "Pin to top")}
+                                >
+                                  <Pin className={`h-4 w-4 ${post.pinned ? 'fill-current text-primary' : ''}`} />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => deleteNewsPost.mutate(post.id)}
+                                  disabled={deleteNewsPost.isPending}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       ))}
                     </div>
