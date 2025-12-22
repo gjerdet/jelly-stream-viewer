@@ -7,7 +7,7 @@ import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2 } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -100,6 +100,17 @@ interface RemoteSubtitle {
   Format?: string;
 }
 
+// Media segment types (intro, credits, etc.)
+interface MediaSegment {
+  Type: string; // 'Intro', 'Outro', 'Commercial', 'Preview', 'Recap'
+  StartTicks: number;
+  EndTicks: number;
+}
+
+interface MediaSegmentsResponse {
+  Items: MediaSegment[];
+}
+
 const Player = () => {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -123,6 +134,12 @@ const Player = () => {
   const [searchingSubtitles, setSearchingSubtitles] = useState(false);
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
+  
+  // Segment skip state (intro/credits)
+  const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
+  const [currentSegment, setCurrentSegment] = useState<MediaSegment | null>(null);
+  const [showSkipButton, setShowSkipButton] = useState(false);
+  
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
 
@@ -351,6 +368,61 @@ const Player = () => {
     }
   }, [subtitles]);
 
+  // Fetch media segments (intro, credits, etc.) from Jellyfin
+  useEffect(() => {
+    const fetchSegments = async () => {
+      if (!serverUrl || !id) return;
+      
+      const jellyfinSession = localStorage.getItem('jellyfin_session');
+      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      
+      if (!accessToken) return;
+
+      let normalizedUrl = serverUrl;
+      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+        normalizedUrl = `http://${normalizedUrl}`;
+      }
+
+      try {
+        // Try Jellyfin 10.9+ MediaSegments API
+        const segmentsUrl = `${normalizedUrl.replace(/\/$/, '')}/MediaSegments/${id}?api_key=${accessToken}`;
+        const response = await fetch(segmentsUrl);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data?.Items && data.Items.length > 0) {
+            console.log('Media segments found:', data.Items);
+            setMediaSegments(data.Items);
+            return;
+          }
+        }
+
+        // Fallback: Try intro-skipper plugin format
+        const introSkipperUrl = `${normalizedUrl.replace(/\/$/, '')}/Episode/${id}/IntroTimestamps?api_key=${accessToken}`;
+        const introResponse = await fetch(introSkipperUrl);
+        
+        if (introResponse.ok) {
+          const introData = await introResponse.json();
+          if (introData?.Valid && introData?.IntroStart !== undefined) {
+            console.log('Intro timestamps found:', introData);
+            // Convert to MediaSegment format
+            const introSegment: MediaSegment = {
+              Type: 'Intro',
+              StartTicks: introData.IntroStart * 10000000,
+              EndTicks: introData.IntroEnd * 10000000,
+            };
+            setMediaSegments([introSegment]);
+          }
+        }
+      } catch (error) {
+        console.log('Could not fetch media segments:', error);
+        // Not an error - segments are optional
+      }
+    };
+
+    fetchSegments();
+  }, [serverUrl, id]);
+
   // Find next episode for autoplay
   const getNextEpisode = () => {
     if (!isEpisode || episodes.length === 0 || !item?.IndexNumber) return null;
@@ -457,16 +529,75 @@ const Player = () => {
 
   const handleTimeUpdate = () => {
     const video = videoRef.current;
-    if (!video || !isEpisode) return;
+    if (!video) return;
 
-    const timeRemaining = video.duration - video.currentTime;
-    // Show preview when 30 seconds remaining
-    if (timeRemaining <= 30 && timeRemaining > 0 && !showNextEpisodePreview) {
-      const nextEpisode = getNextEpisode();
-      if (nextEpisode) {
-        setShowNextEpisodePreview(true);
-        setCountdown(Math.ceil(timeRemaining));
+    const currentTimeTicks = video.currentTime * 10000000; // Convert to ticks
+    
+    // Check for segment skip button (intro/credits)
+    if (mediaSegments.length > 0) {
+      const activeSegment = mediaSegments.find(
+        seg => currentTimeTicks >= seg.StartTicks && currentTimeTicks < seg.EndTicks
+      );
+      
+      if (activeSegment && !currentSegment) {
+        setCurrentSegment(activeSegment);
+        setShowSkipButton(true);
+      } else if (!activeSegment && currentSegment) {
+        setCurrentSegment(null);
+        setShowSkipButton(false);
       }
+    }
+
+    // Show next episode preview when 30 seconds remaining (only for episodes)
+    if (isEpisode) {
+      const timeRemaining = video.duration - video.currentTime;
+      if (timeRemaining <= 30 && timeRemaining > 0 && !showNextEpisodePreview) {
+        const nextEpisode = getNextEpisode();
+        if (nextEpisode) {
+          setShowNextEpisodePreview(true);
+          setCountdown(Math.ceil(timeRemaining));
+        }
+      }
+    }
+  };
+
+  // Skip current segment (intro/credits)
+  const skipSegment = () => {
+    if (!currentSegment || !videoRef.current) return;
+    
+    const endTimeSeconds = currentSegment.EndTicks / 10000000;
+    videoRef.current.currentTime = endTimeSeconds;
+    setCurrentSegment(null);
+    setShowSkipButton(false);
+    
+    const segmentType = currentSegment.Type.toLowerCase();
+    if (segmentType === 'intro' || segmentType === 'recap') {
+      toast.info('Hoppet over intro');
+    } else if (segmentType === 'outro' || segmentType === 'credits') {
+      toast.info('Hoppet over rulletekst');
+    } else {
+      toast.info(`Hoppet over ${currentSegment.Type}`);
+    }
+  };
+
+  // Get segment button label
+  const getSkipButtonLabel = () => {
+    if (!currentSegment) return 'Hopp over';
+    
+    switch (currentSegment.Type.toLowerCase()) {
+      case 'intro':
+        return 'Hopp over intro';
+      case 'outro':
+      case 'credits':
+        return 'Hopp over rulletekst';
+      case 'recap':
+        return 'Hopp over oppsummering';
+      case 'commercial':
+        return 'Hopp over reklame';
+      case 'preview':
+        return 'Hopp over forhåndsvisning';
+      default:
+        return `Hopp over ${currentSegment.Type}`;
     }
   };
 
@@ -1103,6 +1234,19 @@ const Player = () => {
             {item?.Name}
           </p>
         </div>
+
+        {/* Skip Intro/Credits button */}
+        {showSkipButton && currentSegment && (
+          <div className="absolute bottom-32 sm:bottom-36 right-3 sm:right-6 pointer-events-auto animate-fade-in z-50">
+            <Button
+              onClick={(e) => { e.stopPropagation(); skipSegment(); }}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 h-12 font-semibold shadow-2xl text-base gap-2 border border-white/20"
+            >
+              <FastForward className="h-5 w-5" />
+              {getSkipButtonLabel()}
+            </Button>
+          </div>
+        )}
 
         {/* Bottom controls for episodes - Next episode + Auto mark watched */}
         {isEpisode && (

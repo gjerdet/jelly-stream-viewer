@@ -280,7 +280,18 @@ const News = () => {
                       </CardHeader>
                       <CardContent>
                         <div className="prose prose-invert max-w-none">
-                          <p className="whitespace-pre-wrap">{post.content}</p>
+                          <p 
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{
+                              __html: post.content
+                                // Convert **text** to bold
+                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                // Convert *text* to italic
+                                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                // Convert [text](url) to links
+                                .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">$1</a>')
+                            }}
+                          />
                         </div>
                       </CardContent>
                     </Card>

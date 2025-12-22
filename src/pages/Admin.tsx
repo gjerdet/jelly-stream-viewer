@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -2046,13 +2046,231 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="post-content">{admin.postContentLabel || "Content"}</Label>
+                    {/* Formatting toolbar */}
+                    <div className="flex flex-wrap gap-1 p-2 bg-secondary/30 rounded-t-md border border-border/50 border-b-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            const selectedText = newPostContent.substring(start, end);
+                            const newContent = newPostContent.substring(0, start) + `**${selectedText}**` + newPostContent.substring(end);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Fet tekst"
+                      >
+                        <Bold className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            const selectedText = newPostContent.substring(start, end);
+                            const newContent = newPostContent.substring(0, start) + `*${selectedText}*` + newPostContent.substring(end);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Kursiv tekst"
+                      >
+                        <Italic className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `\n• ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Punktliste"
+                      >
+                        <List className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const end = textarea.selectionEnd;
+                            const selectedText = newPostContent.substring(start, end);
+                            const newContent = newPostContent.substring(0, start) + `[${selectedText}](url)` + newPostContent.substring(end);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Lenke"
+                      >
+                        <Link className="h-4 w-4" />
+                      </Button>
+                      <div className="border-l border-border mx-1 h-6 self-center" />
+                      {/* Emoji/symbol buttons */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `✅ ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Sjekkmerke"
+                      >
+                        ✅
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `⚠️ ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Advarsel"
+                      >
+                        ⚠️
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `🎬 ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Film"
+                      >
+                        🎬
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `📺 ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="TV"
+                      >
+                        📺
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `🔧 ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Verktøy"
+                      >
+                        🔧
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `🚀 ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Lansering"
+                      >
+                        🚀
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `❌ ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Feil"
+                      >
+                        ❌
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-base"
+                        onClick={() => {
+                          const textarea = document.getElementById('post-content') as HTMLTextAreaElement;
+                          if (textarea) {
+                            const start = textarea.selectionStart;
+                            const newContent = newPostContent.substring(0, start) + `💡 ` + newPostContent.substring(start);
+                            setNewPostContent(newContent);
+                          }
+                        }}
+                        title="Tips"
+                      >
+                        💡
+                      </Button>
+                    </div>
                     <Textarea
                       id="post-content"
                       placeholder={admin.contentPlaceholder || "Write the content..."}
                       value={newPostContent}
                       onChange={(e) => setNewPostContent(e.target.value)}
-                      className="bg-secondary/50 border-border/50 min-h-[200px]"
+                      className="bg-secondary/50 border-border/50 min-h-[200px] rounded-t-none"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Tips: Bruk **tekst** for fet, *tekst* for kursiv. Emojis vises som de er.
+                    </p>
                   </div>
                   <Button 
                     onClick={handleCreatePost}
