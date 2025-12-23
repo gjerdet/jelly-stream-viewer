@@ -39,7 +39,7 @@ const Admin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
-  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparent, updateSetting } = useSiteSettings();
+  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency, updateSetting } = useSiteSettings();
   const { t, language } = useLanguage();
   const admin = t.admin as any;
   const common = t.common as any;
@@ -90,7 +90,7 @@ const Admin = () => {
   const [newLogoUrl, setNewLogoUrl] = useState("");
   const [newHeaderTitle, setNewHeaderTitle] = useState("");
   const [newLoginBackgroundUrl, setNewLoginBackgroundUrl] = useState("");
-  const [newLoginTransparent, setNewLoginTransparent] = useState(false);
+  const [newLoginTransparency, setNewLoginTransparency] = useState(95);
   
   // News post state
   const [newPostTitle, setNewPostTitle] = useState("");
@@ -342,8 +342,8 @@ const Admin = () => {
     if (logoUrl !== undefined && !newLogoUrl) setNewLogoUrl(logoUrl);
     if (headerTitle && !newHeaderTitle) setNewHeaderTitle(headerTitle);
     if (loginBackgroundUrl !== undefined && !newLoginBackgroundUrl) setNewLoginBackgroundUrl(loginBackgroundUrl);
-    setNewLoginTransparent(loginTransparent);
-  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparent]);
+    setNewLoginTransparency(loginTransparency);
+  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency]);
 
   useEffect(() => {
     // Wait for both auth and role to finish loading
@@ -1899,26 +1899,30 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     {admin.updateLoginBackground || "Oppdater bakgrunn"}
                   </Button>
                   
-                  <div className="flex items-center justify-between pt-4 border-t border-border/50">
-                    <div>
-                      <Label>{language === 'no' ? 'Transparent innloggingsvindu' : 'Transparent login window'}</Label>
-                      <p className="text-xs text-muted-foreground">
-                        {language === 'no' ? 'Gjør innloggingskortet mer gjennomsiktig' : 'Make the login card more transparent'}
-                      </p>
+                  <div className="pt-4 border-t border-border/50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label>{language === 'no' ? 'Gjennomsiktighet innloggingsvindu' : 'Login window transparency'}</Label>
+                        <p className="text-xs text-muted-foreground">
+                          {language === 'no' ? 'Juster hvor gjennomsiktig innloggingskortet er' : 'Adjust how transparent the login card is'}
+                        </p>
+                      </div>
+                      <span className="text-sm font-medium">{newLoginTransparency}%</span>
                     </div>
-                    <Button
-                      variant={newLoginTransparent ? "default" : "outline"}
-                      onClick={() => {
-                        const newValue = !newLoginTransparent;
-                        setNewLoginTransparent(newValue);
-                        updateSetting({ key: "login_transparent", value: newValue ? "true" : "false" });
-                      }}
-                      size="sm"
-                    >
-                      {newLoginTransparent 
-                        ? (language === 'no' ? 'På' : 'On') 
-                        : (language === 'no' ? 'Av' : 'Off')}
-                    </Button>
+                    <input
+                      type="range"
+                      min="20"
+                      max="100"
+                      value={newLoginTransparency}
+                      onChange={(e) => setNewLoginTransparency(parseInt(e.target.value, 10))}
+                      onMouseUp={() => updateSetting({ key: "login_transparency", value: newLoginTransparency.toString() })}
+                      onTouchEnd={() => updateSetting({ key: "login_transparency", value: newLoginTransparency.toString() })}
+                      className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>{language === 'no' ? 'Gjennomsiktig' : 'Transparent'}</span>
+                      <span>{language === 'no' ? 'Solid' : 'Solid'}</span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
