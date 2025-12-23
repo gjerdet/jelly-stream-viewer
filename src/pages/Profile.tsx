@@ -5,11 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Mail, Save, ArrowLeft, LogOut } from "lucide-react";
+import { User, Mail, Save, ArrowLeft, LogOut, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { z } from "zod";
+
+const passwordSchema = z.object({
+  newPassword: z.string().min(6, "Passord må være minst 6 tegn"),
+  confirmPassword: z.string()
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passordene må være like",
+  path: ["confirmPassword"],
+});
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -20,6 +29,14 @@ const Profile = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
+  
+  // Password change state
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<{ newPassword?: string; confirmPassword?: string }>({});
 
   useEffect(() => {
     if (!user) {
@@ -75,6 +92,43 @@ const Profile = () => {
       toast.error(language === 'no' ? "Kunne ikke oppdatere profil" : "Could not update profile");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordErrors({});
+    
+    try {
+      passwordSchema.parse({ newPassword, confirmPassword });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const fieldErrors: { newPassword?: string; confirmPassword?: string } = {};
+        error.errors.forEach((err) => {
+          if (err.path[0]) {
+            fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
+          }
+        });
+        setPasswordErrors(fieldErrors);
+        return;
+      }
+    }
+
+    setPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      toast.success(language === 'no' ? "Passord oppdatert!" : "Password updated!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      console.error("Error updating password:", error);
+      toast.error(language === 'no' ? "Kunne ikke oppdatere passord" : "Could not update password");
+    } finally {
+      setPasswordLoading(false);
     }
   };
 
@@ -163,6 +217,83 @@ const Profile = () => {
             {loading 
               ? (language === 'no' ? 'Lagrer...' : 'Saving...') 
               : (language === 'no' ? 'Lagre endringer' : 'Save Changes')}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lock className="h-5 w-5" />
+            {language === 'no' ? 'Endre passord' : 'Change Password'}
+          </CardTitle>
+          <CardDescription>
+            {language === 'no' ? 'Oppdater passordet ditt' : 'Update your password'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="new-password">
+              {language === 'no' ? 'Nytt passord' : 'New Password'}
+            </Label>
+            <div className="relative">
+              <Input
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                placeholder={language === 'no' ? 'Skriv inn nytt passord' : 'Enter new password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="bg-secondary/50 border-border/50 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordErrors.newPassword && (
+              <p className="text-xs text-destructive">{passwordErrors.newPassword}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">
+              {language === 'no' ? 'Bekreft passord' : 'Confirm Password'}
+            </Label>
+            <div className="relative">
+              <Input
+                id="confirm-password"
+                type={showConfirmPassword ? "text" : "password"}
+                placeholder={language === 'no' ? 'Bekreft nytt passord' : 'Confirm new password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className="bg-secondary/50 border-border/50 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordErrors.confirmPassword && (
+              <p className="text-xs text-destructive">{passwordErrors.confirmPassword}</p>
+            )}
+          </div>
+
+          <Button
+            onClick={handleChangePassword}
+            disabled={passwordLoading || !newPassword || !confirmPassword}
+            className="w-full"
+            variant="secondary"
+          >
+            <Lock className="h-4 w-4 mr-2" />
+            {passwordLoading 
+              ? (language === 'no' ? 'Oppdaterer...' : 'Updating...') 
+              : (language === 'no' ? 'Oppdater passord' : 'Update Password')}
           </Button>
         </CardContent>
       </Card>
