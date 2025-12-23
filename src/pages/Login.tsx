@@ -21,7 +21,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { loginBackgroundUrl } = useSiteSettings();
+  const { loginBackgroundUrl, loginTransparent } = useSiteSettings();
   const { serverUrl } = useServerSettings();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -160,7 +160,7 @@ const Login = () => {
         <div className="absolute inset-0 gradient-hero opacity-50" />
       )}
       
-      <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/95 backdrop-blur-xl mx-2 sm:mx-4">
+      <Card className={`w-full max-w-md relative z-10 border-border/50 backdrop-blur-xl mx-2 sm:mx-4 ${loginTransparent ? 'bg-card/40' : 'bg-card/95'}`}>
         <CardHeader className="space-y-3 sm:space-y-4 text-center px-4 sm:px-6 pt-4 sm:pt-6">
           <div className="flex justify-center">
             <div className="p-3 sm:p-4 rounded-2xl bg-primary/10 cinema-glow">

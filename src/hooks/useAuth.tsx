@@ -27,5 +27,11 @@ export const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  return { user, session, loading };
+  const signOut = async () => {
+    localStorage.removeItem('jellyfin_session');
+    window.dispatchEvent(new Event('jellyfin-session-change'));
+    await supabase.auth.signOut();
+  };
+
+  return { user, session, loading, signOut };
 };
