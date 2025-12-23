@@ -713,6 +713,10 @@ const Header = () => {
                   </p>
                 </div>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate("/profile")}>
+                  <User className="mr-2 h-4 w-4" />
+                  {header.profile || "Min profil"}
+                </DropdownMenuItem>
                 {userRole === "admin" && (
                   <>
                     <DropdownMenuItem onClick={() => navigate("/admin")}>

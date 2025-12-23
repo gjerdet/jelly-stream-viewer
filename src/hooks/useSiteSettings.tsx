@@ -57,6 +57,7 @@ export const useSiteSettings = () => {
     logoUrl: settings?.site_logo_url || "",
     headerTitle: settings?.site_header_title || "Jelly Stream Viewer",
     loginBackgroundUrl: settings?.login_background_url || "",
+    loginTransparent: settings?.login_transparent === "true",
     isLoading,
     updateSetting: updateSetting.mutate,
   };

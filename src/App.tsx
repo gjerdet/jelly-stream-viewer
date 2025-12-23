@@ -26,6 +26,7 @@ import Wishes from "./pages/Wishes";
 import MyList from "./pages/MyList";
 import News from "./pages/News";
 import Statistics from "./pages/Statistics";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,7 @@ const AppContent = () => {
               <Route path="/player/:id" element={<Player />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/statistics" element={<Statistics />} />
+              <Route path="/profile" element={<Profile />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -39,7 +39,7 @@ const Admin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
-  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, updateSetting } = useSiteSettings();
+  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparent, updateSetting } = useSiteSettings();
   const { t, language } = useLanguage();
   const admin = t.admin as any;
   const common = t.common as any;
@@ -90,6 +90,7 @@ const Admin = () => {
   const [newLogoUrl, setNewLogoUrl] = useState("");
   const [newHeaderTitle, setNewHeaderTitle] = useState("");
   const [newLoginBackgroundUrl, setNewLoginBackgroundUrl] = useState("");
+  const [newLoginTransparent, setNewLoginTransparent] = useState(false);
   
   // News post state
   const [newPostTitle, setNewPostTitle] = useState("");
@@ -341,7 +342,8 @@ const Admin = () => {
     if (logoUrl !== undefined && !newLogoUrl) setNewLogoUrl(logoUrl);
     if (headerTitle && !newHeaderTitle) setNewHeaderTitle(headerTitle);
     if (loginBackgroundUrl !== undefined && !newLoginBackgroundUrl) setNewLoginBackgroundUrl(loginBackgroundUrl);
-  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl]);
+    setNewLoginTransparent(loginTransparent);
+  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparent]);
 
   useEffect(() => {
     // Wait for both auth and role to finish loading
@@ -1896,6 +1898,28 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   >
                     {admin.updateLoginBackground || "Oppdater bakgrunn"}
                   </Button>
+                  
+                  <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                    <div>
+                      <Label>{language === 'no' ? 'Transparent innloggingsvindu' : 'Transparent login window'}</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {language === 'no' ? 'Gjør innloggingskortet mer gjennomsiktig' : 'Make the login card more transparent'}
+                      </p>
+                    </div>
+                    <Button
+                      variant={newLoginTransparent ? "default" : "outline"}
+                      onClick={() => {
+                        const newValue = !newLoginTransparent;
+                        setNewLoginTransparent(newValue);
+                        updateSetting({ key: "login_transparent", value: newValue ? "true" : "false" });
+                      }}
+                      size="sm"
+                    >
+                      {newLoginTransparent 
+                        ? (language === 'no' ? 'På' : 'On') 
+                        : (language === 'no' ? 'Av' : 'Off')}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
               </TabsContent>
