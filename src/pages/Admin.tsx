@@ -39,7 +39,7 @@ const Admin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { serverUrl, updateServerUrl } = useServerSettings();
-  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency, updateSetting } = useSiteSettings();
+  const { siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency, loginTitle, loginDescription, updateSetting } = useSiteSettings();
   const { t, language } = useLanguage();
   const admin = t.admin as any;
   const common = t.common as any;
@@ -91,6 +91,8 @@ const Admin = () => {
   const [newHeaderTitle, setNewHeaderTitle] = useState("");
   const [newLoginBackgroundUrl, setNewLoginBackgroundUrl] = useState("");
   const [newLoginTransparency, setNewLoginTransparency] = useState(95);
+  const [newLoginTitle, setNewLoginTitle] = useState("");
+  const [newLoginDescription, setNewLoginDescription] = useState("");
   
   // News post state
   const [newPostTitle, setNewPostTitle] = useState("");
@@ -342,8 +344,10 @@ const Admin = () => {
     if (logoUrl !== undefined && !newLogoUrl) setNewLogoUrl(logoUrl);
     if (headerTitle && !newHeaderTitle) setNewHeaderTitle(headerTitle);
     if (loginBackgroundUrl !== undefined && !newLoginBackgroundUrl) setNewLoginBackgroundUrl(loginBackgroundUrl);
+    if (loginTitle && !newLoginTitle) setNewLoginTitle(loginTitle);
+    if (loginDescription && !newLoginDescription) setNewLoginDescription(loginDescription);
     setNewLoginTransparency(loginTransparency);
-  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency]);
+  }, [siteName, logoUrl, headerTitle, loginBackgroundUrl, loginTransparency, loginTitle, loginDescription]);
 
   useEffect(() => {
     // Wait for both auth and role to finish loading
@@ -1926,6 +1930,57 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   </div>
                 </CardContent>
               </Card>
+
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Type className="h-5 w-5" />
+                    {language === 'no' ? 'Innloggingstekst' : 'Login Text'}
+                  </CardTitle>
+                  <CardDescription>
+                    {language === 'no' 
+                      ? 'Endre tittel og beskrivelse på innloggingssiden' 
+                      : 'Change the title and description on the login page'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-title">{language === 'no' ? 'Innloggingstittel' : 'Login Title'}</Label>
+                    <Input
+                      id="login-title"
+                      type="text"
+                      placeholder="Jellyfin Streaming"
+                      value={newLoginTitle}
+                      onChange={(e) => setNewLoginTitle(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-description">{language === 'no' ? 'Innloggingsbeskrivelse' : 'Login Description'}</Label>
+                    <Input
+                      id="login-description"
+                      type="text"
+                      placeholder={language === 'no' ? 'Logg inn på din Jellyfin-server for å se innhold' : 'Log in to your Jellyfin server to view content'}
+                      value={newLoginDescription}
+                      onChange={(e) => setNewLoginDescription(e.target.value)}
+                      className="bg-secondary/50 border-border/50"
+                    />
+                  </div>
+                  <Button 
+                    onClick={() => {
+                      if (newLoginTitle.trim()) {
+                        updateSetting({ key: "login_title", value: newLoginTitle.trim() });
+                      }
+                      if (newLoginDescription.trim()) {
+                        updateSetting({ key: "login_description", value: newLoginDescription.trim() });
+                      }
+                    }}
+                    className="cinema-glow"
+                  >
+                    {language === 'no' ? 'Oppdater tekst' : 'Update Text'}
+                  </Button>
+                </CardContent>
+              </Card>
               </TabsContent>
 
               <TabsContent value="monitoring" className="space-y-6 mt-0">
@@ -2375,22 +2430,122 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       {newsPosts.map((post) => (
                         <div key={post.id} className="p-4 border border-border rounded-lg space-y-2">
                           {editingPost === post.id ? (
-                            // Edit mode
+                            // Edit mode - same UI as create
                             <div className="space-y-3">
                               <Input
                                 value={editPostTitle}
                                 onChange={(e) => setEditPostTitle(e.target.value)}
-                                placeholder="Tittel..."
+                                placeholder={admin.titlePlaceholder || "Title..."}
                                 className="bg-secondary/50 border-border/50"
                               />
-                              <Textarea
-                                value={editPostContent}
-                                onChange={(e) => setEditPostContent(e.target.value)}
-                                placeholder="Innhold..."
-                                className="bg-secondary/50 border-border/50 min-h-[150px]"
-                              />
+                              <div className="space-y-0">
+                                {/* Formatting toolbar */}
+                                <div className="flex flex-wrap gap-1 p-2 bg-secondary/30 border border-border/50 rounded-t-lg border-b-0">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const textarea = document.getElementById('edit-post-content') as HTMLTextAreaElement;
+                                      if (textarea) {
+                                        const start = textarea.selectionStart;
+                                        const end = textarea.selectionEnd;
+                                        const selectedText = editPostContent.substring(start, end);
+                                        const newContent = editPostContent.substring(0, start) + `**${selectedText || 'tekst'}**` + editPostContent.substring(end);
+                                        setEditPostContent(newContent);
+                                      }
+                                    }}
+                                    title={language === 'no' ? 'Fet tekst' : 'Bold'}
+                                  >
+                                    <Bold className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const textarea = document.getElementById('edit-post-content') as HTMLTextAreaElement;
+                                      if (textarea) {
+                                        const start = textarea.selectionStart;
+                                        const end = textarea.selectionEnd;
+                                        const selectedText = editPostContent.substring(start, end);
+                                        const newContent = editPostContent.substring(0, start) + `*${selectedText || 'tekst'}*` + editPostContent.substring(end);
+                                        setEditPostContent(newContent);
+                                      }
+                                    }}
+                                    title={language === 'no' ? 'Kursiv tekst' : 'Italic'}
+                                  >
+                                    <Italic className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const textarea = document.getElementById('edit-post-content') as HTMLTextAreaElement;
+                                      if (textarea) {
+                                        const start = textarea.selectionStart;
+                                        const newContent = editPostContent.substring(0, start) + `\n• ` + editPostContent.substring(start);
+                                        setEditPostContent(newContent);
+                                      }
+                                    }}
+                                    title={language === 'no' ? 'Punktliste' : 'Bullet point'}
+                                  >
+                                    <List className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const textarea = document.getElementById('edit-post-content') as HTMLTextAreaElement;
+                                      if (textarea) {
+                                        const start = textarea.selectionStart;
+                                        const end = textarea.selectionEnd;
+                                        const selectedText = editPostContent.substring(start, end);
+                                        const newContent = editPostContent.substring(0, start) + `[${selectedText || 'lenketekst'}](https://example.com)` + editPostContent.substring(end);
+                                        setEditPostContent(newContent);
+                                      }
+                                    }}
+                                    title={language === 'no' ? 'Lenke' : 'Link'}
+                                  >
+                                    <Link className="h-4 w-4" />
+                                  </Button>
+                                  <div className="border-l border-border mx-1 h-6 self-center" />
+                                  {['✅', '⚠️', '🎬', '📺', '🔧', '🚀', '❌', '💡'].map((emoji) => (
+                                    <Button
+                                      key={emoji}
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 px-2 text-base"
+                                      onClick={() => {
+                                        const textarea = document.getElementById('edit-post-content') as HTMLTextAreaElement;
+                                        if (textarea) {
+                                          const start = textarea.selectionStart;
+                                          const newContent = editPostContent.substring(0, start) + `${emoji} ` + editPostContent.substring(start);
+                                          setEditPostContent(newContent);
+                                        }
+                                      }}
+                                    >
+                                      {emoji}
+                                    </Button>
+                                  ))}
+                                </div>
+                                <Textarea
+                                  id="edit-post-content"
+                                  value={editPostContent}
+                                  onChange={(e) => setEditPostContent(e.target.value)}
+                                  placeholder={admin.contentPlaceholder || "Write the content..."}
+                                  className="bg-secondary/50 border-border/50 min-h-[200px] rounded-t-none"
+                                />
+                              </div>
                               <p className="text-xs text-muted-foreground">
-                                Tips: Bruk **tekst** for fet, *tekst* for kursiv
+                                Tips: Bruk **tekst** for fet, *tekst* for kursiv. Emojis vises som de er.
                               </p>
                               <div className="flex gap-2 justify-end">
                                 <Button
@@ -2400,7 +2555,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                                   disabled={updateNewsPost.isPending}
                                 >
                                   <X className="h-4 w-4 mr-1" />
-                                  Avbryt
+                                  {language === 'no' ? 'Avbryt' : 'Cancel'}
                                 </Button>
                                 <Button
                                   size="sm"
@@ -2413,7 +2568,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                                   ) : (
                                     <Save className="h-4 w-4 mr-1" />
                                   )}
-                                  Lagre
+                                  {language === 'no' ? 'Lagre' : 'Save'}
                                 </Button>
                               </div>
                             </div>

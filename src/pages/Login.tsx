@@ -21,7 +21,7 @@ const authSchema = z.object({
 const Login = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { loginBackgroundUrl, loginTransparency } = useSiteSettings();
+  const { loginBackgroundUrl, loginTransparency, loginTitle, loginDescription } = useSiteSettings();
   const { serverUrl } = useServerSettings();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -167,9 +167,9 @@ const Login = () => {
               <Film className="h-8 w-8 sm:h-12 sm:w-12 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl sm:text-3xl font-bold">Jellyfin Streaming</CardTitle>
+          <CardTitle className="text-2xl sm:text-3xl font-bold">{loginTitle}</CardTitle>
           <CardDescription className="text-sm sm:text-base">
-            Logg inn på din Jellyfin-server for å se innhold
+            {loginDescription}
           </CardDescription>
           {!serverUrl && (
             <p className="text-xs text-muted-foreground mt-2">
