@@ -1249,8 +1249,8 @@ const Player = () => {
         )}
 
         {/* Bottom controls for episodes - Next episode + Auto mark watched */}
-        {isEpisode && (
-          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto">
+        {isEpisode && showControls && (
+          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto z-50">
             <div className="flex items-center justify-between gap-3">
               {/* Auto mark watched */}
               <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
@@ -1264,19 +1264,28 @@ const Player = () => {
                   className="data-[state=checked]:bg-green-600 scale-90"
                 />
               </div>
-              
-              {/* Prominent Next Episode button */}
-              {nextEpisode && (
-                <Button
-                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-lg"
-                >
-                  <SkipForward className="h-4 w-4 mr-2" />
-                  <span className="hidden sm:inline">Neste episode</span>
-                  <span className="sm:hidden">Neste</span>
-                </Button>
-              )}
             </div>
+          </div>
+        )}
+
+        {/* Fixed fullscreen-compatible next episode button */}
+        {isEpisode && nextEpisode && (
+          <div 
+            className="fixed bottom-6 right-6 z-[99999]"
+            style={{ pointerEvents: 'auto' }}
+          >
+            <Button
+              onClick={(e) => { 
+                e.preventDefault();
+                e.stopPropagation(); 
+                playNextEpisode(); 
+              }}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-3 h-12 font-semibold shadow-2xl border-2 border-white/30 gap-2 cursor-pointer"
+            >
+              <SkipForward className="h-5 w-5" />
+              <span className="hidden sm:inline">Neste episode</span>
+              <span className="sm:hidden">Neste</span>
+            </Button>
           </div>
         )}
 
