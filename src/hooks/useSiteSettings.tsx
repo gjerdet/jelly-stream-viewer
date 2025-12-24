@@ -58,6 +58,8 @@ export const useSiteSettings = () => {
     headerTitle: settings?.site_header_title || "Jelly Stream Viewer",
     loginBackgroundUrl: settings?.login_background_url || "",
     loginTransparency: parseInt(settings?.login_transparency || "95", 10),
+    loginTitle: settings?.login_title || "Jellyfin Streaming",
+    loginDescription: settings?.login_description || "Logg inn på din Jellyfin-server for å se innhold",
     isLoading,
     updateSetting: updateSetting.mutate,
   };
