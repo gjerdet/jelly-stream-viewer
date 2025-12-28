@@ -109,12 +109,14 @@ serve(async (req) => {
 
     // Try to sign in first
     console.log('Attempting to sign in Supabase user:', userEmail);
-    const signInResult = await supabaseClient.auth.signInWithPassword({
+    
+    // Check if user exists first by trying to sign in
+    let signInResult = await supabaseClient.auth.signInWithPassword({
       email: userEmail,
       password: userPassword,
     });
 
-    console.log('Sign in result:', { 
+    console.log('Initial sign in result:', { 
       hasSession: !!signInResult.data.session, 
       hasError: !!signInResult.error,
       errorMessage: signInResult.error?.message 
@@ -122,73 +124,74 @@ serve(async (req) => {
 
     let supabaseSession = signInResult.data.session;
 
-    // If user doesn't exist, create them
-    if (signInResult.error && signInResult.error.message.includes('Invalid login credentials')) {
-      console.log('User does not exist, creating new user...');
-      const signUpResult = await supabaseClient.auth.signUp({
-        email: userEmail,
-        password: userPassword,
-        options: {
-          data: {
-            jellyfin_user_id: jellyfinData.User.Id,
-            jellyfin_username: jellyfinData.User.Name,
-          },
-        },
-      });
-
-      // If user already exists with different password, update it and sign them in
-      if (signUpResult.error && signUpResult.error.message.includes('User already registered')) {
-        console.log('User already exists. Updating password and signing in...');
+    // If sign in failed with invalid credentials, the user might exist with old password
+    // or doesn't exist at all
+    if (signInResult.error) {
+      console.log('Sign in failed, checking if user exists...');
+      
+      // Check if user exists using admin API
+      const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = userData?.users?.find(u => u.email === userEmail);
+      
+      if (existingUser) {
+        // User exists but password is different (API key changed)
+        console.log('User exists, updating password...');
+        const updateResult = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+          password: userPassword,
+        });
         
-        // Update the user's password using admin client
-        const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-        const existingUser = userData.users.find(u => u.email === userEmail);
-        
-        if (existingUser) {
-          await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-            password: userPassword,
-          });
-          
-          // Now sign in with the updated password
-          const retrySignIn = await supabaseClient.auth.signInWithPassword({
-            email: userEmail,
-            password: userPassword,
-          });
-          
-          if (retrySignIn.data.session) {
-            supabaseSession = retrySignIn.data.session;
-            console.log('Successfully signed in existing user after password update');
-          } else {
-            console.error('Failed to sign in after password update:', retrySignIn.error);
-            return new Response(
-              JSON.stringify({ error: 'Failed to create user session' }),
-              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-        } else {
-          console.error('Could not find existing user to update');
+        if (updateResult.error) {
+          console.error('Failed to update user password:', updateResult.error);
           return new Response(
             JSON.stringify({ error: 'Failed to update user credentials' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-      } else if (signUpResult.error || !signUpResult.data.session) {
-        console.error('Failed to create Supabase user:', signUpResult.error);
-        return new Response(
-          JSON.stringify({ error: 'Failed to create user session' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        
+        // Now sign in with the updated password
+        console.log('Password updated, signing in...');
+        signInResult = await supabaseClient.auth.signInWithPassword({
+          email: userEmail,
+          password: userPassword,
+        });
+        
+        if (signInResult.data.session) {
+          supabaseSession = signInResult.data.session;
+          console.log('Successfully signed in after password update');
+        } else {
+          console.error('Failed to sign in after password update:', signInResult.error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create user session' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       } else {
+        // User doesn't exist, create them
+        console.log('User does not exist, creating new user...');
+        const signUpResult = await supabaseClient.auth.signUp({
+          email: userEmail,
+          password: userPassword,
+          options: {
+            data: {
+              jellyfin_user_id: jellyfinData.User.Id,
+              jellyfin_username: jellyfinData.User.Name,
+            },
+          },
+        });
+
+        if (signUpResult.error || !signUpResult.data.session) {
+          console.error('Failed to create Supabase user:', signUpResult.error);
+          return new Response(
+            JSON.stringify({ error: 'Failed to create user session' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
         supabaseSession = signUpResult.data.session;
+        console.log('New user created successfully');
       }
-    } else if (signInResult.error) {
-      console.error('Supabase sign in error:', signInResult.error);
-      return new Response(
-        JSON.stringify({ error: 'Failed to create user session' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     } else {
-      console.log('Sign in successful, session exists:', !!supabaseSession);
+      console.log('Sign in successful');
     }
 
     if (!supabaseSession) {
