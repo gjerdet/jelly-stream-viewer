@@ -56,12 +56,14 @@ serve(async (req) => {
 
     // Authenticate with Jellyfin
     const authUrl = `${serverUrl}/Users/AuthenticateByName`;
-    const authHeader = `MediaBrowser Client="Jellyfin Web", Device="Lovable", DeviceId="lovable-web", Version="1.0.0", Token="${jellyfinApiKey}"`;
-    
-    console.log('Auth header:', authHeader);
+
+    // IMPORTANT: Do NOT send a Token here.
+    // This endpoint is used to obtain a user access token; sending an (invalid) token can cause a 401.
+    const authHeader = `MediaBrowser Client="kjeller-stream", Device="Web", DeviceId="kjeller-stream-web", Version="1.0.0"`;
+
     console.log('Full URL:', authUrl);
-    console.log('Request body:', JSON.stringify({ Username: username.trim(), Pw: '***' }));
-    
+    console.log('Request user:', username.trim());
+
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
@@ -80,16 +82,30 @@ serve(async (req) => {
 
     if (!jellyfinResponse.ok) {
       const errorText = await jellyfinResponse.text();
+      const contentType = jellyfinResponse.headers.get('content-type') ?? '';
+      const serverHeader = (jellyfinResponse.headers.get('server') ?? '').toLowerCase();
+      const hasWwwAuth = !!jellyfinResponse.headers.get('www-authenticate');
+
+      const looksLikeProxyAuth =
+        jellyfinResponse.status === 401 &&
+        (contentType.includes('text/plain') || serverHeader.includes('openresty') || hasWwwAuth);
+
       console.error('Jellyfin authentication failed:', {
         status: jellyfinResponse.status,
         statusText: jellyfinResponse.statusText,
         error: errorText,
         username,
         serverUrl,
-        apiKeyPrefix: jellyfinApiKey.slice(0, 8)
+        apiKeyPrefix: jellyfinApiKey.slice(0, 8),
+        looksLikeProxyAuth,
       });
+
       return new Response(
-        JSON.stringify({ error: 'Ugyldig brukernavn eller passord' }),
+        JSON.stringify({
+          error: looksLikeProxyAuth
+            ? 'Jellyfin-proxyen avviser API-innlogging (401). Sjekk reverse proxy/basic auth, eller bruk en URL som gir direkte tilgang til Jellyfin.'
+            : 'Ugyldig brukernavn eller passord',
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
