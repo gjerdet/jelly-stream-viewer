@@ -22,7 +22,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { loginBackgroundUrl, loginTransparency, loginTitle, loginDescription } = useSiteSettings();
-  const { serverUrl } = useServerSettings();
+  const { serverUrl, isLoading: serverSettingsLoading } = useServerSettings();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -194,7 +194,7 @@ const Login = () => {
           <CardDescription className="text-sm sm:text-base">
             {loginDescription}
           </CardDescription>
-          {!serverUrl && (
+          {!serverSettingsLoading && !serverUrl && (
             <p className="text-xs text-muted-foreground mt-2">
               Første gang? <a href="/setup" className="text-primary hover:underline">Sett opp serveren først</a>
             </p>

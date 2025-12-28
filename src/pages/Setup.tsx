@@ -85,7 +85,16 @@ const Setup = () => {
       navigate("/");
     } catch (error) {
       console.error('Setup error:', error);
-      toast.error("Kunne ikke lagre innstillingene");
+      const msg =
+        typeof error === "object" && error && "message" in error
+          ? String((error as { message?: unknown }).message)
+          : "";
+
+      if (msg.includes("Only administrators") || msg.includes("You must be logged in")) {
+        toast.error("Oppsettet er allerede gjort. Logg inn som administrator for å endre.");
+      } else {
+        toast.error("Kunne ikke lagre innstillingene");
+      }
     } finally {
       setLoading(false);
     }
@@ -100,9 +109,33 @@ const Setup = () => {
     );
   }
 
-  // Don't render if setup is complete and user is not admin
+  // If setup is complete, explain that only admins can change it
   if (setupCompleted && (!user || userRole !== "admin")) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+        <div className="absolute inset-0 gradient-hero opacity-50" />
+
+        <Card className="w-full max-w-md relative z-10 border-border/50 bg-card/95 backdrop-blur-xl">
+          <CardHeader className="space-y-4 text-center">
+            <div className="flex justify-center">
+              <div className="p-4 rounded-2xl bg-primary/10 cinema-glow">
+                <Server className="h-12 w-12 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl font-bold">Oppsett er allerede fullført</CardTitle>
+            <CardDescription className="text-base">
+              Du må logge inn som administrator for å endre serverinnstillinger.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button className="w-full cinema-glow" onClick={() => navigate("/")}>Gå til innlogging</Button>
+            <p className="text-xs text-muted-foreground text-center">
+              {user ? "Du mangler admin-tilgang." : "Du er ikke innlogget."}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
