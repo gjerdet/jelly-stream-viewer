@@ -57,23 +57,43 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Demo-modus: Logg inn uten Jellyfin-server
+      // Demo-modus: (kun for testing)
+      // Bruk en per-enhet demo-bruker for å unngå "User already registered"-konflikter.
       if (username.toLowerCase() === 'demo' && password === 'demo') {
-        const demoEmail = 'demo@jellyfin.local';
         const demoPassword = 'demo_jellyfin_test_user_2024';
 
+        const getOrCreateDemoEmail = () => {
+          const key = 'demo_auth_email';
+          const existing = localStorage.getItem(key);
+          if (existing) return existing;
+
+          const id =
+            typeof crypto !== 'undefined' &&
+            'randomUUID' in crypto &&
+            typeof (crypto as Crypto).randomUUID === 'function'
+              ? (crypto as Crypto).randomUUID()
+              : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+          const email = `demo+${id}@jellyfin.local`;
+          localStorage.setItem(key, email);
+          return email;
+        };
+
+        const demoEmail = getOrCreateDemoEmail();
+
         // Prøv å logge inn
-        let { error: signInError } = await supabase.auth.signInWithPassword({
+        const { error: signInError } = await supabase.auth.signInWithPassword({
           email: demoEmail,
           password: demoPassword,
         });
 
-        // Hvis ikke eksisterer, opprett demo-bruker
+        // Hvis det feiler, opprett demo-bruker (auto-confirm er slått på i backend)
         if (signInError && signInError.message.includes('Invalid login credentials')) {
           const { error: signUpError } = await supabase.auth.signUp({
             email: demoEmail,
             password: demoPassword,
             options: {
+              emailRedirectTo: `${window.location.origin}/`,
               data: {
                 jellyfin_user_id: 'demo-user-id',
                 jellyfin_username: 'Demo User',
@@ -82,10 +102,11 @@ const Login = () => {
           });
 
           if (signUpError) {
-            throw signUpError;
+            // Hvis denne enheten har en gammel demo-email liggende, generer ny og prøv igjen neste gang
+            localStorage.removeItem('demo_auth_email');
+            throw new Error('Demo-modus feilet. Prøv igjen (da får du en ny demo-bruker).');
           }
 
-          // Logg inn etter signup
           const { error: loginError } = await supabase.auth.signInWithPassword({
             email: demoEmail,
             password: demoPassword,
@@ -94,10 +115,12 @@ const Login = () => {
           if (loginError) {
             throw loginError;
           }
+        } else if (signInError) {
+          throw signInError;
         }
 
-        toast.success("Logget inn i demo-modus!");
-        navigate("/browse");
+        toast.success('Logget inn i demo-modus!');
+        navigate('/browse');
         return;
       }
 
