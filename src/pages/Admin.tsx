@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type, Edit, Save, X } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type, Edit, Save, X, Copy } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -29,6 +29,7 @@ import { DatabaseSetupGuide } from "@/components/admin/DatabaseSetupGuide";
 import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
 import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
 import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
+import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -1052,6 +1053,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "sonarr", label: "Sonarr", icon: Tv },
     { value: "bazarr", label: "Bazarr", icon: Subtitles },
     { value: "compatibility", label: language === 'no' ? "Kompatibilitet" : "Compatibility", icon: AlertTriangle },
+    { value: "duplicates", label: language === 'no' ? "Duplikater" : "Duplicates", icon: Copy },
     { value: "reports", label: language === 'no' ? "Rapporter" : "Reports", icon: MessageSquare },
     { value: "servers", label: admin.servers || "Servers", icon: Server },
     { value: "database", label: admin.database || "Database", icon: Database },
@@ -2632,6 +2634,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               <TabsContent value="compatibility" className="space-y-6 mt-0">
                 <MediaCompatibilityManager />
                 <TranscodeJobsDashboard />
+              </TabsContent>
+
+              <TabsContent value="duplicates" className="space-y-6 mt-0">
+                <DuplicateMediaManager />
               </TabsContent>
 
               <TabsContent value="reports" className="space-y-6 mt-0">
