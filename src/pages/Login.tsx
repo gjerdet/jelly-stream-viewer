@@ -34,10 +34,80 @@ const Login = () => {
     }
   }, [user, navigate]);
 
+  const handleDemoLogin = async () => {
+    setErrors({});
+    setLoading(true);
+
+    try {
+      const demoPassword = "demo_jellyfin_test_user_2024";
+
+      const getOrCreateDemoEmail = () => {
+        const key = "demo_auth_email";
+        const existing = localStorage.getItem(key);
+        if (existing) return existing;
+
+        const id =
+          typeof crypto !== "undefined" &&
+          "randomUUID" in crypto &&
+          typeof (crypto as Crypto).randomUUID === "function"
+            ? (crypto as Crypto).randomUUID()
+            : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+        const email = `demo+${id}@jellyfin.local`;
+        localStorage.setItem(key, email);
+        return email;
+      };
+
+      const demoEmail = getOrCreateDemoEmail();
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: demoEmail,
+        password: demoPassword,
+      });
+
+      if (signInError && signInError.message.includes("Invalid login credentials")) {
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: demoEmail,
+          password: demoPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`,
+            data: {
+              jellyfin_user_id: "demo-user-id",
+              jellyfin_username: "Demo User",
+            },
+          },
+        });
+
+        if (signUpError) {
+          // Hvis denne enheten har en gammel demo-email liggende, generer en ny automatisk
+          localStorage.removeItem("demo_auth_email");
+          return await handleDemoLogin();
+        }
+
+        const { error: loginError } = await supabase.auth.signInWithPassword({
+          email: demoEmail,
+          password: demoPassword,
+        });
+
+        if (loginError) throw loginError;
+      } else if (signInError) {
+        throw signInError;
+      }
+
+      toast.success("Logget inn i demo-modus!");
+      navigate("/browse");
+    } catch (error) {
+      console.error("Demo login error:", error);
+      toast.error("Demo-innlogging feilet");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    
+
     // Valider input
     try {
       authSchema.parse({ username, password });
@@ -57,81 +127,17 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Demo-modus: (kun for testing)
-      // Bruk en per-enhet demo-bruker for å unngå "User already registered"-konflikter.
-      if (username.toLowerCase() === 'demo' && password === 'demo') {
-        const demoPassword = 'demo_jellyfin_test_user_2024';
-
-        const getOrCreateDemoEmail = () => {
-          const key = 'demo_auth_email';
-          const existing = localStorage.getItem(key);
-          if (existing) return existing;
-
-          const id =
-            typeof crypto !== 'undefined' &&
-            'randomUUID' in crypto &&
-            typeof (crypto as Crypto).randomUUID === 'function'
-              ? (crypto as Crypto).randomUUID()
-              : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-          const email = `demo+${id}@jellyfin.local`;
-          localStorage.setItem(key, email);
-          return email;
-        };
-
-        const demoEmail = getOrCreateDemoEmail();
-
-        // Prøv å logge inn
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: demoEmail,
-          password: demoPassword,
-        });
-
-        // Hvis det feiler, opprett demo-bruker (auto-confirm er slått på i backend)
-        if (signInError && signInError.message.includes('Invalid login credentials')) {
-          const { error: signUpError } = await supabase.auth.signUp({
-            email: demoEmail,
-            password: demoPassword,
-            options: {
-              emailRedirectTo: `${window.location.origin}/`,
-              data: {
-                jellyfin_user_id: 'demo-user-id',
-                jellyfin_username: 'Demo User',
-              },
-            },
-          });
-
-          if (signUpError) {
-            // Hvis denne enheten har en gammel demo-email liggende, generer ny og prøv igjen neste gang
-            localStorage.removeItem('demo_auth_email');
-            throw new Error('Demo-modus feilet. Prøv igjen (da får du en ny demo-bruker).');
-          }
-
-          const { error: loginError } = await supabase.auth.signInWithPassword({
-            email: demoEmail,
-            password: demoPassword,
-          });
-
-          if (loginError) {
-            throw loginError;
-          }
-        } else if (signInError) {
-          throw signInError;
+      // Normal Jellyfin-autentisering via backend-funksjon
+      const { data: authData, error: authError } = await supabase.functions.invoke(
+        "jellyfin-authenticate",
+        {
+          body: { username: username.trim(), password },
         }
-
-        toast.success('Logget inn i demo-modus!');
-        navigate('/browse');
-        return;
-      }
-
-      // Normal Jellyfin-autentisering via edge function
-      const { data: authData, error: authError } = await supabase.functions.invoke('jellyfin-authenticate', {
-        body: { username: username.trim(), password },
-      });
+      );
 
       if (authError || !authData) {
-        console.error('Authentication error:', authError);
-        throw new Error(authData?.error || 'Autentisering feilet');
+        console.error("Authentication error:", authError);
+        throw new Error(authData?.error || "Autentisering feilet");
       }
 
       // Sett Supabase session først
@@ -142,22 +148,24 @@ const Login = () => {
         });
 
         if (sessionError) {
-          console.error('Failed to set Supabase session:', sessionError);
-          throw new Error('Kunne ikke sette brukerøkt');
+          console.error("Failed to set Supabase session:", sessionError);
+          throw new Error("Kunne ikke sette brukerøkt");
         }
       }
 
       // Lagre Jellyfin-sesjon i localStorage
-      localStorage.setItem('jellyfin_session', JSON.stringify(authData.jellyfin_session));
-      window.dispatchEvent(new Event('jellyfin-session-change'));
-      
+      localStorage.setItem("jellyfin_session", JSON.stringify(authData.jellyfin_session));
+      window.dispatchEvent(new Event("jellyfin-session-change"));
+
       toast.success("Logget inn!");
       navigate("/browse");
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          toast.error("Kunne ikke koble til Jellyfin-serveren. Sjekk at URL er korrekt.");
+        if (error.message.includes("Failed to fetch")) {
+          toast.error(
+            "Kunne ikke koble til Jellyfin-serveren. Sjekk at URL er korrekt."
+          );
         } else {
           toast.error(error.message || "Feil brukernavn eller passord");
         }
@@ -230,12 +238,22 @@ const Login = () => {
                 <p className="text-xs sm:text-sm text-destructive">{errors.password}</p>
               )}
             </div>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full cinema-glow smooth-transition hover:scale-[1.02] h-11 sm:h-12 text-base"
               disabled={loading}
             >
               {loading ? "Logger inn..." : "Logg inn"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full"
+              onClick={handleDemoLogin}
+              disabled={loading}
+            >
+              Demo-modus (kun testing)
             </Button>
           </form>
         </CardContent>

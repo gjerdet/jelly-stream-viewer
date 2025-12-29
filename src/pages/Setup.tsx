@@ -26,12 +26,12 @@ const Setup = () => {
       try {
         const { data, error } = await supabase
           .from("server_settings")
-          .select("setting_key")
+          .select("setting_value")
           .eq("setting_key", "setup_completed")
           .maybeSingle();
 
-        if (data && !error) {
-          setSetupCompleted(true);
+        if (!error) {
+          setSetupCompleted((data?.setting_value ?? "").toLowerCase() === "true");
         }
       } catch (error) {
         console.log("No existing setup found");
