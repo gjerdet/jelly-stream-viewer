@@ -27,6 +27,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
+  const showDemo = import.meta.env.DEV;
 
   useEffect(() => {
     if (user) {
@@ -246,15 +247,17 @@ const Login = () => {
               {loading ? "Logger inn..." : "Logg inn"}
             </Button>
 
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={handleDemoLogin}
-              disabled={loading}
-            >
-              Demo-modus (kun testing)
-            </Button>
+            {showDemo && (
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full"
+                onClick={handleDemoLogin}
+                disabled={loading}
+              >
+                Demo-modus (kun testing)
+              </Button>
+            )}
           </form>
         </CardContent>
       </Card>
