@@ -347,12 +347,59 @@ async function executeGitPull(updateId) {
 }
 
 /**
+ * Fetch Netdata stats from localhost
+ */
+async function fetchNetdataStats(monitoringUrl) {
+  const baseUrl = (monitoringUrl || 'http://localhost:19999').replace(/\/$/, '');
+  
+  const results = {
+    systemInfo: null,
+    cpu: null,
+    ram: null,
+    disk: null,
+    network: null,
+  };
+
+  try {
+    // Fetch system info
+    const infoRes = await fetch(`${baseUrl}/api/v1/info`);
+    if (infoRes.ok) results.systemInfo = await infoRes.json();
+
+    // Fetch CPU usage
+    const cpuRes = await fetch(`${baseUrl}/api/v1/data?chart=system.cpu&after=-60&points=60&group=average&format=json&options=seconds`);
+    if (cpuRes.ok) results.cpu = await cpuRes.json();
+
+    // Fetch RAM usage
+    const ramRes = await fetch(`${baseUrl}/api/v1/data?chart=system.ram&after=-60&points=60&group=average&format=json&options=seconds`);
+    if (ramRes.ok) results.ram = await ramRes.json();
+
+    // Fetch disk usage
+    const diskRes = await fetch(`${baseUrl}/api/v1/data?chart=disk_space._&after=-60&points=1&group=average&format=json&options=seconds`);
+    if (diskRes.ok) results.disk = await diskRes.json();
+
+    // Fetch network usage
+    const netRes = await fetch(`${baseUrl}/api/v1/data?chart=system.net&after=-60&points=60&group=average&format=json&options=seconds`);
+    if (netRes.ok) results.network = await netRes.json();
+
+    return { success: true, data: results };
+  } catch (err) {
+    console.error('Failed to fetch Netdata stats:', err.message);
+    return { 
+      success: false, 
+      error: 'Kunne ikke hente data fra Netdata',
+      details: err.message,
+      suggestion: 'Sjekk at Netdata kjører på ' + baseUrl
+    };
+  }
+}
+
+/**
  * HTTP Server
  */
 const server = http.createServer((req, res) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Update-Signature');
 
   // Handle CORS preflight
@@ -370,6 +417,31 @@ const server = http.createServer((req, res) => {
       service: 'git-pull-server',
       directory: APP_DIR,
     }));
+    return;
+  }
+
+  // Server stats endpoint - fetches from Netdata locally
+  if (req.url?.startsWith('/server-stats') && req.method === 'GET') {
+    // Parse monitoring_url from query string if provided
+    const urlParts = new URL(req.url, `http://${req.headers.host}`);
+    const monitoringUrl = urlParts.searchParams.get('monitoring_url') || process.env.MONITORING_URL || 'http://localhost:19999';
+    
+    fetchNetdataStats(monitoringUrl).then((result) => {
+      if (result.success) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result.data));
+      } else {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: result.error,
+          details: result.details,
+          suggestion: result.suggestion
+        }));
+      }
+    }).catch((err) => {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    });
     return;
   }
 
