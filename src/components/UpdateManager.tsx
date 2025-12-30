@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe } from "lucide-react";
+import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe, Wrench, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -57,6 +57,13 @@ export const UpdateManager = () => {
   const [showLogs, setShowLogs] = useState(false);
   const [forceLocalMode, setForceLocalMode] = useState(false);
   const [gitPullUrlIsLocal, setGitPullUrlIsLocal] = useState<boolean | null>(null);
+  const [troubleshooting, setTroubleshooting] = useState(false);
+  const [troubleshootResult, setTroubleshootResult] = useState<{
+    issue: string;
+    solution: string;
+    canAutoFix: boolean;
+    localAppUrl?: string;
+  } | null>(null);
 
   // Helper to check if a URL is a local/private IP
   const isLocalUrl = (url: string) => {
@@ -628,6 +635,132 @@ export const UpdateManager = () => {
     }
   };
 
+  // Troubleshooting function that analyzes the error and suggests/applies fixes
+  const runTroubleshooting = async () => {
+    setTroubleshooting(true);
+    setTroubleshootResult(null);
+
+    try {
+      // Get current settings
+      const { data: settings } = await supabase
+        .from('server_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
+
+      const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
+      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url') || '';
+
+      // Analyze the error
+      const errorMsg = updateStatus?.error || '';
+      const currentProtocol = window.location.protocol;
+      let parsedGitPullUrl: URL | null = null;
+      try {
+        parsedGitPullUrl = new URL(gitPullUrl);
+      } catch {
+        // Invalid URL
+      }
+
+      // Check for mixed content issue (HTTPS app -> HTTP git-pull)
+      if (currentProtocol === 'https:' && parsedGitPullUrl?.protocol === 'http:') {
+        // Extract the local IP/hostname from git-pull URL
+        const localHost = parsedGitPullUrl.hostname;
+        const localPort = parsedGitPullUrl.port || '3002';
+        
+        // Try to determine what port the app runs on (common ports)
+        const appPorts = ['3000', '5173', '4173', '8080'];
+        const suggestedLocalAppUrl = `http://${localHost}:${appPorts[0]}`;
+
+        setTroubleshootResult({
+          issue: language === 'no'
+            ? 'Blandet innhald (Mixed Content): Appen køyrer over HTTPS, men git-pull serveren brukar HTTP. Nettlesaren blokkerer dette av tryggleiksgrunnar.'
+            : 'Mixed Content: The app runs over HTTPS, but the git-pull server uses HTTP. The browser blocks this for security reasons.',
+          solution: language === 'no'
+            ? `Du har to alternativ:\n\n1. **Opne appen lokalt** (anbefalt for rask fix):\n   Gå til din lokale instans på LAN og køyr oppdateringa derifrå.\n\n2. **Sett opp HTTPS for git-pull** (permanent løysing):\n   Bruk ein reverse proxy (Caddy/Nginx) framfor git-pull-server og oppdater URL til https://...`
+            : `You have two options:\n\n1. **Open the app locally** (recommended for quick fix):\n   Go to your local instance on LAN and run the update from there.\n\n2. **Set up HTTPS for git-pull** (permanent solution):\n   Use a reverse proxy (Caddy/Nginx) in front of git-pull-server and update URL to https://...`,
+          canAutoFix: false,
+          localAppUrl: suggestedLocalAppUrl,
+        });
+
+        toast.info(language === 'no' ? 'Feilsøking fullført - sjå løysingsforslag' : 'Troubleshooting complete - see solution');
+        return;
+      }
+
+      // Check for network error (server not running or unreachable)
+      if (errorMsg.includes('NetworkError') || errorMsg.includes('fetch')) {
+        // Test if we can reach the git-pull server health endpoint
+        let serverReachable = false;
+        if (parsedGitPullUrl) {
+          try {
+            const healthUrl = `${parsedGitPullUrl.protocol}//${parsedGitPullUrl.host}/health`;
+            const response = await fetch(healthUrl, { method: 'GET', mode: 'cors' });
+            serverReachable = response.ok;
+          } catch {
+            serverReachable = false;
+          }
+        }
+
+        if (!serverReachable) {
+          setTroubleshootResult({
+            issue: language === 'no'
+              ? 'Git-pull serveren er ikkje tilgjengeleg. Anten køyrer den ikkje, eller så er det nettverksproblem.'
+              : 'Git-pull server is not reachable. Either it is not running, or there are network issues.',
+            solution: language === 'no'
+              ? `Sjekk følgjande på serveren din:\n\n1. **Er git-pull-server køyrande?**\n   \`sudo systemctl status git-pull\`\n\n2. **Start den viss den er stoppa:**\n   \`sudo systemctl start git-pull\`\n\n3. **Sjekk loggar:**\n   \`sudo journalctl -u git-pull -f\`\n\n4. **Sjekk at porten er open:**\n   \`curl http://localhost:3002/health\``
+              : `Check the following on your server:\n\n1. **Is git-pull-server running?**\n   \`sudo systemctl status git-pull\`\n\n2. **Start it if stopped:**\n   \`sudo systemctl start git-pull\`\n\n3. **Check logs:**\n   \`sudo journalctl -u git-pull -f\`\n\n4. **Check if port is open:**\n   \`curl http://localhost:3002/health\``,
+            canAutoFix: false,
+          });
+        } else {
+          setTroubleshootResult({
+            issue: language === 'no'
+              ? 'Git-pull serveren svarer på /health, men oppdateringa feilar. Dette kan vere eit CORS- eller signaturproblem.'
+              : 'Git-pull server responds to /health, but update fails. This could be a CORS or signature issue.',
+            solution: language === 'no'
+              ? `Prøv følgjande:\n\n1. **Sjekk CORS-headerar** i git-pull-server\n2. **Sjekk om signaturverifisering er slått av** (skal vere disabled for privat nettverk)\n3. **Restart git-pull-server:**\n   \`sudo systemctl restart git-pull\``
+              : `Try the following:\n\n1. **Check CORS headers** in git-pull-server\n2. **Check if signature verification is disabled** (should be disabled for private network)\n3. **Restart git-pull-server:**\n   \`sudo systemctl restart git-pull\``,
+            canAutoFix: false,
+          });
+        }
+
+        toast.info(language === 'no' ? 'Feilsøking fullført' : 'Troubleshooting complete');
+        return;
+      }
+
+      // Check if git-pull URL is not configured
+      if (!gitPullUrl) {
+        setTroubleshootResult({
+          issue: language === 'no'
+            ? 'Git-pull URL er ikkje konfigurert i serverinnstillingane.'
+            : 'Git-pull URL is not configured in server settings.',
+          solution: language === 'no'
+            ? 'Gå til Admin → Servere og set inn Git Pull Server URL (f.eks. http://192.168.1.100:3002)'
+            : 'Go to Admin → Servers and enter Git Pull Server URL (e.g., http://192.168.1.100:3002)',
+          canAutoFix: false,
+        });
+
+        toast.info(language === 'no' ? 'Git-pull URL manglar' : 'Git-pull URL missing');
+        return;
+      }
+
+      // Generic error
+      setTroubleshootResult({
+        issue: language === 'no'
+          ? `Ukjent feil: ${errorMsg}`
+          : `Unknown error: ${errorMsg}`,
+        solution: language === 'no'
+          ? 'Prøv å køyre oppdateringa manuelt på serveren:\n\n```\ncd ~/jelly-stream-viewer\ngit pull origin main\nnpm install\nnpm run build\n```'
+          : 'Try running the update manually on the server:\n\n```\ncd ~/jelly-stream-viewer\ngit pull origin main\nnpm install\nnpm run build\n```',
+        canAutoFix: false,
+      });
+
+      toast.info(language === 'no' ? 'Feilsøking fullført' : 'Troubleshooting complete');
+    } catch (err: any) {
+      console.error('Troubleshooting error:', err);
+      toast.error(language === 'no' ? 'Feilsøking feilet' : 'Troubleshooting failed');
+    } finally {
+      setTroubleshooting(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -828,7 +961,65 @@ export const UpdateManager = () => {
             </div>
             <Progress value={updateStatus.progress} className="h-2" />
             {updateStatus.error && (
-              <p className="text-sm text-red-400">{updateStatus.error}</p>
+              <div className="space-y-2">
+                <p className="text-sm text-red-400">{updateStatus.error}</p>
+                
+                {/* Troubleshooting button when there's an error */}
+                {updateStatus.status === 'failed' && (
+                  <Button
+                    onClick={runTroubleshooting}
+                    disabled={troubleshooting}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    <Wrench className={`h-4 w-4 mr-2 ${troubleshooting ? 'animate-spin' : ''}`} />
+                    {troubleshooting
+                      ? (language === 'no' ? 'Analyserer...' : 'Analyzing...')
+                      : (language === 'no' ? 'Køyr feilsøking' : 'Run troubleshooting')}
+                  </Button>
+                )}
+
+                {/* Troubleshooting results */}
+                {troubleshootResult && (
+                  <div className="mt-3 p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
+                    <div>
+                      <p className="text-sm font-medium text-destructive mb-1">
+                        {language === 'no' ? 'Problem identifisert:' : 'Issue identified:'}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{troubleshootResult.issue}</p>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-medium text-primary mb-1">
+                        {language === 'no' ? 'Løysing:' : 'Solution:'}
+                      </p>
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap">
+                        {troubleshootResult.solution}
+                      </div>
+                    </div>
+
+                    {/* Quick link to local app if available */}
+                    {troubleshootResult.localAppUrl && (
+                      <div className="pt-2 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-2">
+                          {language === 'no'
+                            ? 'Rask løysing: Opne appen lokalt og køyr oppdateringa derifrå:'
+                            : 'Quick fix: Open the app locally and run the update from there:'}
+                        </p>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => window.open(troubleshootResult.localAppUrl, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          {language === 'no' ? 'Opne lokal instans' : 'Open local instance'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
