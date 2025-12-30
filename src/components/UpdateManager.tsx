@@ -481,6 +481,48 @@ export const UpdateManager = () => {
           targetUrl = targetUrl.replace(/\/$/, '') + '/git-pull';
         }
 
+        // Quick reachability test before starting (gives clearer errors than a raw NetworkError)
+        let healthUrl = gitPullUrl;
+        if (healthUrl.endsWith('/git-pull')) {
+          healthUrl = healthUrl.replace(/\/git-pull$/, '/health');
+        } else {
+          healthUrl = healthUrl.replace(/\/$/, '') + '/health';
+        }
+
+        const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 5000) => {
+          const controller = new AbortController();
+          const t = setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            return await fetch(url, { ...init, signal: controller.signal });
+          } finally {
+            clearTimeout(t);
+          }
+        };
+
+        const preflightLog = {
+          timestamp: new Date().toISOString(),
+          message: `🔎 Tester tilkobling: ${healthUrl}`,
+          level: 'info' as const,
+        };
+        const preflightLogs = [...contactingLog, preflightLog];
+
+        setUpdateStatus((prev) => (prev ? { ...prev, logs: preflightLogs } : null));
+        await supabase
+          .from('update_status')
+          .update({ logs: JSON.stringify(preflightLogs) })
+          .eq('id', updateId);
+
+        try {
+          const healthRes = await fetchWithTimeout(healthUrl, { method: 'GET' }, 5000);
+          if (!healthRes.ok) {
+            const txt = await healthRes.text().catch(() => '');
+            throw new Error(`Health check feila (${healthRes.status}) ${txt ? `- ${txt}` : ''}`);
+          }
+        } catch (e: any) {
+          const msg = e?.name === 'AbortError' ? 'Tidsavbrudd (ingen svar frå server)' : (e?.message || String(e));
+          throw new Error(`Git-pull serveren er ikkje tilgjengeleg på ${healthUrl}. ${msg}`);
+        }
+
         // Block mixed content (HTTPS app -> HTTP git-pull URL)
         // This otherwise fails with: "NetworkError when attempting to fetch resource."
         let parsedTargetUrl: URL | null = null;
@@ -564,7 +606,7 @@ export const UpdateManager = () => {
             status: 'in_progress',
             progress: 5,
             current_step: 'Oppdatering køyrer på serveren...',
-            logs: JSON.stringify([...(contactingLog || []), startedLog]),
+            logs: JSON.stringify([...preflightLogs, startedLog]),
             updated_at: new Date().toISOString(),
           })
           .eq('id', updateId);
