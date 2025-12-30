@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { query } = await req.json();
+    const { query, page = 1 } = await req.json();
     
     if (!query || query.trim().length === 0) {
       return new Response(
@@ -60,8 +60,8 @@ serve(async (req) => {
     }
 
     // Search via Jellyseerr API
-    const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=1&language=no`;
-    console.log('Searching Jellyseerr:', searchUrl);
+    const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=${page}&language=no`;
+    console.log('Searching Jellyseerr:', searchUrl, 'page:', page);
 
     let response;
     try {
