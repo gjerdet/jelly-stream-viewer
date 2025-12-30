@@ -121,6 +121,23 @@ serve(async (req) => {
         endpoint = `/api/v3/calendar?start=${startDate}&end=${endDate}`;
         break;
       
+      case 'episodeFile':
+        // Get episode file details
+        endpoint = `/api/v3/episodefile/${params?.episodeFileId}`;
+        break;
+      
+      case 'episodeFiles':
+        // Get all episode files for a series
+        endpoint = `/api/v3/episodefile?seriesId=${params?.seriesId}`;
+        break;
+      
+      case 'deleteEpisodeFile':
+        // Delete a specific episode file
+        endpoint = `/api/v3/episodefile/${params?.episodeFileId}`;
+        method = 'DELETE';
+        console.log(`Deleting episode file: ${params?.episodeFileId}`);
+        break;
+      
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
