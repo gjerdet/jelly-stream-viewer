@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerSettings } from "./useServerSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 interface JellyfinUser {
   Id: string;
@@ -22,20 +23,24 @@ export const useJellyfinUsers = () => {
         throw new Error("Jellyfin innstillinger mangler");
       }
 
-      const cleanServerUrl = serverUrl.replace(/\/$/, '');
-      
-      const response = await fetch(`${cleanServerUrl}/Users`, {
-        headers: {
-          'X-Emby-Token': apiKey,
-          'Content-Type': 'application/json',
-        },
+      // Use jellyfin-proxy for Chrome compatibility
+      const { data, error } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: {
+          endpoint: '/Users',
+          method: 'GET'
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`Jellyfin API feil: ${response.status}`);
+      if (error) {
+        console.error('Jellyfin proxy error:', error);
+        throw new Error(`Jellyfin API feil: ${error.message}`);
       }
 
-      const users: JellyfinUser[] = await response.json();
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const users: JellyfinUser[] = Array.isArray(data) ? data : [];
       
       console.log('Jellyfin API returned users:', users.length, users);
       

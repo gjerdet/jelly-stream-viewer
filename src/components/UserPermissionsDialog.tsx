@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Shield, User, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -92,7 +93,7 @@ export const UserPermissionsDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Shield className="h-5 w-5" />
@@ -103,73 +104,75 @@ export const UserPermissionsDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-2">
-          {/* Show user roles */}
-          <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/30 rounded-lg">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Rolle:</span>
-            {permData?.userRoles?.map(role => (
-              <Badge key={role} variant={role === 'admin' ? 'default' : 'secondary'}>
-                {role === 'admin' ? 'Administrator' : 'Bruker'}
-              </Badge>
-            ))}
-          </div>
+        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+          <div className="space-y-2">
+            {/* Show user roles */}
+            <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/30 rounded-lg">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Rolle:</span>
+              {permData?.userRoles?.map(role => (
+                <Badge key={role} variant={role === 'admin' ? 'default' : 'secondary'}>
+                  {role === 'admin' ? 'Administrator' : 'Bruker'}
+                </Badge>
+              ))}
+            </div>
 
-          {/* Permission list */}
-          <div className="space-y-3">
-            {ALL_PERMISSIONS.map((permission) => {
-              const effective = permData?.effectivePermissions[permission];
-              const isOverride = effective?.source === 'user';
-              
-              return (
-                <div
-                  key={permission}
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    isOverride 
-                      ? 'border-primary/50 bg-primary/5' 
-                      : 'border-border bg-secondary/20'
-                  }`}
-                >
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">
-                      {PERMISSION_LABELS[permission]}
+            {/* Permission list */}
+            <div className="space-y-3">
+              {ALL_PERMISSIONS.map((permission) => {
+                const effective = permData?.effectivePermissions[permission];
+                const isOverride = effective?.source === 'user';
+                
+                return (
+                  <div
+                    key={permission}
+                    className={`flex items-center justify-between p-3 rounded-lg border ${
+                      isOverride 
+                        ? 'border-primary/50 bg-primary/5' 
+                        : 'border-border bg-secondary/20'
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <div className="font-medium text-sm">
+                        {PERMISSION_LABELS[permission]}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {isOverride ? (
+                          <span className="text-primary">Individuell overstyring</span>
+                        ) : (
+                          <span>Fra rolle</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {isOverride ? (
-                        <span className="text-primary">Individuell overstyring</span>
-                      ) : (
-                        <span>Fra rolle</span>
+                    
+                    <div className="flex items-center gap-2">
+                      {isOverride && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleResetToRole(permission)}
+                          title="Tilbakestill til rolle-standard"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
                       )}
+                      <Switch
+                        checked={effective?.granted ?? false}
+                        onCheckedChange={() => 
+                          handleToggle(permission, effective?.granted ?? false, effective?.source ?? 'role')
+                        }
+                        disabled={setPermission.isPending}
+                      />
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-2">
-                    {isOverride && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleResetToRole(permission)}
-                        title="Tilbakestill til rolle-standard"
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Switch
-                      checked={effective?.granted ?? false}
-                      onCheckedChange={() => 
-                        handleToggle(permission, effective?.granted ?? false, effective?.source ?? 'role')
-                      }
-                      disabled={setPermission.isPending}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </ScrollArea>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-end pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Lukk
           </Button>
