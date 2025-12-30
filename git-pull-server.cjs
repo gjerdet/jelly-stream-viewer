@@ -25,7 +25,8 @@ const PORT = process.env.GIT_PULL_PORT || 3002;
 const HOST = process.env.GIT_PULL_HOST || '0.0.0.0'; // Listen on all interfaces
 const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
 const APP_DIR = process.env.APP_DIR || process.cwd();
-const SUPABASE_URL = process.env.SUPABASE_URL;
+// Allow either SUPABASE_URL or VITE_SUPABASE_URL (common in .env on the server)
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 /**
@@ -163,7 +164,9 @@ async function updateStatus(updateId, status, progress, currentStep, logs, error
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        // For public functions, the platform expects apikey + authorization headers
+        ...(SUPABASE_ANON_KEY ? { apikey: SUPABASE_ANON_KEY } : {}),
+        ...(SUPABASE_ANON_KEY ? { Authorization: `Bearer ${SUPABASE_ANON_KEY}` } : {}),
         'x-update-secret': UPDATE_SECRET || ''
       },
       body: JSON.stringify({
