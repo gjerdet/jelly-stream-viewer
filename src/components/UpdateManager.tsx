@@ -255,16 +255,28 @@ export const UpdateManager = () => {
     const pollInterval = setInterval(async () => {
       pollCount++;
       console.log(`[UpdateManager] Polling for completion (${pollCount}/${maxPolls})...`);
-      
-      // Add polling log to UI
-      setUpdateStatus(prev => prev ? {
-        ...prev,
-        logs: [...(prev.logs || []), {
-          timestamp: new Date().toISOString(),
-          message: `🔄 Sjekker status... (${pollCount}/${maxPolls})`,
-          level: 'info' as const
-        }]
-      } : null);
+
+      const estimatedProgress = Math.min(95, Math.max(5, Math.round((pollCount / maxPolls) * 90)));
+
+      // Add polling log + estimated progress to UI
+      setUpdateStatus((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: prev.status === 'starting' ? 'in_progress' : prev.status,
+              progress: prev.status === 'completed' ? 100 : estimatedProgress,
+              current_step: prev.status === 'completed' ? prev.current_step : (language === 'no' ? 'Venter på serveren...' : 'Waiting for server...'),
+              logs: [
+                ...(prev.logs || []),
+                {
+                  timestamp: new Date().toISOString(),
+                  message: `🔄 Sjekker status... (${pollCount}/${maxPolls})`,
+                  level: 'info' as const,
+                },
+              ],
+            }
+          : null,
+      );
 
       try {
         const { data } = await supabase.functions.invoke('check-updates');
@@ -526,7 +538,38 @@ export const UpdateManager = () => {
         }
 
         console.log('[UpdateManager] Git pull triggered successfully (local mode)');
-        toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
+
+        // Best-effort: update DB/UI to show we're in progress (git-pull-server runs async)
+        const startedLog = {
+          timestamp: new Date().toISOString(),
+          message: '✅ Git pull er trigga på serveren. Dette kan ta nokre minutt.',
+          level: 'success' as const,
+        };
+
+        setUpdateStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'in_progress',
+                progress: 5,
+                current_step: language === 'no' ? 'Oppdatering køyrer på serveren...' : 'Update running on server...',
+                logs: [...(prev.logs || []), startedLog],
+              }
+            : null,
+        );
+
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'in_progress',
+            progress: 5,
+            current_step: 'Oppdatering køyrer på serveren...',
+            logs: JSON.stringify([...(contactingLog || []), startedLog]),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', updateId);
+
+        toast.success('Oppdatering startet! Sjå logg-vinduet for status.');
       } else {
         // Use edge function for remote access
         console.log('[UpdateManager] Calling git-pull-proxy edge function (remote mode)');
@@ -705,8 +748,8 @@ export const UpdateManager = () => {
               ? 'Git-pull serveren er ikkje tilgjengeleg. Anten køyrer den ikkje, eller så er det nettverksproblem.'
               : 'Git-pull server is not reachable. Either it is not running, or there are network issues.',
             solution: language === 'no'
-              ? `Sjekk følgjande på serveren din:\n\n1. **Er git-pull-server køyrande?**\n   \`sudo systemctl status git-pull\`\n\n2. **Start den viss den er stoppa:**\n   \`sudo systemctl start git-pull\`\n\n3. **Sjekk loggar:**\n   \`sudo journalctl -u git-pull -f\`\n\n4. **Sjekk at porten er open:**\n   \`curl http://localhost:3002/health\``
-              : `Check the following on your server:\n\n1. **Is git-pull-server running?**\n   \`sudo systemctl status git-pull\`\n\n2. **Start it if stopped:**\n   \`sudo systemctl start git-pull\`\n\n3. **Check logs:**\n   \`sudo journalctl -u git-pull -f\`\n\n4. **Check if port is open:**\n   \`curl http://localhost:3002/health\``,
+              ? `Sjekk følgjande på serveren din:\n\n1. **Er git-pull-server køyrande?**\n   \`sudo systemctl status jelly-git-pull\`\n\n2. **Start den viss den er stoppa:**\n   \`sudo systemctl start jelly-git-pull\`\n\n3. **Sjekk loggar:**\n   \`sudo journalctl -u jelly-git-pull -f\`\n\n4. **Sjekk at porten er open:**\n   \`curl http://localhost:3002/health\``
+              : `Check the following on your server:\n\n1. **Is git-pull-server running?**\n   \`sudo systemctl status jelly-git-pull\`\n\n2. **Start it if stopped:**\n   \`sudo systemctl start jelly-git-pull\`\n\n3. **Check logs:**\n   \`sudo journalctl -u jelly-git-pull -f\`\n\n4. **Check if port is open:**\n   \`curl http://localhost:3002/health\``,
             canAutoFix: false,
           });
         } else {
