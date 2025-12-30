@@ -445,6 +445,49 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Setup Netdata endpoint - install Netdata locally
+  if (req.url === '/setup-netdata' && req.method === 'POST') {
+    console.log('📊 Received setup-netdata request');
+    
+    // Check if Netdata is already installed
+    exec('which netdata', (error, stdout) => {
+      if (stdout && stdout.trim()) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: true, 
+          message: 'Netdata er allerede installert',
+          path: stdout.trim(),
+          alreadyInstalled: true
+        }));
+        return;
+      }
+      
+      // Send immediate response - installation runs in background
+      console.log('📦 Starting Netdata installation...');
+      res.writeHead(202, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        message: 'Netdata installasjon startet. Dette kan ta noen minutter.',
+        alreadyInstalled: false
+      }));
+      
+      // Run installation in background
+      exec('bash <(curl -Ss https://my-netdata.io/kickstart.sh) --dont-wait --disable-telemetry', 
+        { shell: '/bin/bash', timeout: 600000 }, // 10 min timeout
+        (installError, installStdout, installStderr) => {
+          if (installError) {
+            console.error('❌ Netdata installation failed:', installError.message);
+            if (installStderr) console.error('stderr:', installStderr);
+          } else {
+            console.log('✅ Netdata installation completed');
+            if (installStdout) console.log('stdout:', installStdout);
+          }
+        }
+      );
+    });
+    return;
+  }
+
   // Git pull endpoint
   if (req.url === '/git-pull' && req.method === 'POST') {
     let body = '';
