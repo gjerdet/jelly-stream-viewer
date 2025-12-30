@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,17 +13,25 @@ serve(async (req) => {
   }
 
   try {
-    console.log("Starting Netdata setup...");
+    console.log("Starting Netdata setup via git-pull-server...");
 
-    // Check if we have a webhook URL configured to send installation commands
-    const webhookUrl = Deno.env.get('UPDATE_WEBHOOK_URL');
-    
-    if (!webhookUrl) {
-      console.log("No webhook URL configured, returning installation instructions");
+    // Get git_pull_url from server_settings
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data: settings, error: settingsError } = await supabase
+      .from('server_settings')
+      .select('setting_value')
+      .eq('setting_key', 'git_pull_url')
+      .single();
+
+    if (settingsError || !settings?.setting_value) {
+      console.log("No git_pull_url configured, returning manual instructions");
       return new Response(
         JSON.stringify({
           success: false,
-          message: "Automatisk installasjon krever webhook-konfigurasjon. Installer manuelt med: bash <(curl -Ss https://my-netdata.io/kickstart.sh)",
+          message: "Git Pull Server URL ikke konfigurert. Installer manuelt med: bash <(curl -Ss https://my-netdata.io/kickstart.sh)",
           instructions: [
             "1. SSH til serveren din",
             "2. Kjør: bash <(curl -Ss https://my-netdata.io/kickstart.sh)",
@@ -37,45 +46,36 @@ serve(async (req) => {
       );
     }
 
-    // Send installation command to webhook
-    const installScript = `
-#!/bin/bash
-# Install Netdata
-bash <(curl -Ss https://my-netdata.io/kickstart.sh) --dont-wait --disable-telemetry
+    // Parse git_pull_url to get the base URL
+    const gitPullUrl = settings.setting_value;
+    const baseUrl = gitPullUrl.replace('/git-pull', '');
+    const setupNetdataUrl = `${baseUrl}/setup-netdata`;
 
-# Wait for installation to complete
-sleep 5
+    console.log(`Calling setup-netdata endpoint: ${setupNetdataUrl}`);
 
-# Check if Netdata is running
-if systemctl is-active --quiet netdata; then
-  echo "Netdata installed successfully and is running"
-else
-  echo "Netdata installation may have failed or is still starting"
-fi
-`;
-
-    const response = await fetch(webhookUrl, {
+    // Call the git-pull-server's setup-netdata endpoint
+    const response = await fetch(setupNetdataUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        action: 'setup-netdata',
-        script: installScript,
-        timestamp: new Date().toISOString()
-      })
+      }
     });
 
     if (!response.ok) {
-      throw new Error(`Webhook responded with status ${response.status}`);
+      throw new Error(`Git-pull-server responded with status ${response.status}`);
     }
 
-    console.log("Netdata setup webhook triggered successfully");
+    const result = await response.json();
+    console.log("Setup Netdata response:", result);
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Netdata installasjon startet. Dette kan ta noen minutter."
+        message: result.alreadyInstalled 
+          ? "Netdata er allerede installert og kjører."
+          : "Netdata installasjon startet. Dette kan ta noen minutter.",
+        alreadyInstalled: result.alreadyInstalled,
+        path: result.path
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
