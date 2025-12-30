@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw, Trash2, AlertTriangle, ShieldAlert, History, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -18,6 +20,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+interface DeleteLogEntry {
+  timestamp: Date;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  title: string;
+  status: 'success' | 'error';
+  error?: string;
+}
 
 interface MediaFile {
   id: string;
@@ -52,6 +64,20 @@ export const DuplicateMediaManager = () => {
   const [scanComplete, setScanComplete] = useState(false);
   const [deletingFile, setDeletingFile] = useState<{groupIndex: number, fileIndex: number} | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{group: DuplicateGroup, file: MediaFile, groupIndex: number, fileIndex: number} | null>(null);
+  const [confirmCode, setConfirmCode] = useState("");
+  const [deleteLog, setDeleteLog] = useState<DeleteLogEntry[]>([]);
+  const [showDeleteLog, setShowDeleteLog] = useState(false);
+
+  // Generate a random 4-digit code for confirmation
+  const getConfirmationCode = () => {
+    if (!fileToDelete) return "";
+    // Use last 4 chars of file path hash for consistent code per file
+    const hash = fileToDelete.file.path.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    return Math.abs(hash % 10000).toString().padStart(4, '0');
+  };
 
   const scanForDuplicates = async () => {
     setScanning(true);
@@ -221,8 +247,24 @@ export const DuplicateMediaManager = () => {
   const handleDeleteFile = async () => {
     if (!fileToDelete) return;
     
+    // Verify confirmation code
+    const expectedCode = getConfirmationCode();
+    if (confirmCode !== expectedCode) {
+      toast.error(language === 'no' ? 'Feil bekreftelseskode' : 'Wrong confirmation code');
+      return;
+    }
+    
     const { group, file, groupIndex, fileIndex } = fileToDelete;
     setDeletingFile({ groupIndex, fileIndex });
+    
+    const logEntry: DeleteLogEntry = {
+      timestamp: new Date(),
+      fileName: file.path.split('/').pop() || file.name,
+      filePath: file.path,
+      fileSize: file.size,
+      title: group.title,
+      status: 'success'
+    };
     
     try {
       if (group.type === "Movie") {
@@ -247,14 +289,21 @@ export const DuplicateMediaManager = () => {
           
           if (deleteError) throw deleteError;
           
-          toast.success(language === 'no' ? 'Fil slettet' : 'File deleted');
+          toast.success(
+            language === 'no' 
+              ? `✅ Slettet: ${logEntry.fileName}` 
+              : `✅ Deleted: ${logEntry.fileName}`,
+            { duration: 5000 }
+          );
         } else {
-          toast.error(language === 'no' ? 'Kunne ikke finne filen i Radarr' : 'Could not find file in Radarr');
-          return;
+          throw new Error(language === 'no' ? 'Kunne ikke finne filen i Radarr' : 'Could not find file in Radarr');
         }
       } else {
         // For episodes - similar approach with Sonarr
         toast.info(language === 'no' ? 'Episode-sletting via Sonarr kommer snart' : 'Episode deletion via Sonarr coming soon');
+        logEntry.status = 'error';
+        logEntry.error = 'Not implemented for episodes';
+        setDeleteLog(prev => [logEntry, ...prev]);
         return;
       }
       
@@ -268,50 +317,155 @@ export const DuplicateMediaManager = () => {
       }
       
       setDuplicates(newDuplicates);
+      setDeleteLog(prev => [logEntry, ...prev]);
     } catch (error) {
       console.error('Error deleting file:', error);
+      logEntry.status = 'error';
+      logEntry.error = error instanceof Error ? error.message : 'Unknown error';
+      setDeleteLog(prev => [logEntry, ...prev]);
       toast.error(language === 'no' ? 'Kunne ikke slette filen' : 'Could not delete file');
     } finally {
       setDeletingFile(null);
       setFileToDelete(null);
+      setConfirmCode("");
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Delete confirmation dialog */}
-      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-        <AlertDialogContent>
+      {/* Delete confirmation dialog with code verification */}
+      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => { if (!open) { setFileToDelete(null); setConfirmCode(""); } }}>
+        <AlertDialogContent className="max-w-lg">
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              {language === 'no' ? 'Bekreft sletting' : 'Confirm deletion'}
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <ShieldAlert className="h-6 w-6" />
+              {language === 'no' ? '⚠️ ADVARSEL: Permanent sletting' : '⚠️ WARNING: Permanent deletion'}
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                {language === 'no' 
-                  ? 'Er du sikker på at du vil slette denne filen permanent?'
-                  : 'Are you sure you want to permanently delete this file?'}
-              </p>
-              <div className="p-3 bg-secondary/50 rounded-lg mt-2">
-                <p className="font-mono text-sm break-all">{fileToDelete?.file.path}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {fileToDelete && formatFileSize(fileToDelete.file.size)}
+            <div className="space-y-4 pt-2">
+              <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+                <p className="text-sm font-medium text-destructive">
+                  {language === 'no' 
+                    ? 'Denne handlingen kan IKKE angres! Filen vil bli permanent slettet fra disken.'
+                    : 'This action CANNOT be undone! The file will be permanently deleted from disk.'}
                 </p>
               </div>
-            </AlertDialogDescription>
+              
+              <div className="space-y-2">
+                <p className="text-sm font-medium">{language === 'no' ? 'Fil som vil bli slettet:' : 'File to be deleted:'}</p>
+                <div className="p-3 bg-secondary/50 rounded-lg border">
+                  <p className="text-sm font-medium">{fileToDelete?.group.title}</p>
+                  <p className="font-mono text-xs break-all text-muted-foreground mt-1">{fileToDelete?.file.path}</p>
+                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <HardDrive className="h-3 w-3" />
+                      {fileToDelete && formatFileSize(fileToDelete.file.size)}
+                    </span>
+                    <Badge variant="outline" className="text-xs">
+                      {fileToDelete?.file.videoCodec.toUpperCase()}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {fileToDelete && getResolutionLabel(fileToDelete.file.width, fileToDelete.file.height)}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="confirm-code" className="text-sm font-medium">
+                  {language === 'no' 
+                    ? `Skriv inn koden "${getConfirmationCode()}" for å bekrefte:`
+                    : `Type the code "${getConfirmationCode()}" to confirm:`}
+                </Label>
+                <Input
+                  id="confirm-code"
+                  type="text"
+                  value={confirmCode}
+                  onChange={(e) => setConfirmCode(e.target.value)}
+                  placeholder={language === 'no' ? 'Skriv bekreftelseskode...' : 'Enter confirmation code...'}
+                  className="font-mono text-center text-lg tracking-widest"
+                  maxLength={4}
+                />
+              </div>
+            </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{language === 'no' ? 'Avbryt' : 'Cancel'}</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2 sm:gap-0">
+            <AlertDialogCancel onClick={() => setConfirmCode("")}>
+              {language === 'no' ? 'Avbryt' : 'Cancel'}
+            </AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleDeleteFile}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={confirmCode !== getConfirmationCode()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
             >
-              {language === 'no' ? 'Slett fil' : 'Delete file'}
+              <Trash2 className="h-4 w-4 mr-2" />
+              {language === 'no' ? 'Slett fil permanent' : 'Delete file permanently'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete log panel */}
+      {deleteLog.length > 0 && (
+        <Card className="border-border/50 border-l-4 border-l-primary">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <History className="h-4 w-4" />
+                {language === 'no' ? 'Slettelogg' : 'Deletion Log'}
+                <Badge variant="secondary" className="ml-2">{deleteLog.length}</Badge>
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setShowDeleteLog(!showDeleteLog)}
+              >
+                {showDeleteLog ? (language === 'no' ? 'Skjul' : 'Hide') : (language === 'no' ? 'Vis' : 'Show')}
+              </Button>
+            </div>
+          </CardHeader>
+          {showDeleteLog && (
+            <CardContent>
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-2">
+                  {deleteLog.map((entry, i) => (
+                    <div 
+                      key={i}
+                      className={`p-3 rounded-lg text-sm ${
+                        entry.status === 'success' 
+                          ? 'bg-green-500/10 border border-green-500/20' 
+                          : 'bg-destructive/10 border border-destructive/20'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        {entry.status === 'success' ? (
+                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium">{entry.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{entry.fileName}</p>
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            <span>{entry.timestamp.toLocaleTimeString()}</span>
+                            <span>•</span>
+                            <span>{formatFileSize(entry.fileSize)}</span>
+                            {entry.error && (
+                              <>
+                                <span>•</span>
+                                <span className="text-destructive">{entry.error}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <Card className="border-border/50">
         <CardHeader>
