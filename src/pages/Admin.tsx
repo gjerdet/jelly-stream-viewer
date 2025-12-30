@@ -2035,6 +2035,28 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                       variant="outline"
                       onClick={async () => {
                         toast.dismiss();
+                        
+                        // Check if we're on a local network - if not, show instructions
+                        const isLocalNetwork = () => {
+                          const hostname = window.location.hostname;
+                          return (
+                            hostname === 'localhost' ||
+                            hostname === '127.0.0.1' ||
+                            hostname.startsWith('192.168.') ||
+                            hostname.startsWith('10.') ||
+                            hostname.startsWith('172.') ||
+                            hostname.endsWith('.local')
+                          );
+                        };
+
+                        if (!isLocalNetwork()) {
+                          toast.error(
+                            "Setup Netdata kan kun kjøres fra lokal nettverkstilgang. Åpne appen fra din lokale server (f.eks. http://192.168.x.x:5173) og prøv igjen.",
+                            { duration: 10000 }
+                          );
+                          return;
+                        }
+
                         const toastId = toast.loading("Setter opp Netdata...");
                         try {
                           console.log("[SetupNetdata] Fetching server settings...");
