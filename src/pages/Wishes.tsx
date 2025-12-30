@@ -762,7 +762,7 @@ const Wishes = () => {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Jellyseerr is not configured. Go to Admin settings to configure.
+              {wishes.notConfigured || 'Jellyseerr is not configured. Go to Admin settings to configure.'}
             </AlertDescription>
           </Alert>
         </div>
@@ -813,10 +813,10 @@ const Wishes = () => {
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                <p className="font-semibold">SSL Certificate Error</p>
+                <p className="font-semibold">{wishes.sslErrorTitle || 'SSL Certificate Error'}</p>
                 <p>{wishes.sslError}</p>
                 <Button onClick={() => navigate('/admin')} size="sm" className="mt-2">
-                  Go to Admin Settings
+                  {wishes.goToAdminSettings || 'Go to Admin Settings'}
                 </Button>
               </AlertDescription>
             </Alert>
@@ -826,10 +826,10 @@ const Wishes = () => {
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                <p className="font-semibold">Network Error</p>
+                <p className="font-semibold">{wishes.networkErrorTitle || 'Network Error'}</p>
                 <p>{wishes.networkError}</p>
                 <Button onClick={() => navigate('/admin')} size="sm" className="mt-2">
-                  Go to Admin Settings
+                  {wishes.goToAdminSettings || 'Go to Admin Settings'}
                 </Button>
               </AlertDescription>
             </Alert>

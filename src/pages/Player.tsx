@@ -5,6 +5,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward } from "lucide-react";
@@ -116,6 +117,8 @@ const Player = () => {
   const { id } = useParams();
   const { user } = useAuth();
   const { serverUrl } = useServerSettings();
+  const { t } = useLanguage();
+  const player = t.player as any;
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [showControls, setShowControls] = useState(true);
@@ -165,11 +168,11 @@ const Player = () => {
       setRemoteSubtitles(data?.subtitles || []);
       
       if (data?.subtitles?.length === 0) {
-        toast.info('Ingen undertekster funnet');
+        toast.info(player.noSubtitlesFound || 'No subtitles found');
       }
     } catch (error) {
       console.error('Error searching subtitles:', error);
-      toast.error('Kunne ikke søke etter undertekster');
+      toast.error(player.searchError || 'Could not search for subtitles');
     } finally {
       setSearchingSubtitles(false);
     }
@@ -183,8 +186,8 @@ const Player = () => {
     
     const toastId = toast.loading(
       subtitleName 
-        ? `Laster ned: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
-        : 'Laster ned undertekst...'
+        ? `${player.downloading || 'Downloading'}: ${subtitleName.substring(0, 50)}${subtitleName.length > 50 ? '...' : ''}`
+        : `${player.downloading || 'Downloading'}...`
     );
     
     try {
@@ -195,14 +198,14 @@ const Player = () => {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success('Undertekst lastet ned! Refresh siden for å bruke den.', { id: toastId });
+        toast.success(player.downloadSuccess || 'Subtitle downloaded! Refresh the page to use it.', { id: toastId });
         setSubtitleSearchOpen(false);
       } else {
-        toast.error(data?.error || 'Kunne ikke laste ned undertekst', { id: toastId });
+        toast.error(data?.error || player.downloadError || 'Could not download subtitle', { id: toastId });
       }
     } catch (error) {
       console.error('Error downloading subtitle:', error);
-      toast.error('Kunne ikke laste ned undertekst', { id: toastId });
+      toast.error(player.downloadError || 'Could not download subtitle', { id: toastId });
     } finally {
       setDownloadingSubtitle(null);
     }
@@ -572,32 +575,32 @@ const Player = () => {
     
     const segmentType = currentSegment.Type.toLowerCase();
     if (segmentType === 'intro' || segmentType === 'recap') {
-      toast.info('Hoppet over intro');
+      toast.info(player.skippedIntro || 'Skipped intro');
     } else if (segmentType === 'outro' || segmentType === 'credits') {
-      toast.info('Hoppet over rulletekst');
+      toast.info(player.skippedCredits || 'Skipped credits');
     } else {
-      toast.info(`Hoppet over ${currentSegment.Type}`);
+      toast.info(`${player.skippedSegment || 'Skipped'} ${currentSegment.Type}`);
     }
   };
 
   // Get segment button label
   const getSkipButtonLabel = () => {
-    if (!currentSegment) return 'Hopp over';
+    if (!currentSegment) return player.skip || 'Skip';
     
     switch (currentSegment.Type.toLowerCase()) {
       case 'intro':
-        return 'Hopp over intro';
+        return player.skipIntro || 'Skip intro';
       case 'outro':
       case 'credits':
-        return 'Hopp over rulletekst';
+        return player.skipCredits || 'Skip credits';
       case 'recap':
-        return 'Hopp over oppsummering';
+        return player.skipRecap || 'Skip recap';
       case 'commercial':
-        return 'Hopp over reklame';
+        return player.skipCommercial || 'Skip commercial';
       case 'preview':
-        return 'Hopp over forhåndsvisning';
+        return player.skipPreview || 'Skip preview';
       default:
-        return `Hopp over ${currentSegment.Type}`;
+        return `${player.skip || 'Skip'} ${currentSegment.Type}`;
     }
   };
 
@@ -1139,7 +1142,7 @@ const Player = () => {
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Subtitles className="h-5 w-5" />
-                    Søk etter undertekster
+                    {player.searchSubtitles || 'Search subtitles'}
                   </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
@@ -1174,7 +1177,7 @@ const Player = () => {
                     {searchingSubtitles ? (
                       <div className="flex items-center justify-center h-full">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="ml-2">Søker...</span>
+                        <span className="ml-2">{player.searching || 'Searching...'}</span>
                       </div>
                     ) : remoteSubtitles.length > 0 ? (
                       <div className="space-y-2">
@@ -1216,7 +1219,7 @@ const Player = () => {
                     ) : (
                       <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
                         <Subtitles className="h-12 w-12 mb-2 opacity-50" />
-                        <p className="text-sm">Velg eit språk for å søke</p>
+                        <p className="text-sm">{player.selectLanguageToSearch || 'Select a language to search'}</p>
                       </div>
                     )}
                   </ScrollArea>
@@ -1248,14 +1251,14 @@ const Player = () => {
           </div>
         )}
 
-        {/* Bottom controls for episodes - Next episode + Auto mark watched */}
+        {/* Bottom controls for episodes - Auto mark watched */}
         {isEpisode && showControls && (
           <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto z-50">
             <div className="flex items-center justify-between gap-3">
               {/* Auto mark watched */}
               <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
                 <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                  Auto-marker sett
+                  {player.autoMarkWatched || 'Auto-mark watched'}
                 </Label>
                 <Switch
                   id="auto-mark-mobile"
@@ -1268,11 +1271,10 @@ const Player = () => {
           </div>
         )}
 
-        {/* Fixed fullscreen-compatible next episode button */}
+        {/* Fullscreen-compatible next episode button - uses absolute positioning within the player container */}
         {isEpisode && nextEpisode && (
           <div 
-            className="fixed bottom-6 right-6 z-[99999]"
-            style={{ pointerEvents: 'auto' }}
+            className="absolute bottom-6 right-6 z-[9999] pointer-events-auto"
           >
             <Button
               onClick={(e) => { 
@@ -1280,11 +1282,16 @@ const Player = () => {
                 e.stopPropagation(); 
                 playNextEpisode(); 
               }}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-3 h-12 font-semibold shadow-2xl border-2 border-white/30 gap-2 cursor-pointer"
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                playNextEpisode();
+              }}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-3 h-12 font-semibold shadow-2xl border-2 border-white/30 gap-2 cursor-pointer touch-manipulation"
             >
               <SkipForward className="h-5 w-5" />
-              <span className="hidden sm:inline">Neste episode</span>
-              <span className="sm:hidden">Neste</span>
+              <span className="hidden sm:inline">{player.nextEpisode || 'Next episode'}</span>
+              <span className="sm:hidden">{player.next || 'Next'}</span>
             </Button>
           </div>
         )}
@@ -1294,7 +1301,7 @@ const Player = () => {
           <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-6 space-y-4 pointer-events-auto safe-area-bottom">
             <div className="bg-black/80 backdrop-blur-md rounded-lg p-3 sm:p-4 space-y-3">
               <div className="flex items-center justify-between text-white">
-                <span className="text-xs sm:text-sm">Caster til {castState.deviceName}</span>
+                <span className="text-xs sm:text-sm">{player.castingTo || 'Casting to'} {castState.deviceName}</span>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -1302,7 +1309,7 @@ const Player = () => {
                   className="text-white hover:bg-white/20 h-9"
                 >
                   <Square className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Stopp</span>
+                  <span className="hidden sm:inline">{player.stop || 'Stop'}</span>
                 </Button>
               </div>
 
@@ -1355,13 +1362,13 @@ const Player = () => {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                    Ingen bilde
+                    {player.noImage || 'No image'}
                   </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-muted-foreground">Neste</p>
+                  <p className="text-xs text-muted-foreground">{player.next || 'Next'}</p>
                   {countdown !== null && countdown > 0 && (
                     <span className="text-xs font-semibold text-primary">
                       {countdown}s
@@ -1378,7 +1385,7 @@ const Player = () => {
                     className="h-8 text-xs flex-1"
                   >
                     <Play className="h-3 w-3 mr-1" />
-                    Spill
+                    {player.play || 'Play'}
                   </Button>
                   <Button
                     size="sm"
