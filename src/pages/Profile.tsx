@@ -22,7 +22,7 @@ const passwordSchema = z.object({
 
 const Profile = () => {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { language } = useLanguage();
   
   const [jellyfinUsername, setJellyfinUsername] = useState("");
@@ -39,13 +39,16 @@ const Profile = () => {
   const [passwordErrors, setPasswordErrors] = useState<{ newPassword?: string; confirmPassword?: string }>({});
 
   useEffect(() => {
+    // Wait for auth to finish loading before redirecting
+    if (authLoading) return;
+    
     if (!user) {
       navigate("/");
       return;
     }
     
     fetchProfile();
-  }, [user, navigate]);
+  }, [user, authLoading, navigate]);
 
   const fetchProfile = async () => {
     if (!user) return;
