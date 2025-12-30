@@ -3,10 +3,21 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw } from "lucide-react";
+import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface MediaFile {
   id: string;
@@ -19,6 +30,8 @@ interface MediaFile {
   height: number;
   bitrate: number;
   size: number;
+  radarrFileId?: number;
+  sonarrFileId?: number;
 }
 
 interface DuplicateGroup {
@@ -28,6 +41,8 @@ interface DuplicateGroup {
   seasonNumber?: number;
   episodeNumber?: number;
   files: MediaFile[];
+  radarrMovieId?: number;
+  sonarrSeriesId?: number;
 }
 
 export const DuplicateMediaManager = () => {
@@ -35,6 +50,8 @@ export const DuplicateMediaManager = () => {
   const [scanning, setScanning] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [scanComplete, setScanComplete] = useState(false);
+  const [deletingFile, setDeletingFile] = useState<{groupIndex: number, fileIndex: number} | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<{group: DuplicateGroup, file: MediaFile, groupIndex: number, fileIndex: number} | null>(null);
 
   const scanForDuplicates = async () => {
     setScanning(true);
@@ -201,8 +218,101 @@ export const DuplicateMediaManager = () => {
     return total + sizes.slice(1).reduce((sum, size) => sum + size, 0);
   }, 0);
 
+  const handleDeleteFile = async () => {
+    if (!fileToDelete) return;
+    
+    const { group, file, groupIndex, fileIndex } = fileToDelete;
+    setDeletingFile({ groupIndex, fileIndex });
+    
+    try {
+      if (group.type === "Movie") {
+        // For movies, we need to find the Radarr movie file ID from the path
+        // First get all movies from Radarr to find the matching file
+        const { data: movies, error: moviesError } = await supabase.functions.invoke('radarr-proxy', {
+          body: { action: 'movies' }
+        });
+        
+        if (moviesError) throw moviesError;
+        
+        // Find the movie that has this file path
+        const movie = movies?.find((m: any) => 
+          m.movieFile?.path === file.path || 
+          m.path && file.path.startsWith(m.path)
+        );
+        
+        if (movie?.movieFile?.id) {
+          const { error: deleteError } = await supabase.functions.invoke('radarr-proxy', {
+            body: { action: 'deleteMovieFile', params: { movieFileId: movie.movieFile.id } }
+          });
+          
+          if (deleteError) throw deleteError;
+          
+          toast.success(language === 'no' ? 'Fil slettet' : 'File deleted');
+        } else {
+          toast.error(language === 'no' ? 'Kunne ikke finne filen i Radarr' : 'Could not find file in Radarr');
+          return;
+        }
+      } else {
+        // For episodes - similar approach with Sonarr
+        toast.info(language === 'no' ? 'Episode-sletting via Sonarr kommer snart' : 'Episode deletion via Sonarr coming soon');
+        return;
+      }
+      
+      // Remove file from UI
+      const newDuplicates = [...duplicates];
+      newDuplicates[groupIndex].files.splice(fileIndex, 1);
+      
+      // Remove group if only one file left
+      if (newDuplicates[groupIndex].files.length <= 1) {
+        newDuplicates.splice(groupIndex, 1);
+      }
+      
+      setDuplicates(newDuplicates);
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error(language === 'no' ? 'Kunne ikke slette filen' : 'Could not delete file');
+    } finally {
+      setDeletingFile(null);
+      setFileToDelete(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {language === 'no' ? 'Bekreft sletting' : 'Confirm deletion'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                {language === 'no' 
+                  ? 'Er du sikker på at du vil slette denne filen permanent?'
+                  : 'Are you sure you want to permanently delete this file?'}
+              </p>
+              <div className="p-3 bg-secondary/50 rounded-lg mt-2">
+                <p className="font-mono text-sm break-all">{fileToDelete?.file.path}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {fileToDelete && formatFileSize(fileToDelete.file.size)}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{language === 'no' ? 'Avbryt' : 'Cancel'}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteFile}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {language === 'no' ? 'Slett fil' : 'Delete file'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Card className="border-border/50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -321,29 +431,47 @@ export const DuplicateMediaManager = () => {
                   <div className="space-y-2">
                     {group.files
                       .sort((a, b) => b.height - a.height)
-                      .map((file, fileIndex) => (
-                        <div 
-                          key={fileIndex}
-                          className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-secondary/20 border border-border/30"
-                        >
-                          <Badge className={`${getResolutionColor(file.height)} border`}>
-                            {getResolutionLabel(file.width, file.height)}
-                          </Badge>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {file.videoCodec.toUpperCase()}
-                          </Badge>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {file.audioCodec.toUpperCase()}
-                          </Badge>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <HardDrive className="h-3 w-3" />
-                            {formatFileSize(file.size)}
+                      .map((file, fileIndex) => {
+                        const isDeleting = deletingFile?.groupIndex === index && deletingFile?.fileIndex === fileIndex;
+                        return (
+                          <div 
+                            key={fileIndex}
+                            className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-secondary/20 border border-border/30"
+                          >
+                            <Badge className={`${getResolutionColor(file.height)} border`}>
+                              {getResolutionLabel(file.width, file.height)}
+                            </Badge>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {file.videoCodec.toUpperCase()}
+                            </Badge>
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {file.audioCodec.toUpperCase()}
+                            </Badge>
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                              <HardDrive className="h-3 w-3" />
+                              {formatFileSize(file.size)}
+                            </div>
+                            <div className="flex-1 flex items-center justify-end gap-2">
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={file.path}>
+                                {file.path.split('/').pop() || file.path}
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                disabled={isDeleting}
+                                onClick={() => setFileToDelete({ group, file, groupIndex: index, fileIndex })}
+                              >
+                                {isDeleting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
                           </div>
-                          <div className="text-xs text-muted-foreground truncate max-w-[300px] ml-auto" title={file.path}>
-                            {file.path.split('/').pop() || file.path}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </CardContent>
               </Card>

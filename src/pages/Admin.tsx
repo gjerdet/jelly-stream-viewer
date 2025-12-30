@@ -30,6 +30,7 @@ import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
 import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
 import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
 import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager";
+import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -2716,6 +2717,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </TabsContent>
 
               <TabsContent value="duplicates" className="space-y-6 mt-0">
+                <BufferingDiagnostics />
                 <DuplicateMediaManager />
               </TabsContent>
 

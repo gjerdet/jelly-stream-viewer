@@ -115,6 +115,23 @@ serve(async (req) => {
         endpoint = '/api/v3/qualityprofile';
         break;
       
+      case 'movieFile':
+        // Get movie file details
+        endpoint = `/api/v3/moviefile/${params?.movieFileId}`;
+        break;
+      
+      case 'movieFiles':
+        // Get all movie files for a movie
+        endpoint = `/api/v3/moviefile?movieId=${params?.movieId}`;
+        break;
+      
+      case 'deleteMovieFile':
+        // Delete a specific movie file
+        endpoint = `/api/v3/moviefile/${params?.movieFileId}`;
+        method = 'DELETE';
+        console.log(`Deleting movie file: ${params?.movieFileId}`);
+        break;
+      
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
