@@ -250,7 +250,7 @@ export const UpdateManager = () => {
     // Store the initial installed SHA to detect changes
     const initialSha = updateInfo?.installedVersion?.sha || '';
     let pollCount = 0;
-    const maxPolls = 24; // 2 minutes max (5s * 24)
+    const maxPolls = 120; // 10 minutes max (5s * 120)
 
     const pollInterval = setInterval(async () => {
       pollCount++;
