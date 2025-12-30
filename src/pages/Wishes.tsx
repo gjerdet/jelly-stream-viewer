@@ -296,8 +296,9 @@ const Wishes = () => {
     setIsSearching(true);
     setConnectionError(null);
     try {
-      const { data, error } = await supabase.functions.invoke("jellyseerr-search", {
-        body: { query: searchQuery },
+      // Fetch first page to get total pages
+      const { data: firstPageData, error } = await supabase.functions.invoke("jellyseerr-search", {
+        body: { query: searchQuery, page: 1 },
       });
 
       if (error) {
@@ -310,16 +311,37 @@ const Wishes = () => {
         throw error;
       }
 
-      let results = data?.results || [];
+      let allResults = firstPageData?.results || [];
+      const totalPages = firstPageData?.totalPages || 1;
+      
+      // Fetch remaining pages if there are more (limit to 5 pages to avoid too many requests)
+      const maxPages = Math.min(totalPages, 5);
+      if (maxPages > 1) {
+        const pagePromises = [];
+        for (let page = 2; page <= maxPages; page++) {
+          pagePromises.push(
+            supabase.functions.invoke("jellyseerr-search", {
+              body: { query: searchQuery, page },
+            })
+          );
+        }
+        
+        const pageResults = await Promise.all(pagePromises);
+        for (const result of pageResults) {
+          if (!result.error && result.data?.results) {
+            allResults = [...allResults, ...result.data.results];
+          }
+        }
+      }
       
       // Filter by search type
       if (searchType === 'movie') {
-        results = results.filter((r: DiscoverResult) => r.mediaType === 'movie');
+        allResults = allResults.filter((r: DiscoverResult) => r.mediaType === 'movie');
       } else if (searchType === 'tv') {
-        results = results.filter((r: DiscoverResult) => r.mediaType === 'tv');
+        allResults = allResults.filter((r: DiscoverResult) => r.mediaType === 'tv');
       }
       
-      setSearchResults(results);
+      setSearchResults(allResults);
     } catch (error) {
       console.error('Search error:', error);
     } finally {
