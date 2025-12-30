@@ -56,6 +56,65 @@ export const UpdateManager = () => {
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [forceLocalMode, setForceLocalMode] = useState(false);
+  const [gitPullUrlIsLocal, setGitPullUrlIsLocal] = useState<boolean | null>(null);
+
+  // Helper to check if a URL is a local/private IP
+  const isLocalUrl = (url: string) => {
+    if (!url) return false;
+    try {
+      const parsedUrl = new URL(url);
+      const hostname = parsedUrl.hostname;
+      return (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('172.16.') ||
+        hostname.startsWith('172.17.') ||
+        hostname.startsWith('172.18.') ||
+        hostname.startsWith('172.19.') ||
+        hostname.startsWith('172.20.') ||
+        hostname.startsWith('172.21.') ||
+        hostname.startsWith('172.22.') ||
+        hostname.startsWith('172.23.') ||
+        hostname.startsWith('172.24.') ||
+        hostname.startsWith('172.25.') ||
+        hostname.startsWith('172.26.') ||
+        hostname.startsWith('172.27.') ||
+        hostname.startsWith('172.28.') ||
+        hostname.startsWith('172.29.') ||
+        hostname.startsWith('172.30.') ||
+        hostname.startsWith('172.31.')
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  // Check if we can run updates (local URL requires local network)
+  const canRunUpdate = () => {
+    if (gitPullUrlIsLocal === null) return true; // Not yet checked
+    if (!gitPullUrlIsLocal) return true; // Public URL - always OK
+    return isLocalNetwork(); // Local URL - only OK on local network
+  };
+
+  // Fetch git-pull URL to check if it's local
+  useEffect(() => {
+    const checkGitPullUrl = async () => {
+      const { data: settings } = await supabase
+        .from('server_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
+      
+      const settingsMap = new Map(
+        (settings || []).map((row: any) => [row.setting_key, row.setting_value])
+      );
+      
+      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url') || '';
+      setGitPullUrlIsLocal(isLocalUrl(gitPullUrl));
+    };
+    checkGitPullUrl();
+  }, []);
 
   const checkForUpdates = async () => {
     setChecking(true);
@@ -530,33 +589,49 @@ export const UpdateManager = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Network mode toggle */}
-        <div className="p-3 bg-secondary/30 border border-border rounded-lg">
-          <div className="flex items-center justify-between">
+        {/* Network mode info - show current detection */}
+        {gitPullUrlIsLocal !== null && (
+          <div className="p-3 bg-secondary/30 border border-border rounded-lg">
             <div className="flex items-center gap-2">
-              {forceLocalMode ? (
+              {isLocalNetwork() ? (
                 <Home className="h-4 w-4 text-green-400" />
               ) : (
                 <Globe className="h-4 w-4 text-blue-400" />
               )}
               <div>
-                <Label htmlFor="force-local" className="text-sm font-medium">
-                  {forceLocalMode ? 'Lokal modus' : 'Ekstern modus'}
-                </Label>
+                <p className="text-sm font-medium">
+                  {isLocalNetwork() 
+                    ? (language === 'no' ? 'Lokalt nettverk' : 'Local network')
+                    : (language === 'no' ? 'Eksternt nettverk' : 'External network')}
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  {forceLocalMode 
-                    ? 'Kaller git-pull server direkte (for lokalt nettverk)' 
-                    : 'Kaller via Edge Function (for ekstern tilgang)'}
+                  {isLocalNetwork() 
+                    ? (language === 'no' ? 'Du kan køyre oppdateringar direkte' : 'You can run updates directly')
+                    : (language === 'no' ? 'Oppdateringar krev lokal tilgang' : 'Updates require local access')}
                 </p>
               </div>
             </div>
-            <Switch
-              id="force-local"
-              checked={forceLocalMode}
-              onCheckedChange={setForceLocalMode}
-            />
           </div>
-        </div>
+        )}
+
+        {/* Warning when git-pull URL is local but user is on external network */}
+        {gitPullUrlIsLocal && !isLocalNetwork() && (
+          <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-destructive mb-1">
+                  {language === 'no' ? 'Kan ikkje oppdatere eksternt' : 'Cannot update externally'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {language === 'no' 
+                    ? 'Git-pull serveren din brukar ein lokal IP-adresse (192.168.x.x). Oppdateringar kan berre køyrast frå same lokale nettverk. Opne appen på din self-hosted server (ikkje Lovable preview) for å installere oppdateringar.'
+                    : 'Your git-pull server uses a local IP address (192.168.x.x). Updates can only be run from the same local network. Open the app on your self-hosted server (not Lovable preview) to install updates.'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Info banner explaining this is for self-hosted only */}
         <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
@@ -732,9 +807,11 @@ export const UpdateManager = () => {
               
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button disabled={updating} className="flex-1">
+                  <Button disabled={updating || !canRunUpdate()} className="flex-1">
                     <Download className="h-4 w-4 mr-2" />
-                    {updates?.installUpdate || 'Install update'}
+                    {!canRunUpdate() 
+                      ? (language === 'no' ? 'Køyr lokalt' : 'Run locally')
+                      : (updates?.installUpdate || 'Install update')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
