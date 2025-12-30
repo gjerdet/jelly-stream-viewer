@@ -2034,12 +2034,16 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                     <Button 
                       variant="outline"
                       onClick={async () => {
-                        const loadingId = toast.loading("Setter opp Netdata...");
+                        toast.dismiss();
+                        const toastId = toast.loading("Setter opp Netdata...");
                         try {
+                          console.log("[SetupNetdata] Fetching server settings...");
                           const { data: settings, error: settingsError } = await supabase
                             .from("server_settings")
                             .select("setting_key, setting_value")
                             .in("setting_key", ["git_pull_server_url", "update_webhook_url"]);
+
+                          console.log("[SetupNetdata] Settings result:", settings, settingsError);
 
                           if (settingsError) throw settingsError;
 
@@ -2050,9 +2054,11 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                           const gitPullUrl =
                             settingsMap.get("git_pull_server_url") || settingsMap.get("update_webhook_url");
 
+                          console.log("[SetupNetdata] Git Pull URL found:", gitPullUrl);
+
                           if (!gitPullUrl) {
                             throw new Error(
-                              "Git Pull Server URL er ikke konfigurert. Gå til Oppdatering og sett 'Update webhook URL'."
+                              "Git Pull Server URL er ikke konfigurert. Gå til Oppdatering-fanen og sett 'Update webhook URL'."
                             );
                           }
 
@@ -2062,23 +2068,30 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                           }
 
                           const setupUrl = `${baseUrl}/setup-netdata`;
+                          console.log("[SetupNetdata] Calling:", setupUrl);
+
                           const response = await fetch(setupUrl, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             mode: "cors",
                           });
 
+                          console.log("[SetupNetdata] Response status:", response.status);
+
                           if (!response.ok) {
                             throw new Error(`Kunne ikke starte Netdata installasjon (HTTP ${response.status})`);
                           }
 
                           const result = await response.json().catch(() => ({} as any));
+                          console.log("[SetupNetdata] Result:", result);
 
+                          toast.dismiss(toastId);
                           if (result?.success) {
                             toast.success(
                               result.alreadyInstalled
                                 ? "Netdata er allerede installert."
-                                : "Netdata installasjon startet. Vent noen minutter."
+                                : "Netdata installasjon startet. Vent noen minutter.",
+                              { duration: 5000 }
                             );
 
                             // Auto-set the URL
@@ -2095,12 +2108,12 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                                 }
                               );
                           } else {
-                            toast.error(result?.message || "Kunne ikke sette opp Netdata");
+                            toast.error(result?.message || "Kunne ikke sette opp Netdata", { duration: 5000 });
                           }
                         } catch (err: any) {
-                          toast.error(err?.message || "Kunne ikke sette opp Netdata");
-                        } finally {
-                          toast.dismiss(loadingId);
+                          console.error("[SetupNetdata] Error:", err);
+                          toast.dismiss(toastId);
+                          toast.error(err?.message || "Kunne ikke sette opp Netdata", { duration: 8000 });
                         }
                       }}
                       className="gap-2"
