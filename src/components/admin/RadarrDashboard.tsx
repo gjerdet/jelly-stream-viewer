@@ -162,24 +162,23 @@ export const RadarrDashboard = () => {
     );
   };
 
-  // Filter movies with files and apply search
+  // Filter and apply search
   const filteredMovies = useMemo(() => {
     if (!moviesData) return [];
-    
-    let filtered = moviesData.filter(m => m.hasFile);
-    
+
+    let filtered = moviesData;
+
     if (showOnlyMonitored) {
-      filtered = filtered.filter(m => m.monitored);
+      filtered = filtered.filter((m) => m.monitored);
     }
-    
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(m => 
-        m.title.toLowerCase().includes(query) ||
-        m.year?.toString().includes(query)
+      filtered = filtered.filter(
+        (m) => m.title.toLowerCase().includes(query) || m.year?.toString().includes(query)
       );
     }
-    
+
     return filtered.sort((a, b) => a.title.localeCompare(b.title));
   }, [moviesData, searchQuery, showOnlyMonitored]);
 
@@ -258,11 +257,11 @@ export const RadarrDashboard = () => {
       </div>
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList>
-          <TabsTrigger value="downloads">Nedlastingshistorikk</TabsTrigger>
-          <TabsTrigger value="queue">Nedlastingskø</TabsTrigger>
-          <TabsTrigger value="monitoring">Kvalitetsovervåking ({moviesWithFiles})</TabsTrigger>
-        </TabsList>
+          <TabsList>
+            <TabsTrigger value="downloads">Nedlastingshistorikk</TabsTrigger>
+            <TabsTrigger value="queue">Nedlastingskø</TabsTrigger>
+            <TabsTrigger value="monitoring">Kvalitetsovervåking ({moviesData?.length || 0})</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="downloads" className="space-y-4">
           <Card>
@@ -457,7 +456,7 @@ export const RadarrDashboard = () => {
               ) : (
                 <>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Viser {filteredMovies.length} av {moviesWithFiles} filmer med filer
+                    Viser {filteredMovies.length} av {moviesData?.length || 0} filmer ({moviesWithFiles} med filer)
                   </p>
                   <div className="max-h-[600px] overflow-y-auto">
                     <Table>
