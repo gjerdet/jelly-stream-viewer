@@ -357,7 +357,9 @@ export const UpdateManager = () => {
   const installUpdate = async () => {
     setUpdating(true);
     setShowLogs(true); // Åpne terminal-vinduet umiddelbart
-    
+
+    let createdUpdateId: string | null = null;
+
     try {
       // Create initial update status entry
       const { data: statusData, error: statusError } = await supabase
@@ -366,11 +368,13 @@ export const UpdateManager = () => {
           status: 'starting',
           progress: 0,
           current_step: 'Forbereder oppdatering...',
-          logs: JSON.stringify([{
-            timestamp: new Date().toISOString(),
-            message: 'Oppdatering startet...',
-            level: 'info'
-          }])
+          logs: JSON.stringify([
+            {
+              timestamp: new Date().toISOString(),
+              message: 'Oppdatering startet...',
+              level: 'info',
+            },
+          ]),
         })
         .select()
         .single();
@@ -380,6 +384,7 @@ export const UpdateManager = () => {
       }
 
       const updateId = statusData.id;
+      createdUpdateId = updateId;
 
       // Set initial status for UI immediately after creating DB entry
       setUpdateStatus({
@@ -387,74 +392,96 @@ export const UpdateManager = () => {
         status: 'starting',
         progress: 0,
         current_step: 'Forbereder oppdatering...',
-        logs: [{
-          timestamp: new Date().toISOString(),
-          message: 'Oppdatering startet...',
-          level: 'info'
-        }]
+        logs: [
+          {
+            timestamp: new Date().toISOString(),
+            message: 'Oppdatering startet...',
+            level: 'info',
+          },
+        ],
       });
 
       // Determine if we should call locally or via edge function
       const useLocalCall = forceLocalMode || isLocalNetwork();
       console.log('[UpdateManager] forceLocalMode:', forceLocalMode, 'isLocalNetwork:', isLocalNetwork(), 'useLocalCall:', useLocalCall);
-      
+
       if (useLocalCall) {
         // Try to get git_pull_server_url or update_webhook_url from database
         const { data: settings } = await supabase
           .from('server_settings')
           .select('setting_key, setting_value')
           .in('setting_key', ['git_pull_server_url', 'update_webhook_url', 'git_pull_secret', 'update_webhook_secret']);
-        
-        const settingsMap = new Map(
-          (settings || []).map((row: any) => [row.setting_key, row.setting_value])
-        );
-        
+
+        const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
+
         // Check for git_pull_server_url first, then fallback to update_webhook_url
         const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url');
-        
+
         if (!gitPullUrl) {
           throw new Error('Git Pull URL er ikke konfigurert. Gå til Servere-fanen og sett opp Git Pull URL.');
         }
-        
+
         // Get secret (check both keys)
         const gitPullSecret = settingsMap.get('git_pull_secret') || settingsMap.get('update_webhook_secret');
-        
+
         console.log('[UpdateManager] Calling git-pull server directly (local mode):', gitPullUrl);
-        
-        const contactingLog = [{
-          timestamp: new Date().toISOString(),
-          message: 'Oppdatering startet...',
-          level: 'info' as const
-        }, {
-          timestamp: new Date().toISOString(),
-          message: `🏠 Lokal modus: Kontakter git-pull server direkte på ${gitPullUrl}`,
-          level: 'info' as const
-        }];
-        
-        setUpdateStatus(prev => prev ? {
-          ...prev,
-          logs: contactingLog
-        } : null);
+
+        const contactingLog = [
+          {
+            timestamp: new Date().toISOString(),
+            message: 'Oppdatering startet...',
+            level: 'info' as const,
+          },
+          {
+            timestamp: new Date().toISOString(),
+            message: `🏠 Lokal modus: Kontakter git-pull server direkte på ${gitPullUrl}`,
+            level: 'info' as const,
+          },
+        ];
+
+        setUpdateStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                logs: contactingLog,
+              }
+            : null,
+        );
 
         // Update status in database
         await supabase
           .from('update_status')
           .update({
-            logs: JSON.stringify(contactingLog)
+            logs: JSON.stringify(contactingLog),
           })
           .eq('id', updateId);
-        
+
         // Ensure URL ends with /git-pull
         let targetUrl = gitPullUrl;
         if (!targetUrl.endsWith('/git-pull')) {
           targetUrl = targetUrl.replace(/\/$/, '') + '/git-pull';
         }
-        
+
+        // Block mixed content (HTTPS app -> HTTP git-pull URL)
+        // This otherwise fails with: "NetworkError when attempting to fetch resource."
+        let parsedTargetUrl: URL | null = null;
+        try {
+          parsedTargetUrl = new URL(targetUrl);
+        } catch {
+          // ignore; fetch will surface a clearer error later
+        }
+
+        if (parsedTargetUrl && window.location.protocol === 'https:' && parsedTargetUrl.protocol === 'http:') {
+          throw new Error(
+            'Git-pull URL er HTTP, men appen kjører over HTTPS. Nettleseren blokkerer dette. Løsning: legg git-pull-server bak HTTPS (reverse proxy) og bruk https://..., eller åpne appen lokalt over http://.',
+          );
+        }
+
         // Build headers
         const headers: Record<string, string> = {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         };
-        
+
         // Add signature if secret is available and crypto.subtle is supported
         // Note: crypto.subtle is only available in secure contexts (HTTPS or localhost)
         if (gitPullSecret && typeof crypto !== 'undefined' && crypto.subtle) {
@@ -466,11 +493,11 @@ export const UpdateManager = () => {
               encoder.encode(gitPullSecret),
               { name: 'HMAC', hash: 'SHA-256' },
               false,
-              ['sign']
+              ['sign'],
             );
             const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
             const signatureHex = Array.from(new Uint8Array(signature))
-              .map(b => b.toString(16).padStart(2, '0'))
+              .map((b) => b.toString(16).padStart(2, '0'))
               .join('');
             headers['X-Update-Signature'] = signatureHex;
           } catch (cryptoError) {
@@ -479,53 +506,60 @@ export const UpdateManager = () => {
         } else if (gitPullSecret) {
           console.warn('Signature skipped: crypto.subtle not available (requires HTTPS or localhost)');
         }
-        
+
         const response = await fetch(targetUrl, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ updateId })
+          body: JSON.stringify({ updateId }),
         });
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(`Git-pull server svarte med feil: ${response.status} - ${errorText}`);
         }
-        
+
         console.log('[UpdateManager] Git pull triggered successfully (local mode)');
         toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
-        
       } else {
         // Use edge function for remote access
         console.log('[UpdateManager] Calling git-pull-proxy edge function (remote mode)');
-        
-        const contactingLog = [{
-          timestamp: new Date().toISOString(),
-          message: 'Oppdatering startet...',
-          level: 'info' as const
-        }, {
-          timestamp: new Date().toISOString(),
-          message: '☁️ Ekstern modus: Kontakter git-pull server via Edge Function...',
-          level: 'info' as const
-        }, {
-          timestamp: new Date().toISOString(),
-          message: '⚠️ OBS: Edge Functions kan ikke nå lokale IP-adresser. Sett opp en offentlig URL eller kjør lokalt.',
-          level: 'warning' as const
-        }];
-        
-        setUpdateStatus(prev => prev ? {
-          ...prev,
-          logs: contactingLog
-        } : null);
+
+        const contactingLog = [
+          {
+            timestamp: new Date().toISOString(),
+            message: 'Oppdatering startet...',
+            level: 'info' as const,
+          },
+          {
+            timestamp: new Date().toISOString(),
+            message: '☁️ Ekstern modus: Kontakter git-pull server via Edge Function...',
+            level: 'info' as const,
+          },
+          {
+            timestamp: new Date().toISOString(),
+            message: '⚠️ OBS: Edge Functions kan ikke nå lokale IP-adresser. Sett opp en offentlig URL eller kjør lokalt.',
+            level: 'warning' as const,
+          },
+        ];
+
+        setUpdateStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                logs: contactingLog,
+              }
+            : null,
+        );
 
         await supabase
           .from('update_status')
           .update({
-            logs: JSON.stringify(contactingLog)
+            logs: JSON.stringify(contactingLog),
           })
           .eq('id', updateId);
 
         const { data, error: invokeError } = await supabase.functions.invoke('git-pull-proxy', {
-          body: { updateId }
+          body: { updateId },
         });
 
         if (invokeError) {
@@ -540,37 +574,54 @@ export const UpdateManager = () => {
         console.log('[UpdateManager] Git pull triggered successfully:', data);
         toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
       }
-      
     } catch (err: any) {
       console.error('Install update error:', err);
-      
-      const errorMessage = err.message || 'Kunne ikke starte oppdatering';
-      
+
+      const errorMessage = err?.message || 'Kunne ikke starte oppdatering';
+
       // Create detailed error logs
       const errorLogs = [
         {
           timestamp: new Date().toISOString(),
           message: 'Oppdatering startet...',
-          level: 'info' as const
+          level: 'info' as const,
         },
         {
           timestamp: new Date().toISOString(),
           message: `❌ FEIL: ${errorMessage}`,
-          level: 'error' as const
-        }
+          level: 'error' as const,
+        },
       ];
-      
+
+      const idToUpdate = createdUpdateId || updateStatus?.id || null;
+
+      // Persist failure to database so the status view stays correct
+      if (idToUpdate) {
+        await supabase
+          .from('update_status')
+          .update({
+            status: 'failed',
+            progress: 0,
+            current_step: 'Feil: Kunne ikke starte oppdatering',
+            error: errorMessage,
+            completed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            logs: JSON.stringify(errorLogs),
+          })
+          .eq('id', idToUpdate);
+      }
+
       // Update status in UI to show error - keep terminal open!
       // Use crypto.randomUUID() for a valid UUID format
-      setUpdateStatus(prev => ({
-        id: prev?.id || crypto.randomUUID(),
+      setUpdateStatus((prev) => ({
+        id: prev?.id || idToUpdate || crypto.randomUUID(),
         status: 'failed',
         progress: 0,
         current_step: 'Feil: Kunne ikke kontakte git-pull server',
         error: errorMessage,
-        logs: errorLogs
+        logs: errorLogs,
       }));
-      
+
       toast.error('Oppdatering feilet - se terminal for detaljer');
       setUpdating(false);
       // Don't close the logs dialog - let user see what went wrong!
