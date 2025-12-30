@@ -100,7 +100,8 @@ serve(async (req) => {
       const signatureHex = Array.from(new Uint8Array(signature))
         .map(b => b.toString(16).padStart(2, '0'))
         .join('');
-      headers['X-Update-Signature'] = `sha256=${signatureHex}`;
+      // Match git-pull-server expectation (raw hex, no prefix)
+      headers['X-Update-Signature'] = signatureHex;
       console.log('[git-pull-proxy] Added HMAC signature');
     }
 
