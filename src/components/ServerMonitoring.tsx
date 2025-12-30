@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Server, Cpu, HardDrive, Activity, AlertCircle } from "lucide-react";
+import { Loader2, Server, Cpu, HardDrive, Activity, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 interface ServerStats {
   systemInfo?: any;
@@ -23,9 +25,24 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isConfigured, setIsConfigured] = useState(false);
 
+  // Fetch git_pull_server_url from settings
+  const { data: gitPullServerUrl } = useQuery({
+    queryKey: ["server-settings", "git_pull_server_url"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "git_pull_server_url")
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data?.setting_value || null;
+    },
+  });
+
   useEffect(() => {
     // Check if monitoring is configured
-    if (monitoringUrl && monitoringUrl.trim() !== '') {
+    if (monitoringUrl && monitoringUrl.trim() !== '' && gitPullServerUrl) {
       setIsConfigured(true);
       fetchStats();
       const interval = setInterval(fetchStats, 5000);
@@ -34,20 +51,24 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
       setIsLoading(false);
       setIsConfigured(false);
     }
-  }, [monitoringUrl]);
+  }, [monitoringUrl, gitPullServerUrl]);
 
   const fetchStats = async () => {
+    if (!gitPullServerUrl) {
+      setError('Git pull server URL er ikke konfigurert');
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase.functions.invoke("server-stats");
+      // Build the server-stats URL from git-pull server base URL
+      const baseUrl = gitPullServerUrl.replace(/\/git-pull\/?$/, '');
+      const statsUrl = `${baseUrl}/server-stats?monitoring_url=${encodeURIComponent(monitoringUrl || 'http://localhost:19999')}`;
+      
+      const response = await fetch(statsUrl);
+      const data = await response.json();
 
-      if (error) {
-        console.error('Server stats error:', error);
-        setError(error.message);
-        setIsLoading(false);
-        return;
-      }
-
-      if (data?.error) {
+      if (!response.ok) {
         setError(data.error + (data.suggestion ? ` - ${data.suggestion}` : ''));
         setIsLoading(false);
         return;
@@ -106,6 +127,8 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
   }
 
   if (!isConfigured || error) {
+    const missingGitPullServer = !gitPullServerUrl;
+    
     return (
       <Card>
         <CardHeader>
@@ -123,13 +146,31 @@ export const ServerMonitoring = ({ monitoringUrl }: ServerMonitoringProps) => {
           </Alert>
           <div className="mt-4 p-4 bg-muted rounded-lg">
             <p className="text-sm font-medium mb-2">Slik setter du opp server overvåking:</p>
-            <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
+            <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-2">
               <li>Installer Netdata på serveren din: <code className="bg-background px-1 rounded">bash &lt;(curl -Ss https://my-netdata.io/kickstart.sh)</code></li>
-              <li>Gå til Server Innstillinger under</li>
+              <li>
+                Sett opp Git Pull Server: <code className="bg-background px-1 rounded">sudo bash setup-git-pull-service.sh</code>
+                {missingGitPullServer && <span className="text-yellow-500 ml-1">(mangler)</span>}
+              </li>
+              <li>Konfigurer Git Pull Server URL i Server Innstillinger (f.eks. <code className="bg-background px-1 rounded">http://192.168.x.x:3002/git-pull</code>)</li>
               <li>Sett Monitoring URL til: <code className="bg-background px-1 rounded">http://localhost:19999</code></li>
-              <li>Oppfrisk denne siden</li>
+              <li>Restart git-pull-serveren: <code className="bg-background px-1 rounded">sudo systemctl restart jelly-git-pull</code></li>
             </ol>
           </div>
+          {gitPullServerUrl && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="mt-4"
+              onClick={() => {
+                setIsLoading(true);
+                fetchStats();
+              }}
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Prøv igjen
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
