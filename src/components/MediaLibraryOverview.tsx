@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerSettings } from "@/hooks/useServerSettings";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -298,104 +299,88 @@ export const MediaLibraryOverview = () => {
     setSubtitleDialogOpen(true);
   };
 
-  // Fetch all movies with detailed media info
+  // Fetch all movies with detailed media info using proxy for Chrome compatibility
   const { data: movies, isLoading: moviesLoading, refetch: refetchMovies } = useQuery({
     queryKey: ["admin-media-movies", serverUrl],
     queryFn: async () => {
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      if (!serverUrl) throw new Error("Mangler server");
       
-      if (!serverUrl || !accessToken) throw new Error("Mangler server eller token");
-      
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
+      // Use jellyfin-proxy for Chrome compatibility
+      const { data, error } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: {
+          endpoint: '/Items?IncludeItemTypes=Movie&Recursive=true&Fields=MediaSources,Path,Container,MediaStreams&SortBy=SortName&SortOrder=Ascending',
+          method: 'GET'
+        }
+      });
+
+      if (error) {
+        console.error('Jellyfin proxy error:', error);
+        throw new Error("Kunne ikke hente filmer");
       }
 
-      const response = await fetch(
-        `${normalizedUrl.replace(/\/$/, '')}/Items?IncludeItemTypes=Movie&Recursive=true&Fields=MediaSources,Path,Container,MediaStreams&SortBy=SortName&SortOrder=Ascending`,
-        {
-          headers: {
-            "X-Emby-Token": accessToken,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
-      if (!response.ok) throw new Error("Kunne ikke hente filmer");
-      const data = await response.json();
-      return data.Items as MediaItem[];
+      return (data?.Items || []) as MediaItem[];
     },
     enabled: !!serverUrl,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  // Fetch all series with episodes
+  // Fetch all series with episodes using proxy for Chrome compatibility
   const { data: series, isLoading: seriesLoading, refetch: refetchSeries } = useQuery({
     queryKey: ["admin-media-series", serverUrl],
     queryFn: async () => {
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-      
-      if (!serverUrl || !accessToken) throw new Error("Mangler server eller token");
-      
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
+      if (!serverUrl) throw new Error("Mangler server");
 
       // First, get all series
-      const seriesResponse = await fetch(
-        `${normalizedUrl.replace(/\/$/, '')}/Items?IncludeItemTypes=Series&Recursive=true&Fields=ProductionYear&SortBy=SortName&SortOrder=Ascending`,
-        {
-          headers: {
-            "X-Emby-Token": accessToken,
-            "Content-Type": "application/json",
-          },
+      const { data: seriesData, error: seriesError } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: {
+          endpoint: '/Items?IncludeItemTypes=Series&Recursive=true&Fields=ProductionYear&SortBy=SortName&SortOrder=Ascending',
+          method: 'GET'
         }
-      );
+      });
 
-      if (!seriesResponse.ok) throw new Error("Kunne ikke hente serier");
-      const seriesData = await seriesResponse.json();
-      const allSeries = seriesData.Items as MediaItem[];
+      if (seriesError) {
+        console.error('Jellyfin proxy error:', seriesError);
+        throw new Error("Kunne ikke hente serier");
+      }
+
+      if (seriesData?.error) {
+        throw new Error(seriesData.error);
+      }
+
+      const allSeries = (seriesData?.Items || []) as MediaItem[];
 
       // For each series, get seasons and episodes
       const seriesWithDetails: SeriesInfo[] = await Promise.all(
         allSeries.map(async (s) => {
           // Get seasons
-          const seasonsResponse = await fetch(
-            `${normalizedUrl.replace(/\/$/, '')}/Shows/${s.Id}/Seasons?Fields=ItemCounts`,
-            {
-              headers: {
-                "X-Emby-Token": accessToken,
-                "Content-Type": "application/json",
-              },
+          const { data: seasonsData } = await supabase.functions.invoke('jellyfin-proxy', {
+            body: {
+              endpoint: `/Shows/${s.Id}/Seasons?Fields=ItemCounts`,
+              method: 'GET'
             }
-          );
+          });
           
-          const seasonsData = seasonsResponse.ok ? await seasonsResponse.json() : { Items: [] };
-          const seasons = seasonsData.Items || [];
+          const seasons = seasonsData?.Items || [];
 
           // Get episodes for each season
           const seasonsWithEpisodes: SeasonInfo[] = await Promise.all(
             seasons.map(async (season: any) => {
-              const episodesResponse = await fetch(
-                `${normalizedUrl.replace(/\/$/, '')}/Shows/${s.Id}/Episodes?SeasonId=${season.Id}&Fields=MediaSources,Path,Container,MediaStreams`,
-                {
-                  headers: {
-                    "X-Emby-Token": accessToken,
-                    "Content-Type": "application/json",
-                  },
+              const { data: episodesData } = await supabase.functions.invoke('jellyfin-proxy', {
+                body: {
+                  endpoint: `/Shows/${s.Id}/Episodes?SeasonId=${season.Id}&Fields=MediaSources,Path,Container,MediaStreams`,
+                  method: 'GET'
                 }
-              );
-              
-              const episodesData = episodesResponse.ok ? await episodesResponse.json() : { Items: [] };
+              });
               
               return {
                 Id: season.Id,
                 Name: season.Name,
                 IndexNumber: season.IndexNumber,
-                episodes: episodesData.Items || []
+                episodes: episodesData?.Items || []
               };
             })
           );
