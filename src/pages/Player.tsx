@@ -1041,30 +1041,60 @@ const Player = () => {
         }`}
         onClick={() => setShowControls(!showControls)}
       >
-        {/* Top bar - Simplified for mobile */}
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 md:p-6 flex items-start justify-between pointer-events-auto safe-area-top">
+        {/* Top bar - Back button only */}
+        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex items-center justify-between pointer-events-auto safe-area-top">
           <Button
             variant="ghost"
             size="sm"
             onClick={(e) => { e.stopPropagation(); navigate(-1); }}
-            className="text-white hover:bg-white/20 h-10 px-2 sm:px-3"
+            className="text-white hover:bg-white/20 h-12 w-12 sm:w-auto sm:px-3 bg-black/50 backdrop-blur-sm rounded-lg touch-manipulation"
           >
             <ArrowLeft className="h-5 w-5 sm:mr-2" />
             <span className="hidden sm:inline">Tilbake</span>
           </Button>
 
-          {/* Title - Hidden on very small screens */}
-          <div className="flex-1 text-center px-2 hidden sm:block">
-            <h1 className="text-base sm:text-lg md:text-2xl font-bold text-white line-clamp-1">
+          {/* Title - Center */}
+          <div className="flex-1 text-center px-2">
+            <p className="text-white text-xs sm:text-base font-medium line-clamp-1">
               {item?.SeriesName && `${item.SeriesName} - `}
               {item?.IndexNumber && `E${item.IndexNumber}: `}
               {item?.Name}
-            </h1>
+            </p>
           </div>
+          
+          {/* Placeholder for balance */}
+          <div className="w-12 sm:w-auto" />
+        </div>
 
-          {/* Mobile-optimized controls */}
-          <div className="flex gap-1 sm:gap-2 items-center flex-wrap justify-end max-w-[60%] sm:max-w-none">
-            {/* Cast button */}
+        {/* Unified control bar - Right side, vertically stacked */}
+        <div className="absolute top-14 right-2 sm:right-3 flex flex-col gap-2 pointer-events-auto z-50">
+          {/* Primary row: Fullscreen + Episode selector */}
+          <div className="flex gap-2 items-center bg-black/70 backdrop-blur-sm rounded-lg p-1.5 border border-white/20">
+            {/* Fullscreen */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+              className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
+              title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
+            >
+              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+            </Button>
+
+            {/* Episode list - visible in fullscreen too */}
+            {isEpisode && episodes.length > 0 && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => { e.stopPropagation(); setSidebarOpen(!sidebarOpen); }}
+                className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
+                title="Velg episode"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            )}
+            
+            {/* Cast */}
             <Button
               variant="ghost"
               size="icon"
@@ -1084,24 +1114,27 @@ const Player = () => {
 
                 await requestSession();
               }}
-              className="text-white hover:bg-white/20 h-10 w-10 relative"
+              className="text-white hover:bg-white/30 h-11 w-11 relative touch-manipulation"
               title={castState.isConnected ? 'Koble frå Chromecast' : 'Koble til Chromecast'}
             >
               <Cast className="h-5 w-5" />
               {castState.isConnected && !castLoading && (
-                <span className="absolute top-2 right-2 h-2 w-2 bg-primary rounded-full" />
+                <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
               )}
             </Button>
+          </div>
 
-            {/* Episode navigation - Always visible if episode */}
+          {/* Secondary row: Episode navigation + Subtitles */}
+          <div className="flex gap-2 items-center bg-black/70 backdrop-blur-sm rounded-lg p-1.5 border border-white/20">
+            {/* Episode navigation */}
             {isEpisode && (
-              <div className="flex gap-1">
+              <>
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={(e) => { e.stopPropagation(); playPreviousEpisode(); }}
                   disabled={!previousEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-50 h-10 w-10"
+                  className="text-white hover:bg-white/30 disabled:opacity-30 h-11 w-11 touch-manipulation"
                   title="Forrige episode"
                 >
                   <SkipBack className="h-5 w-5" />
@@ -1111,27 +1144,15 @@ const Player = () => {
                   size="icon"
                   onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
                   disabled={!nextEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-50 h-10 w-10"
+                  className="text-white hover:bg-white/30 disabled:opacity-30 h-11 w-11 touch-manipulation"
                   title="Neste episode"
                 >
                   <SkipForward className="h-5 w-5" />
                 </Button>
-              </div>
-            )}
-
-            {/* Episodes list button - Only on mobile */}
-            {isEpisode && episodes.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); setSidebarOpen(!sidebarOpen); }}
-                className="text-white hover:bg-white/20 h-10 w-10"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
+              </>
             )}
             
-            {/* Subtitles dropdown - Simplified for mobile */}
+            {/* Subtitles */}
             {subtitles.length > 0 && (
               <Select 
                 value={selectedSubtitle} 
@@ -1141,13 +1162,13 @@ const Player = () => {
                 }}
               >
                 <SelectTrigger 
-                  className="w-auto sm:w-[150px] md:w-[180px] bg-black/50 backdrop-blur-sm border-white/20 text-white h-10"
+                  className="w-11 sm:w-[140px] bg-transparent border-0 text-white h-11 touch-manipulation"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Subtitles className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline"><SelectValue placeholder="Undertekster" /></span>
+                  <Subtitles className="h-5 w-5" />
+                  <span className="hidden sm:inline ml-2 truncate"><SelectValue placeholder="Tekst" /></span>
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
+                <SelectContent className="bg-background z-[2147483647]">
                   <SelectItem value="none">Ingen</SelectItem>
                   {subtitles.map((subtitle) => (
                     <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
@@ -1158,13 +1179,13 @@ const Player = () => {
               </Select>
             )}
 
-            {/* Search subtitles - Hidden on mobile, shown as icon only */}
+            {/* Search subtitles */}
             <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
               <DialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:bg-white/20 h-10 w-10 hidden sm:flex"
+                  className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
                   onClick={(e) => {
                     e.stopPropagation();
                     setSubtitleSearchOpen(true);
@@ -1174,7 +1195,7 @@ const Player = () => {
                   <Search className="h-5 w-5" />
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh]">
+              <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] z-[2147483647]">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Subtitles className="h-5 w-5" />
@@ -1263,28 +1284,6 @@ const Player = () => {
               </DialogContent>
             </Dialog>
           </div>
-        </div>
-
-        {/* Mobile title bar - Only on small screens */}
-        <div className="absolute top-14 left-0 right-0 px-3 sm:hidden pointer-events-none">
-          <p className="text-white text-sm font-medium line-clamp-1 text-center">
-            {item?.SeriesName && `${item.SeriesName} - `}
-            {item?.IndexNumber && `E${item.IndexNumber}: `}
-            {item?.Name}
-          </p>
-        </div>
-
-        {/* Top-right controls: Fullscreen button - always accessible */}
-        <div className="absolute top-14 right-3 pointer-events-auto z-50">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-            className="text-white hover:bg-white/20 h-12 w-12 bg-black/70 backdrop-blur-sm border border-white/20 rounded-lg"
-            title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
-          >
-            {isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
-          </Button>
         </div>
 
         {/* Skip Intro/Credits button - centered at bottom */}
@@ -1395,7 +1394,7 @@ const Player = () => {
           : null;
 
         return (
-          <div className="absolute top-20 right-3 w-64 sm:w-72 bg-black/90 backdrop-blur-xl rounded-lg p-2 shadow-2xl border border-white/20 animate-fade-in pointer-events-auto z-50">
+          <div className="absolute top-40 right-2 sm:right-3 w-64 sm:w-72 bg-black/90 backdrop-blur-xl rounded-lg p-2 shadow-2xl border border-white/20 animate-fade-in pointer-events-auto z-50">
             <div className="flex items-center gap-2">
               {/* Thumbnail */}
               <div className="w-16 h-10 flex-shrink-0 rounded overflow-hidden bg-secondary">
