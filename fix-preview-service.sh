@@ -15,12 +15,16 @@ echo -e "${BLUE}Fikser jelly-stream-preview systemd service...${NC}"
 APP_DIR=$(pwd)
 ACTUAL_USER=${SUDO_USER:-$(whoami)}
 
-# Find node from nvm
-NODE_PATH="/home/${ACTUAL_USER}/.nvm/versions/node/v18.20.0/bin/node"
+# Prefer Node 20+ from nvm if present
+NODE_PATH="/home/${ACTUAL_USER}/.nvm/versions/node/v20.19.0/bin/node"
 
 if [ ! -f "$NODE_PATH" ]; then
-    echo "Finner ikke Node.js på $NODE_PATH"
-    echo "Prøver å finne node..."
+    # fallback: try any v20.x
+    NODE_PATH=$(ls -1 /home/${ACTUAL_USER}/.nvm/versions/node/v20.*/bin/node 2>/dev/null | sort -V | tail -n 1)
+fi
+
+if [ -z "$NODE_PATH" ] || [ ! -f "$NODE_PATH" ]; then
+    echo "Finner ikke Node 20.x i nvm, bruker system node..."
     NODE_PATH=$(which node)
 fi
 

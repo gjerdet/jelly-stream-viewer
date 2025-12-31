@@ -28,14 +28,20 @@ echo -e "${GREEN}[1/6]${NC} Stopping existing services..."
 systemctl stop jelly-stream-preview 2>/dev/null || true
 systemctl stop jelly-webhook 2>/dev/null || true
 
-echo -e "${GREEN}[2/6]${NC} Installing dependencies..."
+echo -e "${GREEN}[2/6]${NC} Fixing permissions / cleaning old build..."
+# Old builds are often owned by root (from previous sudo runs) and will break vite build
+rm -rf "$APP_DIR/dist" 2>/dev/null || true
+rm -rf "$APP_DIR/node_modules/.vite" 2>/dev/null || true
+
+echo -e "${GREEN}[3/6]${NC} Installing dependencies..."
 cd "$APP_DIR"
-su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; cd '$APP_DIR' && npm install"
+# Prefer Node 20+ if available via nvm, fallback to whatever is installed
+su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; command -v nvm >/dev/null 2>&1 && (nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm install"
 
-echo -e "${GREEN}[3/6]${NC} Building application..."
-su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; cd '$APP_DIR' && npm run build"
+echo -e "${GREEN}[4/6]${NC} Building application..."
+su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; command -v nvm >/dev/null 2>&1 && (nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm run build"
 
-echo -e "${GREEN}[4/6]${NC} Creating systemd service for preview (port 4173)..."
+echo -e "${GREEN}[5/6]${NC} Creating systemd service for preview (port 4173)..."
 
 # Find npm path for the actual user
 NPM_PATH=$(su - "$ACTUAL_USER" -c "which npm" 2>/dev/null)
@@ -63,7 +69,7 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 EOF
 
-echo -e "${GREEN}[5/6]${NC} Starting and enabling services..."
+echo -e "${GREEN}[6/6]${NC} Starting and enabling services..."
 systemctl daemon-reload
 systemctl enable jelly-stream-preview
 systemctl start jelly-stream-preview
