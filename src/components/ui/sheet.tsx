@@ -49,11 +49,17 @@ const sheetVariants = cva(
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  /**
+   * Where the sheet portal should be mounted.
+   * When using fullscreen on a container element, pass that container here so the sheet is visible in fullscreen.
+   */
+  container?: HTMLElement | null;
+}
 
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
-  ({ side = "right", className, children, ...props }, ref) => (
-    <SheetPortal>
+  ({ side = "right", className, children, container, ...props }, ref) => (
+    <SheetPortal container={container}>
       <SheetOverlay />
       <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
         {children}

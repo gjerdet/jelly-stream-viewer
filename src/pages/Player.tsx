@@ -758,6 +758,12 @@ const Player = () => {
   };
 
   useEffect(() => {
+    // Auto-hide after 3s even if the user doesn't move the mouse (cleaner playback)
+    handleMouseMove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
@@ -862,6 +868,7 @@ const Player = () => {
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent 
             side="right" 
+            container={containerRef.current}
             className="w-80 sm:w-96 bg-background/95 backdrop-blur-xl p-0 z-[100]"
           >
             <div className="flex items-center justify-between p-4 border-b">
@@ -962,6 +969,9 @@ const Player = () => {
         <div 
           className="relative h-screen bg-black overflow-hidden flex-1"
           onMouseMove={handleMouseMove}
+          onPointerMove={handleMouseMove}
+          onPointerDown={handleMouseMove}
+          onTouchStart={handleMouseMove}
           onMouseLeave={() => setShowControls(false)}
         >
           <video
