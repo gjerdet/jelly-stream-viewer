@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 
 interface MediaStream {
   Index: number;
@@ -132,6 +133,7 @@ const Player = () => {
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
   
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
@@ -1152,12 +1154,10 @@ const Player = () => {
                   return;
                 }
 
-                if (!castState.isAvailable) {
-                  toast.info('Cast er ikkje tilgjengelig i denne nettlesaren (prøv Chrome/Edge).');
-                  return;
+                const result = await requestSession();
+                if (result?.unsupported) {
+                  setCastUnsupportedOpen(true);
                 }
-
-                await requestSession();
               }}
               className="text-white hover:bg-white/20 h-12 w-12 relative touch-manipulation rounded-lg"
               title={castState.isConnected ? 'Koble frå Chromecast' : 'Koble til Chromecast'}
@@ -1432,6 +1432,12 @@ const Player = () => {
         </div>
       </div>
       </Sheet>
+
+      {/* Cast Unsupported Dialog - for Firefox/Safari users */}
+      <CastUnsupportedDialog 
+        open={castUnsupportedOpen} 
+        onOpenChange={setCastUnsupportedOpen} 
+      />
     </TooltipProvider>
   );
 };
