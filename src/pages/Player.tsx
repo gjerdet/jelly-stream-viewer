@@ -114,6 +114,7 @@ const Player = () => {
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [subtitleUrl, setSubtitleUrl] = useState<string>("");
@@ -139,6 +140,13 @@ const Player = () => {
   
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
+
+  // Store container element after mount for Sheet portal
+  useEffect(() => {
+    if (containerRef.current) {
+      setContainerElement(containerRef.current);
+    }
+  }, []);
 
   // Fullscreen toggle - makes the container fullscreen so overlays stay visible
   const toggleFullscreen = async () => {
@@ -868,7 +876,7 @@ const Player = () => {
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent 
             side="right" 
-            container={containerRef.current}
+            container={containerElement}
             className="w-80 sm:w-96 bg-background/95 backdrop-blur-xl p-0 z-[100]"
           >
             <div className="flex items-center justify-between p-4 border-b">

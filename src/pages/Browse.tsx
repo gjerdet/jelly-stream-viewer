@@ -85,7 +85,7 @@ const Browse = () => {
     ["resume-items", userId || ""],
     {
       endpoint: userId && !isDemoMode
-        ? `/Users/${userId}/Items/Resume?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
+        ? `/Users/${userId}/Items/Resume?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo,SeriesId,SeasonId&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
     !!user && !!userId && !isDemoMode
@@ -262,7 +262,10 @@ const Browse = () => {
           <MediaRow
             title={browse.continueWatching}
             items={mapJellyfinItems(resumeItems.Items)}
-            onItemClick={handleItemClick}
+            onItemClick={(id) => {
+              const item = resumeItems.Items.find(i => i.Id === id);
+              handleItemClick(id, { type: item?.Type, seriesId: item?.SeriesId, seasonId: item?.SeasonId });
+            }}
           />
         )}
         
