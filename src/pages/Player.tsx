@@ -478,7 +478,7 @@ const Player = () => {
   const playPreviousEpisode = () => {
     const prevEpisode = getPreviousEpisode();
     if (prevEpisode) {
-      navigate(`/player/${prevEpisode.Id}`);
+      navigate(`/player/${prevEpisode.Id}`, { replace: true });
     }
   };
 
@@ -499,9 +499,9 @@ const Player = () => {
         videoRef.current.currentTime = targetSeconds;
       }
     } else {
-      // Different episode - navigate with position
+      // Different episode - navigate with position (replace to keep back button working)
       localStorage.setItem(`player_start_position_${episode.Id}`, targetSeconds.toString());
-      navigate(`/player/${episode.Id}`);
+      navigate(`/player/${episode.Id}`, { replace: true });
     }
   };
 
@@ -555,7 +555,7 @@ const Player = () => {
     const nextEpisode = getNextEpisode();
     if (nextEpisode) {
       console.log('Autoplay: Playing next episode', nextEpisode.Name);
-      navigate(`/player/${nextEpisode.Id}`);
+      navigate(`/player/${nextEpisode.Id}`, { replace: true });
     }
   };
 
@@ -636,7 +636,7 @@ const Player = () => {
   const playNextEpisode = () => {
     const nextEpisode = getNextEpisode();
     if (nextEpisode) {
-      navigate(`/player/${nextEpisode.Id}`);
+      navigate(`/player/${nextEpisode.Id}`, { replace: true });
     }
   };
 
@@ -915,7 +915,7 @@ const Player = () => {
                             <div
                               onClick={() => {
                                 if (!isCurrentEpisode) {
-                                  navigate(`/player/${episode.Id}`);
+                                  navigate(`/player/${episode.Id}`, { replace: true });
                                 }
                               }}
                               className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
