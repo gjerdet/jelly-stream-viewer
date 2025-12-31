@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => ({
   preview: {
     host: "::",
     port: 4173,
-    allowedHosts: ["update.gjerdet.casa", ".gjerdet.casa", "localhost", "192.168.9.24"],
+    allowedHosts: true,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
