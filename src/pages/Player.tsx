@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 interface MediaStream {
   Index: number;
@@ -871,16 +871,19 @@ const Player = () => {
 
   return (
     <TooltipProvider>
-      <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
-        {/* Episodes Sheet - uses container prop so it renders inside fullscreen */}
-        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
+          {/* Episodes Sheet - uses container prop so it renders inside fullscreen */}
           <SheetContent 
             side="right" 
             container={containerElement}
             className="w-80 sm:w-96 bg-background/95 backdrop-blur-xl p-0 z-[100]"
           >
             <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-base font-semibold">{item?.SeriesName}</h2>
+              <div className="min-w-0">
+                <SheetTitle className="text-base font-semibold">{item?.SeriesName}</SheetTitle>
+                <SheetDescription className="sr-only">Velg episode å spille av.</SheetDescription>
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -972,7 +975,7 @@ const Player = () => {
               </div>
             </ScrollArea>
           </SheetContent>
-        </Sheet>
+
 
         <div 
           className="relative h-screen bg-black overflow-hidden flex-1"
@@ -1081,15 +1084,17 @@ const Player = () => {
 
                 {/* Episode selector */}
                 {episodes.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
-                    className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
-                    title="Velg episode"
-                  >
-                    <ChevronLeft className="h-6 w-6" />
-                  </Button>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => { e.stopPropagation(); }}
+                      className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
+                      title="Velg episode"
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </Button>
+                  </SheetTrigger>
                 )}
 
                 <Button
@@ -1426,6 +1431,7 @@ const Player = () => {
       })()}
         </div>
       </div>
+      </Sheet>
     </TooltipProvider>
   );
 };
