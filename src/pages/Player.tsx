@@ -1385,19 +1385,20 @@ const Player = () => {
         )}
       </div>
 
-      {/* Next Episode Preview - Mobile optimized */}
+      {/* Next Episode Preview - Compact top-right toast */}
       {showNextEpisodePreview && (() => {
         const nextEpisode = getNextEpisode();
         if (!nextEpisode) return null;
 
         const nextEpisodeImageUrl = nextEpisode.ImageTags?.Primary && serverUrl
-          ? `${serverUrl.replace(/\/$/, '')}/Items/${nextEpisode.Id}/Images/Primary?maxHeight=200`
+          ? `${serverUrl.replace(/\/$/, '')}/Items/${nextEpisode.Id}/Images/Primary?maxHeight=100`
           : null;
 
         return (
-          <div className="absolute bottom-4 right-3 left-3 sm:left-auto sm:w-80 bg-background/95 backdrop-blur-xl rounded-lg p-3 shadow-2xl border border-border animate-fade-in pointer-events-auto z-50">
-            <div className="flex items-start gap-2 sm:gap-3">
-              <div className="w-20 sm:w-32 h-14 sm:h-20 flex-shrink-0 rounded overflow-hidden bg-secondary">
+          <div className="absolute top-20 right-3 w-64 sm:w-72 bg-black/90 backdrop-blur-xl rounded-lg p-2 shadow-2xl border border-white/20 animate-fade-in pointer-events-auto z-50">
+            <div className="flex items-center gap-2">
+              {/* Thumbnail */}
+              <div className="w-16 h-10 flex-shrink-0 rounded overflow-hidden bg-secondary">
                 {nextEpisodeImageUrl ? (
                   <img
                     src={nextEpisodeImageUrl}
@@ -1405,47 +1406,50 @@ const Player = () => {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-[10px]">
                     {player.noImage || 'No image'}
                   </div>
                 )}
               </div>
+              
+              {/* Info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs text-muted-foreground">{player.next || 'Next'}</p>
-                  {countdown !== null && countdown > 0 && (
-                    <span className="text-xs font-semibold text-primary">
-                      {countdown}s
-                    </span>
-                  )}
-                </div>
-                <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mb-2 sm:mb-3">
+                <p className="text-[10px] text-white/60">{player.next || 'Neste'}</p>
+                <p className="text-xs text-white font-medium truncate">
                   {nextEpisode.IndexNumber && `${nextEpisode.IndexNumber}. `}{nextEpisode.Name}
-                </h3>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={playNextEpisode}
-                    className="h-8 text-xs flex-1"
-                  >
-                    <Play className="h-3 w-3 mr-1" />
-                    {player.play || 'Play'}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setShowNextEpisodePreview(false);
-                      setCountdown(null);
-                      if (countdownInterval.current) {
-                        clearInterval(countdownInterval.current);
-                      }
-                    }}
-                    className="h-8 text-xs px-2"
-                  >
-                    ✕
-                  </Button>
-                </div>
+                </p>
+              </div>
+              
+              {/* Countdown */}
+              {countdown !== null && countdown > 0 && (
+                <span className="text-sm font-bold text-primary min-w-[24px] text-center">
+                  {countdown}s
+                </span>
+              )}
+              
+              {/* Actions */}
+              <div className="flex items-center gap-1">
+                <Button
+                  size="icon"
+                  onClick={playNextEpisode}
+                  className="h-8 w-8 bg-primary hover:bg-primary/90"
+                >
+                  <Play className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowNextEpisodePreview(false);
+                    setCountdown(null);
+                    if (countdownInterval.current) {
+                      clearInterval(countdownInterval.current);
+                    }
+                  }}
+                  className="h-8 w-8 text-white/60 hover:text-white hover:bg-white/10"
+                >
+                  ✕
+                </Button>
               </div>
             </div>
           </div>
