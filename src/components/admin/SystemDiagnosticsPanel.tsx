@@ -113,14 +113,15 @@ export const SystemDiagnosticsPanel = () => {
     setError(null);
 
     try {
-      // Get git_pull_server_url from database
+      // Get git_pull_server_url or update_webhook_url from database
       const { data: settings } = await supabase
         .from("server_settings")
-        .select("setting_value")
-        .eq("setting_key", "git_pull_server_url")
-        .maybeSingle();
+        .select("setting_key, setting_value")
+        .in("setting_key", ["git_pull_server_url", "update_webhook_url"]);
 
-      const gitPullUrl = settings?.setting_value;
+      // Try git_pull_server_url first, fallback to update_webhook_url
+      const gitPullUrl = settings?.find(s => s.setting_key === "git_pull_server_url")?.setting_value
+        || settings?.find(s => s.setting_key === "update_webhook_url")?.setting_value;
       
       if (!gitPullUrl) {
         setError("Git pull server URL ikke konfigurert");
