@@ -35,6 +35,7 @@ import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { ProxyHealthCheck } from "@/components/admin/ProxyHealthCheck";
 import { SystemDiagnosticsPanel } from "@/components/admin/SystemDiagnosticsPanel";
 import { AppServicesHealth } from "@/components/admin/AppServicesHealth";
+import { SystemStatusDashboard } from "@/components/admin/SystemStatusDashboard";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -1053,6 +1054,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
 
   const adminTabs = [
     { value: "health", label: "Health", icon: Activity },
+    { value: "system-status", label: language === 'no' ? "System Status" : "System Status", icon: Server },
     { value: "media", label: "Media", icon: Library },
     { value: "radarr", label: "Radarr", icon: Film },
     { value: "sonarr", label: "Sonarr", icon: Tv },
@@ -1123,6 +1125,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               <TabsContent value="health" className="space-y-6 mt-0">
                 <AppServicesHealth />
                 <HealthCheckDashboard />
+              </TabsContent>
+
+              <TabsContent value="system-status" className="space-y-6 mt-0">
+                <SystemStatusDashboard />
               </TabsContent>
 
               <TabsContent value="media" className="space-y-6 mt-0">
