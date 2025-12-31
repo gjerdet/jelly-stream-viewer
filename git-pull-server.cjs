@@ -488,6 +488,90 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Service status endpoint - get systemd status for jelly-stream-preview
+  if (req.url === '/service-status' && req.method === 'GET') {
+    console.log('📊 Received service-status request');
+    
+    const getServiceStatus = (serviceName, callback) => {
+      exec(`systemctl is-active ${serviceName}`, (error, stdout, stderr) => {
+        const isActive = stdout.trim() === 'active';
+        
+        // Get more details if service exists
+        exec(`systemctl show ${serviceName} --property=LoadState,ActiveState,SubState,MainPID,ExecMainStartTimestamp --no-pager`, (err2, details) => {
+          const props = {};
+          if (details) {
+            details.split('\n').forEach(line => {
+              const [key, ...value] = line.split('=');
+              if (key && value.length) props[key] = value.join('=');
+            });
+          }
+          
+          callback({
+            name: serviceName,
+            active: isActive,
+            state: stdout.trim() || 'unknown',
+            loadState: props.LoadState || 'unknown',
+            activeState: props.ActiveState || 'unknown',
+            subState: props.SubState || 'unknown',
+            pid: props.MainPID || null,
+            startedAt: props.ExecMainStartTimestamp || null
+          });
+        });
+      });
+    };
+    
+    // Check both services
+    getServiceStatus('jelly-stream-preview', (previewStatus) => {
+      getServiceStatus('jelly-git-pull', (gitPullStatus) => {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          services: {
+            'jelly-stream-preview': previewStatus,
+            'jelly-git-pull': gitPullStatus
+          },
+          timestamp: new Date().toISOString()
+        }));
+      });
+    });
+    return;
+  }
+
+  // Restart service endpoint - restart jelly-stream-preview
+  if (req.url === '/restart-preview' && req.method === 'POST') {
+    console.log('🔄 Received restart-preview request');
+    
+    // Verify signature if secret is set
+    const signature = req.headers['x-update-signature'];
+    if (UPDATE_SECRET && !verifySignature('', signature, UPDATE_SECRET)) {
+      console.error('❌ Invalid signature');
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid signature' }));
+      return;
+    }
+    
+    exec('sudo systemctl restart jelly-stream-preview', (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Failed to restart jelly-stream-preview:', error.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: error.message,
+          stderr: stderr
+        }));
+        return;
+      }
+      
+      console.log('✅ jelly-stream-preview restarted successfully');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ 
+        success: true, 
+        message: 'Service jelly-stream-preview restarted successfully'
+      }));
+    });
+    return;
+  }
+
   // Git pull endpoint
   if (req.url === '/git-pull' && req.method === 'POST') {
     let body = '';
