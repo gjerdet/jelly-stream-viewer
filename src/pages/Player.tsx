@@ -1271,10 +1271,11 @@ const Player = () => {
           </div>
         )}
 
-        {/* Fullscreen-compatible next episode button - uses absolute positioning within the player container */}
+        {/* Fullscreen-compatible next episode button - fixed position to stay above browser fullscreen controls */}
         {isEpisode && nextEpisode && (
           <div 
-            className="absolute bottom-6 right-6 z-[9999] pointer-events-auto"
+            className="fixed bottom-20 right-6 pointer-events-auto"
+            style={{ zIndex: 2147483647 }}
           >
             <Button
               onClick={(e) => { 
