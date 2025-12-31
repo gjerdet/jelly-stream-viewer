@@ -1274,9 +1274,22 @@ const Player = () => {
           </p>
         </div>
 
-        {/* Skip Intro/Credits button */}
+        {/* Top-right controls: Fullscreen button - always accessible */}
+        <div className="absolute top-14 right-3 pointer-events-auto z-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+            className="text-white hover:bg-white/20 h-12 w-12 bg-black/70 backdrop-blur-sm border border-white/20 rounded-lg"
+            title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
+          >
+            {isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
+          </Button>
+        </div>
+
+        {/* Skip Intro/Credits button - centered at bottom */}
         {showSkipButton && currentSegment && (
-          <div className="absolute bottom-32 sm:bottom-36 right-3 sm:right-6 pointer-events-auto animate-fade-in z-50">
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 pointer-events-auto animate-fade-in z-50">
             <Button
               onClick={(e) => { e.stopPropagation(); skipSegment(); }}
               className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 h-12 font-semibold shadow-2xl text-base gap-2 border border-white/20"
@@ -1287,43 +1300,26 @@ const Player = () => {
           </div>
         )}
 
-        {/* Bottom controls for episodes - Auto mark watched + Fullscreen */}
-        {showControls && (
-          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto z-[99999]">
-            <div className="flex items-center justify-between gap-3">
-              {/* Auto mark watched - only for episodes */}
-              {isEpisode && (
-                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
-                  <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                    {player.autoMarkWatched || 'Auto-mark watched'}
-                  </Label>
-                  <Switch
-                    id="auto-mark-mobile"
-                    checked={autoMarkWatched}
-                    onCheckedChange={setAutoMarkWatched}
-                    className="data-[state=checked]:bg-green-600 scale-90"
-                  />
-                </div>
-              )}
-              {!isEpisode && <div />}
-              
-              {/* Fullscreen button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                className="text-white hover:bg-white/20 h-10 w-10 bg-black/60 backdrop-blur-sm border border-white/20"
-                title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
-              >
-                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
-              </Button>
+        {/* Bottom-left: Auto mark watched - only when controls visible */}
+        {showControls && isEpisode && (
+          <div className="absolute bottom-4 left-3 pointer-events-auto z-50">
+            <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+              <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
+                {player.autoMarkWatched || 'Auto-mark'}
+              </Label>
+              <Switch
+                id="auto-mark-mobile"
+                checked={autoMarkWatched}
+                onCheckedChange={setAutoMarkWatched}
+                className="data-[state=checked]:bg-green-600 scale-90"
+              />
             </div>
           </div>
         )}
 
-        {/* Next episode button - absolute within fullscreen container */}
-        {isEpisode && nextEpisode && (
-          <div className="absolute bottom-6 right-6 pointer-events-auto z-[99999]">
+        {/* Bottom-right: Next episode button - only show when NOT showing preview */}
+        {isEpisode && nextEpisode && !showNextEpisodePreview && (
+          <div className="absolute bottom-4 right-3 pointer-events-auto z-50">
             <Button
               onClick={(e) => { 
                 e.preventDefault();
@@ -1335,9 +1331,9 @@ const Player = () => {
                 e.stopPropagation();
                 playNextEpisode();
               }}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-5 py-3 h-12 font-semibold shadow-2xl border-2 border-white/30 gap-2 cursor-pointer touch-manipulation"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-2xl border border-white/20 gap-2 cursor-pointer touch-manipulation"
             >
-              <SkipForward className="h-5 w-5" />
+              <SkipForward className="h-4 w-4" />
               <span className="hidden sm:inline">{player.nextEpisode || 'Next episode'}</span>
               <span className="sm:hidden">{player.next || 'Next'}</span>
             </Button>
@@ -1399,7 +1395,7 @@ const Player = () => {
           : null;
 
         return (
-          <div className="absolute bottom-20 sm:bottom-24 right-2 sm:right-6 left-2 sm:left-auto w-auto sm:w-80 bg-background/95 backdrop-blur-xl rounded-lg p-3 sm:p-4 shadow-2xl border border-border animate-fade-in pointer-events-auto">
+          <div className="absolute bottom-4 right-3 left-3 sm:left-auto sm:w-80 bg-background/95 backdrop-blur-xl rounded-lg p-3 shadow-2xl border border-border animate-fade-in pointer-events-auto z-50">
             <div className="flex items-start gap-2 sm:gap-3">
               <div className="w-20 sm:w-32 h-14 sm:h-20 flex-shrink-0 rounded overflow-hidden bg-secondary">
                 {nextEpisodeImageUrl ? (
