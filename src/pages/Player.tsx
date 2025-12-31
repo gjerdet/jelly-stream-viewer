@@ -27,15 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarProvider,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 interface MediaStream {
   Index: number;
@@ -865,135 +857,107 @@ const Player = () => {
 
   return (
     <TooltipProvider>
-      <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
-        {/* Sidebar Overlay - Click to close */}
-        {sidebarOpen && isEpisode && episodes.length > 0 && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-40 cursor-pointer"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-        {/* Episodes Sidebar */}
-        {isEpisode && episodes.length > 0 && (
-          <Sidebar 
-            side="right"
-            className="fixed right-0 top-0 h-screen border-l border-border z-50"
-            collapsible="offcanvas"
+      <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
+        {/* Episodes Sheet - uses container prop so it renders inside fullscreen */}
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent 
+            side="right" 
+            className="w-80 sm:w-96 bg-background/95 backdrop-blur-xl p-0 z-[100]"
           >
-            <SidebarContent className="bg-background/95 backdrop-blur-xl">
-              <SidebarGroup>
-                <SidebarGroupLabel className="text-base flex items-center justify-between pr-2">
-                  {item?.SeriesName}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSidebarOpen(false)}
-                    className="h-6 w-6 p-0"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <div className="space-y-2 p-2">
-                    {episodes.map((episode) => {
-                      const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
-                        ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=200`
-                        : null;
-                      const episodeRuntime = episode.RunTimeTicks 
-                        ? Math.round(episode.RunTimeTicks / 600000000) 
-                        : null;
-                      const isCurrentEpisode = episode.Id === id;
-                      const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
-                        ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
-                        : 0;
-                      const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-base font-semibold">{item?.SeriesName}</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(false)}
+                className="h-8 w-8 p-0"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="h-[calc(100vh-60px)]">
+              <div className="space-y-2 p-3">
+                {episodes.map((episode) => {
+                  const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
+                    ? `${serverUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=200`
+                    : null;
+                  const episodeRuntime = episode.RunTimeTicks 
+                    ? Math.round(episode.RunTimeTicks / 600000000) 
+                    : null;
+                  const isCurrentEpisode = episode.Id === id;
+                  const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
+                    ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
+                    : 0;
+                  const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
 
-                      return (
-                        <Tooltip key={episode.Id} delayDuration={300}>
-                          <TooltipTrigger asChild>
-                            <div
-                              onClick={() => {
-                                if (!isCurrentEpisode) {
-                                  navigate(`/player/${episode.Id}`, { replace: true });
-                                }
-                              }}
-                              className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
-                                isCurrentEpisode 
-                                  ? 'bg-primary/20 border-2 border-primary' 
-                                  : 'hover:bg-secondary/50'
-                              }`}
-                            >
-                              <div className="w-32 h-20 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
-                                {episodeImageUrl ? (
-                                  <img
-                                    src={episodeImageUrl}
-                                    alt={episode.Name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                                    Ingen bilde
-                                  </div>
-                                 )}
-                                 {watchedPercentage > 0 && watchedPercentage < 95 && (
-                                   <div 
-                                     className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50 cursor-pointer hover:h-1.5 transition-all"
-                                     onClick={(e) => handleProgressClick(episode, e)}
-                                     title={`Hopp til ${Math.floor(watchedPercentage)}%`}
-                                   >
-                                     <div 
-                                       className="h-full bg-primary"
-                                       style={{ width: `${watchedPercentage}%` }}
-                                     />
-                                   </div>
-                                 )}
-                                 {watchedPercentage === 0 && episode.RunTimeTicks && (
-                                   <div 
-                                     className="absolute bottom-0 left-0 right-0 h-0.5 bg-secondary/50 hover:h-1.5 cursor-pointer transition-all"
-                                     onClick={(e) => handleProgressClick(episode, e)}
-                                     title="Klikk for å hoppe til en posisjon"
-                                   />
-                                 )}
-                                 {isWatched && (
-                                  <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
-                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between gap-2">
-                                  <h3 className="font-semibold text-sm line-clamp-1">
-                                    {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
-                                  </h3>
-                                  {episodeRuntime && (
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                      {episodeRuntime} min
-                                    </span>
-                                  )}
-                                </div>
-                                {isCurrentEpisode && (
-                                  <p className="text-xs text-primary mt-1">Spiller nå</p>
-                                )}
-                              </div>
-                            </div>
-                          </TooltipTrigger>
-                          {episode.Overview && (
-                            <TooltipContent side="left" className="max-w-sm">
-                              <p className="text-sm">{episode.Overview}</p>
-                            </TooltipContent>
+                  return (
+                    <div
+                      key={episode.Id}
+                      onClick={() => {
+                        if (!isCurrentEpisode) {
+                          navigate(`/player/${episode.Id}`, { replace: true });
+                          setSidebarOpen(false);
+                        }
+                      }}
+                      className={`flex gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                        isCurrentEpisode 
+                          ? 'bg-primary/20 border-2 border-primary' 
+                          : 'hover:bg-secondary/50'
+                      }`}
+                    >
+                      <div className="w-28 h-16 flex-shrink-0 rounded overflow-hidden bg-secondary relative">
+                        {episodeImageUrl ? (
+                          <img
+                            src={episodeImageUrl}
+                            alt={episode.Name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                            Ingen bilde
+                          </div>
+                        )}
+                        {watchedPercentage > 0 && watchedPercentage < 95 && (
+                          <div 
+                            className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50"
+                            onClick={(e) => { e.stopPropagation(); handleProgressClick(episode, e); }}
+                          >
+                            <div 
+                              className="h-full bg-primary"
+                              style={{ width: `${watchedPercentage}%` }}
+                            />
+                          </div>
+                        )}
+                        {isWatched && (
+                          <div className="absolute top-1 right-1 bg-green-600 rounded-full p-0.5">
+                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm line-clamp-2">
+                          {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
+                        </h3>
+                        <div className="flex items-center gap-2 mt-1">
+                          {episodeRuntime && (
+                            <span className="text-xs text-muted-foreground">
+                              {episodeRuntime} min
+                            </span>
                           )}
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            </SidebarContent>
-          </Sidebar>
-        )}
+                          {isCurrentEpisode && (
+                            <span className="text-xs text-primary font-medium">Spiller nå</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </SheetContent>
+        </Sheet>
 
         <div 
           className="relative h-screen bg-black overflow-hidden flex-1"
@@ -1066,34 +1030,92 @@ const Player = () => {
           <div className="w-12 sm:w-auto" />
         </div>
 
-        {/* Unified control bar - Right side, vertically stacked */}
-        <div className="absolute top-14 right-2 sm:right-3 flex flex-col gap-2 pointer-events-auto z-50">
-          {/* Primary row: Fullscreen + Episode selector */}
-          <div className="flex gap-2 items-center bg-black/70 backdrop-blur-sm rounded-lg p-1.5 border border-white/20">
+        {/* Single horizontal control bar - top right */}
+        <div className="absolute top-14 right-2 sm:right-3 pointer-events-auto z-50">
+          <div className="flex gap-1.5 items-center bg-black/80 backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl">
             {/* Fullscreen */}
             <Button
               variant="ghost"
               size="icon"
               onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-              className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
+              className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
               title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
             >
-              {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+              {isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
             </Button>
 
-            {/* Episode list - visible in fullscreen too */}
-            {isEpisode && episodes.length > 0 && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={(e) => { e.stopPropagation(); setSidebarOpen(!sidebarOpen); }}
-                className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
-                title="Velg episode"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
+            {/* Separator */}
+            {isEpisode && <div className="w-px h-8 bg-white/20" />}
+
+            {/* Episode navigation */}
+            {isEpisode && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => { e.stopPropagation(); playPreviousEpisode(); }}
+                  disabled={!previousEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
+                  title="Forrige episode"
+                >
+                  <SkipBack className="h-6 w-6" />
+                </Button>
+
+                {/* Episode selector */}
+                {episodes.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
+                    className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
+                    title="Velg episode"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </Button>
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
+                  disabled={!nextEpisode}
+                  className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
+                  title="Neste episode"
+                >
+                  <SkipForward className="h-6 w-6" />
+                </Button>
+              </>
             )}
-            
+
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/20" />
+
+            {/* Subtitles dropdown */}
+            {subtitles.length > 0 && (
+              <Select 
+                value={selectedSubtitle} 
+                onValueChange={(value) => {
+                  console.log('User selected subtitle:', value);
+                  setSelectedSubtitle(value);
+                }}
+              >
+                <SelectTrigger 
+                  className="w-12 bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-0 justify-center"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Subtitles className="h-6 w-6" />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-[2147483647]">
+                  <SelectItem value="none">Ingen</SelectItem>
+                  {subtitles.map((subtitle) => (
+                    <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
+                      {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             {/* Cast */}
             <Button
               variant="ghost"
@@ -1114,177 +1136,107 @@ const Player = () => {
 
                 await requestSession();
               }}
-              className="text-white hover:bg-white/30 h-11 w-11 relative touch-manipulation"
+              className="text-white hover:bg-white/20 h-12 w-12 relative touch-manipulation rounded-lg"
               title={castState.isConnected ? 'Koble frå Chromecast' : 'Koble til Chromecast'}
             >
-              <Cast className="h-5 w-5" />
+              <Cast className="h-6 w-6" />
               {castState.isConnected && !castLoading && (
-                <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
+                <span className="absolute top-2 right-2 h-2 w-2 bg-primary rounded-full" />
               )}
             </Button>
           </div>
-
-          {/* Secondary row: Episode navigation + Subtitles */}
-          <div className="flex gap-2 items-center bg-black/70 backdrop-blur-sm rounded-lg p-1.5 border border-white/20">
-            {/* Episode navigation */}
-            {isEpisode && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => { e.stopPropagation(); playPreviousEpisode(); }}
-                  disabled={!previousEpisode}
-                  className="text-white hover:bg-white/30 disabled:opacity-30 h-11 w-11 touch-manipulation"
-                  title="Forrige episode"
-                >
-                  <SkipBack className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
-                  disabled={!nextEpisode}
-                  className="text-white hover:bg-white/30 disabled:opacity-30 h-11 w-11 touch-manipulation"
-                  title="Neste episode"
-                >
-                  <SkipForward className="h-5 w-5" />
-                </Button>
-              </>
-            )}
-            
-            {/* Subtitles */}
-            {subtitles.length > 0 && (
-              <Select 
-                value={selectedSubtitle} 
-                onValueChange={(value) => {
-                  console.log('User selected subtitle:', value);
-                  setSelectedSubtitle(value);
-                }}
-              >
-                <SelectTrigger 
-                  className="w-11 sm:w-[140px] bg-transparent border-0 text-white h-11 touch-manipulation"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Subtitles className="h-5 w-5" />
-                  <span className="hidden sm:inline ml-2 truncate"><SelectValue placeholder="Tekst" /></span>
-                </SelectTrigger>
-                <SelectContent className="bg-background z-[2147483647]">
-                  <SelectItem value="none">Ingen</SelectItem>
-                  {subtitles.map((subtitle) => (
-                    <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
-                      {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {/* Search subtitles */}
-            <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white hover:bg-white/30 h-11 w-11 touch-manipulation"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSubtitleSearchOpen(true);
-                    searchSubtitles('nor');
-                  }}
-                >
-                  <Search className="h-5 w-5" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] z-[2147483647]">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Subtitles className="h-5 w-5" />
-                    {player.searchSubtitles || 'Search subtitles'}
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex gap-2 flex-wrap">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => searchSubtitles('nor')}
-                      disabled={searchingSubtitles}
-                    >
-                      🇳🇴 Norsk
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => searchSubtitles('eng')}
-                      disabled={searchingSubtitles}
-                    >
-                      🇬🇧 English
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => searchSubtitles('swe')}
-                      disabled={searchingSubtitles}
-                    >
-                      🇸🇪 Svenska
-                    </Button>
-                  </div>
-                  
-                  <ScrollArea className="h-[50vh] sm:h-[400px] rounded-md border p-2 sm:p-4">
-                    {searchingSubtitles ? (
-                      <div className="flex items-center justify-center h-full">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="ml-2">{player.searching || 'Searching...'}</span>
-                      </div>
-                    ) : remoteSubtitles.length > 0 ? (
-                      <div className="space-y-2">
-                        {remoteSubtitles.map((sub) => (
-                          <div
-                            key={sub.Id}
-                            className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors gap-2"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium text-xs sm:text-sm truncate">{sub.Name}</p>
-                              <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
-                                <span>{sub.Language}</span>
-                                <span>•</span>
-                                <span>{sub.Provider}</span>
-                                {sub.Format && (
-                                  <>
-                                    <span className="hidden sm:inline">•</span>
-                                    <span className="hidden sm:inline">{sub.Format}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => downloadSubtitle(sub.Id, sub.Name)}
-                              disabled={downloadingSubtitle === sub.Id}
-                              className="h-9 w-9 flex-shrink-0"
-                            >
-                              {downloadingSubtitle === sub.Id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Download className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
-                        <Subtitles className="h-12 w-12 mb-2 opacity-50" />
-                        <p className="text-sm">{player.selectLanguageToSearch || 'Select a language to search'}</p>
-                      </div>
-                    )}
-                  </ScrollArea>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
         </div>
+
+        {/* Subtitle search dialog - triggered from menu or long-press */}
+        <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
+          <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] z-[2147483647]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Subtitles className="h-5 w-5" />
+                {player.searchSubtitles || 'Search subtitles'}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => searchSubtitles('nor')}
+                  disabled={searchingSubtitles}
+                >
+                  🇳🇴 Norsk
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => searchSubtitles('eng')}
+                  disabled={searchingSubtitles}
+                >
+                  🇬🇧 English
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => searchSubtitles('swe')}
+                  disabled={searchingSubtitles}
+                >
+                  🇸🇪 Svenska
+                </Button>
+              </div>
+              
+              <ScrollArea className="h-[50vh] sm:h-[400px] rounded-md border p-2 sm:p-4">
+                {searchingSubtitles ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2">{player.searching || 'Searching...'}</span>
+                  </div>
+                ) : remoteSubtitles.length > 0 ? (
+                  <div className="space-y-2">
+                    {remoteSubtitles.map((sub) => (
+                      <div
+                        key={sub.Id}
+                        className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors gap-2"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs sm:text-sm truncate">{sub.Name}</p>
+                          <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                            <span>{sub.Language}</span>
+                            <span>•</span>
+                            <span>{sub.Provider}</span>
+                            {sub.Format && (
+                              <>
+                                <span className="hidden sm:inline">•</span>
+                                <span className="hidden sm:inline">{sub.Format}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => downloadSubtitle(sub.Id, sub.Name)}
+                          disabled={downloadingSubtitle === sub.Id}
+                          className="h-9 w-9 flex-shrink-0"
+                        >
+                          {downloadingSubtitle === sub.Id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
+                    <Subtitles className="h-12 w-12 mb-2 opacity-50" />
+                    <p className="text-sm">{player.selectLanguageToSearch || 'Select a language to search'}</p>
+                  </div>
+                )}
+              </ScrollArea>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Skip Intro/Credits button - centered at bottom */}
         {showSkipButton && currentSegment && (
@@ -1456,7 +1408,6 @@ const Player = () => {
       })()}
         </div>
       </div>
-    </SidebarProvider>
     </TooltipProvider>
   );
 };
