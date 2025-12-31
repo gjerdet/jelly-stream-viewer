@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -121,6 +121,7 @@ const Player = () => {
   const player = t.player as any;
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [subtitleUrl, setSubtitleUrl] = useState<string>("");
@@ -137,6 +138,7 @@ const Player = () => {
   const [searchingSubtitles, setSearchingSubtitles] = useState(false);
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
@@ -145,6 +147,33 @@ const Player = () => {
   
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
+
+  // Fullscreen toggle - makes the container fullscreen so overlays stay visible
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+    
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+        setIsFullscreen(true);
+      } else {
+        await document.exitFullscreen();
+        setIsFullscreen(false);
+      }
+    } catch (error) {
+      console.error('Fullscreen error:', error);
+    }
+  };
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Search for subtitles via Jellyfin
   const searchSubtitles = async (language: string = 'nor') => {
@@ -837,7 +866,7 @@ const Player = () => {
   return (
     <TooltipProvider>
       <SidebarProvider open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <div className="relative h-screen bg-black overflow-hidden flex w-full">
+        <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
         {/* Sidebar Overlay - Click to close */}
         {sidebarOpen && isEpisode && episodes.length > 0 && (
           <div 
@@ -983,13 +1012,20 @@ const Player = () => {
         crossOrigin="anonymous"
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
+          // Log audio tracks for debugging
+          const audioTracks = (video as any).audioTracks;
           console.log('Video loaded:', {
             duration: video.duration,
             videoWidth: video.videoWidth,
             videoHeight: video.videoHeight,
-            src: streamUrl?.substring(0, 50) + '...',
-            subtitleUrl: subtitleUrl?.substring(0, 50) + '...'
+            muted: video.muted,
+            volume: video.volume,
+            audioTracks: audioTracks?.length || 'N/A',
+            src: streamUrl?.substring(0, 100) + '...',
           });
+          // Ensure audio is not muted
+          video.muted = false;
+          video.volume = 1.0;
         }}
         onError={handleVideoError}
         onEnded={handleVideoEnded}
@@ -1251,32 +1287,43 @@ const Player = () => {
           </div>
         )}
 
-        {/* Bottom controls for episodes - Auto mark watched */}
-        {isEpisode && showControls && (
-          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto z-50">
+        {/* Bottom controls for episodes - Auto mark watched + Fullscreen */}
+        {showControls && (
+          <div className="absolute bottom-20 sm:bottom-24 left-3 right-3 pointer-events-auto z-[99999]">
             <div className="flex items-center justify-between gap-3">
-              {/* Auto mark watched */}
-              <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
-                <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                  {player.autoMarkWatched || 'Auto-mark watched'}
-                </Label>
-                <Switch
-                  id="auto-mark-mobile"
-                  checked={autoMarkWatched}
-                  onCheckedChange={setAutoMarkWatched}
-                  className="data-[state=checked]:bg-green-600 scale-90"
-                />
-              </div>
+              {/* Auto mark watched - only for episodes */}
+              {isEpisode && (
+                <div className="flex items-center gap-2 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                  <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
+                    {player.autoMarkWatched || 'Auto-mark watched'}
+                  </Label>
+                  <Switch
+                    id="auto-mark-mobile"
+                    checked={autoMarkWatched}
+                    onCheckedChange={setAutoMarkWatched}
+                    className="data-[state=checked]:bg-green-600 scale-90"
+                  />
+                </div>
+              )}
+              {!isEpisode && <div />}
+              
+              {/* Fullscreen button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+                className="text-white hover:bg-white/20 h-10 w-10 bg-black/60 backdrop-blur-sm border border-white/20"
+                title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
+              >
+                {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
+              </Button>
             </div>
           </div>
         )}
 
-        {/* Fullscreen-compatible next episode button - fixed position to stay above browser fullscreen controls */}
+        {/* Next episode button - absolute within fullscreen container */}
         {isEpisode && nextEpisode && (
-          <div 
-            className="fixed bottom-20 right-6 pointer-events-auto"
-            style={{ zIndex: 2147483647 }}
-          >
+          <div className="absolute bottom-6 right-6 pointer-events-auto z-[99999]">
             <Button
               onClick={(e) => { 
                 e.preventDefault();
