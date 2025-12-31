@@ -7,6 +7,7 @@ interface CastState {
   isConnected: boolean;
   isScanning: boolean;
   deviceName: string | null;
+  isBrowserSupported: boolean; // New: tracks if browser actually supports Cast
   mediaInfo: {
     title: string | null;
     isPaused: boolean;
@@ -15,12 +16,32 @@ interface CastState {
   } | null;
 }
 
+// Detect if we're in a Chromium-based browser
+const isChromiumBrowser = (): boolean => {
+  const userAgent = navigator.userAgent.toLowerCase();
+  // Chrome, Edge, Opera, Brave, etc. all have "chrome" in their user agent
+  // But we need to exclude non-Chromium Edge (legacy)
+  const isChromium = /chrome|chromium|crios/i.test(userAgent);
+  const isEdge = /edg/i.test(userAgent); // New Edge is Chromium-based
+  const isOpera = /opr\//i.test(userAgent);
+  
+  // Firefox and Safari don't support Cast SDK
+  const isFirefox = /firefox/i.test(userAgent);
+  const isSafari = /safari/i.test(userAgent) && !/chrome/i.test(userAgent);
+  
+  if (isFirefox || isSafari) return false;
+  return isChromium || isEdge || isOpera;
+};
+
 export const useChromecast = () => {
+  const browserSupported = isChromiumBrowser();
+  
   const [castState, setCastState] = useState<CastState>({
-    isAvailable: false,
+    isAvailable: true, // Always show as available for UI purposes
     isConnected: false,
     isScanning: false,
     deviceName: null,
+    isBrowserSupported: browserSupported,
     mediaInfo: null,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -28,11 +49,19 @@ export const useChromecast = () => {
   const [remotePlayer, setRemotePlayer] = useState<any>(null);
   const [remotePlayerController, setRemotePlayerController] = useState<any>(null);
 
-  // Initialize Chromecast
+  // Initialize Chromecast (only if browser supports it)
   useEffect(() => {
     console.log('[Chromecast] Starting initialization...');
     console.log('[Chromecast] Protocol:', window.location.protocol);
     console.log('[Chromecast] Hostname:', window.location.hostname);
+    console.log('[Chromecast] Browser supported:', browserSupported);
+    
+    // If browser doesn't support Cast, mark as loaded but keep isAvailable true for UI
+    if (!browserSupported) {
+      console.log('[Chromecast] Browser does not support Cast SDK - showing fallback UI');
+      setIsLoading(false);
+      return;
+    }
     
     let mounted = true;
 
@@ -49,7 +78,6 @@ export const useChromecast = () => {
         console.log('[Chromecast] Cast framework not available');
         if (mounted) {
           setIsLoading(false);
-          // Don't show toast - just silently disable
         }
         return;
       }
@@ -162,22 +190,25 @@ export const useChromecast = () => {
       if (isAvailable) {
         initializeCast();
       } else {
-        console.log('[Chromecast] Cast SDK not available - hiding Chromecast features');
+        console.log('[Chromecast] Cast SDK not available');
         setIsLoading(false);
-        // Don't show any toast - just silently disable the feature
       }
     });
 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [browserSupported]);
 
   // Scan for available Chromecast devices
   const scanForDevices = useCallback(async () => {
+    // If browser doesn't support Cast, show info message
+    if (!browserSupported) {
+      return { unsupported: true };
+    }
+    
     if (!castContext) {
-      toast.error('Chromecast er ikke tilgjengelig i denne nettleseren. Bruk Chrome eller Edge.');
-      return;
+      return { unsupported: true };
     }
 
     setCastState(prev => ({ ...prev, isScanning: true }));
@@ -203,6 +234,7 @@ export const useChromecast = () => {
       }
       
       console.log('[Chromecast] Cast session started via scan');
+      return { unsupported: false };
     } catch (error: any) {
       if (error === 'cancel') {
         toast.info('Søk avbrutt');
@@ -210,15 +242,20 @@ export const useChromecast = () => {
         console.error('[Chromecast] Scan error:', error);
         toast.error('Fant ingen Chromecast-enheter');
       }
+      return { unsupported: false };
     } finally {
       setCastState(prev => ({ ...prev, isScanning: false }));
     }
-  }, [castContext]);
+  }, [castContext, browserSupported]);
 
   const requestSession = useCallback(async () => {
+    // If browser doesn't support Cast, return indicator
+    if (!browserSupported) {
+      return { unsupported: true };
+    }
+    
     if (!castContext) {
-      // Silently return if cast not available - this is expected in non-Chrome browsers
-      return;
+      return { unsupported: true };
     }
     
     const lastDevice = localStorage.getItem('last_cast_device');
@@ -239,12 +276,14 @@ export const useChromecast = () => {
       }
       
       console.log('[Chromecast] Cast session started');
+      return { unsupported: false };
     } catch (error: any) {
       if (error !== 'cancel') {
         console.error('[Chromecast] Cast session error:', error);
       }
+      return { unsupported: false };
     }
-  }, [castContext]);
+  }, [castContext, browserSupported]);
 
   const endSession = useCallback(() => {
     if (!castContext) return;

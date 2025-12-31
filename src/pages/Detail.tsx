@@ -20,6 +20,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReportMediaDialog } from "@/components/ReportMediaDialog";
+import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 
 interface MediaStream {
   Index: number;
@@ -119,6 +120,7 @@ const Detail = () => {
   const [episodeSubtitleTab, setEpisodeSubtitleTab] = useState<'existing' | 'search'>('existing');
   const [loadingEpisodeSubtitles, setLoadingEpisodeSubtitles] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -239,8 +241,11 @@ const Detail = () => {
     }
   }, [user, loading, navigate]);
 
-  const handleCastClick = () => {
-    requestSession();
+  const handleCastClick = async () => {
+    const result = await requestSession();
+    if (result?.unsupported) {
+      setCastUnsupportedOpen(true);
+    }
   };
 
   // Handle play - either cast or navigate to player
@@ -1284,6 +1289,12 @@ const Detail = () => {
           ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
           : undefined
         }
+      />
+
+      {/* Cast Unsupported Dialog - for Firefox/Safari users */}
+      <CastUnsupportedDialog 
+        open={castUnsupportedOpen} 
+        onOpenChange={setCastUnsupportedOpen} 
       />
     </div>
   );
