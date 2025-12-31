@@ -481,12 +481,19 @@ export const UpdateManager = () => {
           targetUrl = targetUrl.replace(/\/$/, '') + '/git-pull';
         }
 
-        // Quick reachability test before starting (gives clearer errors than a raw NetworkError)
+        // Build /health URL for a quick reachability test (gives clearer errors than a raw NetworkError)
         let healthUrl = gitPullUrl;
         if (healthUrl.endsWith('/git-pull')) {
           healthUrl = healthUrl.replace(/\/git-pull$/, '/health');
         } else {
           healthUrl = healthUrl.replace(/\/$/, '') + '/health';
+        }
+
+        // Block mixed content early (HTTPS app -> HTTP local server) to avoid a generic "Failed to fetch"
+        if (window.location.protocol === 'https:' && (targetUrl.startsWith('http:') || healthUrl.startsWith('http:'))) {
+          throw new Error(
+            `Du er på HTTPS (${window.location.origin}), men git-pull serveren er konfigurert med HTTP (${gitPullUrl}). Nettleseren blokkerer dette. Åpne appen via http:// på lokalnettet, eller legg git-pull-server bak HTTPS.`,
+          );
         }
 
         const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 5000) => {
@@ -507,10 +514,7 @@ export const UpdateManager = () => {
         const preflightLogs = [...contactingLog, preflightLog];
 
         setUpdateStatus((prev) => (prev ? { ...prev, logs: preflightLogs } : null));
-        await supabase
-          .from('update_status')
-          .update({ logs: JSON.stringify(preflightLogs) })
-          .eq('id', updateId);
+        await supabase.from('update_status').update({ logs: JSON.stringify(preflightLogs) }).eq('id', updateId);
 
         try {
           const healthRes = await fetchWithTimeout(healthUrl, { method: 'GET' }, 5000);
@@ -519,22 +523,12 @@ export const UpdateManager = () => {
             throw new Error(`Health check feila (${healthRes.status}) ${txt ? `- ${txt}` : ''}`);
           }
         } catch (e: any) {
-          const msg = e?.name === 'AbortError' ? 'Tidsavbrudd (ingen svar frå server)' : (e?.message || String(e));
-          throw new Error(`Git-pull serveren er ikkje tilgjengeleg på ${healthUrl}. ${msg}`);
-        }
-
-        // Block mixed content (HTTPS app -> HTTP git-pull URL)
-        // This otherwise fails with: "NetworkError when attempting to fetch resource."
-        let parsedTargetUrl: URL | null = null;
-        try {
-          parsedTargetUrl = new URL(targetUrl);
-        } catch {
-          // ignore; fetch will surface a clearer error later
-        }
-
-        if (parsedTargetUrl && window.location.protocol === 'https:' && parsedTargetUrl.protocol === 'http:') {
+          const msg =
+            e?.name === 'AbortError'
+              ? 'Tidsavbrudd (ingen svar frå server)'
+              : e?.message || String(e);
           throw new Error(
-            'Git-pull URL er HTTP, men appen kjører over HTTPS. Nettleseren blokkerer dette. Løsning: legg git-pull-server bak HTTPS (reverse proxy) og bruk https://..., eller åpne appen lokalt over http://.',
+            `Git-pull serveren er ikkje tilgjengeleg på ${healthUrl}. ${msg}. Tips: sjekk at ${gitPullUrl} svarer og at port 3002 er open / tenesta køyrer.`,
           );
         }
 
