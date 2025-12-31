@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
@@ -141,11 +141,11 @@ const Player = () => {
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
 
-  // Store container element after mount for Sheet portal
-  useEffect(() => {
-    if (containerRef.current) {
-      setContainerElement(containerRef.current);
-    }
+  // Keep a stable reference to the fullscreen container and also expose it for Sheet portals.
+  // (Important: the player initially renders a loading view, so we can't rely on a mount-only effect.)
+  const setContainerNode = useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setContainerElement(node);
   }, []);
 
   // Fullscreen toggle - makes the container fullscreen so overlays stay visible
@@ -872,7 +872,7 @@ const Player = () => {
   return (
     <TooltipProvider>
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <div ref={containerRef} className="relative h-screen bg-black overflow-hidden flex w-full">
+        <div ref={setContainerNode} className="relative h-screen bg-black overflow-hidden flex w-full">
           {/* Episodes Sheet - uses container prop so it renders inside fullscreen */}
           <SheetContent 
             side="right" 
