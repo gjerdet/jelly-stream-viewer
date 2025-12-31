@@ -550,23 +550,25 @@ const server = http.createServer((req, res) => {
       return;
     }
     
-    exec('sudo systemctl restart jelly-stream-preview', (error, stdout, stderr) => {
+    exec('systemctl restart jelly-stream-preview', (error, stdout, stderr) => {
       if (error) {
         console.error('❌ Failed to restart jelly-stream-preview:', error.message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-          success: false, 
+        res.end(JSON.stringify({
+          success: false,
           error: error.message,
-          stderr: stderr
+          stderr: stderr,
+          stdout: stdout,
         }));
         return;
       }
       
       console.log('✅ jelly-stream-preview restarted successfully');
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ 
-        success: true, 
-        message: 'Service jelly-stream-preview restarted successfully'
+      res.end(JSON.stringify({
+        success: true,
+        message: 'Service jelly-stream-preview restarted successfully',
+        stdout: stdout,
       }));
     });
     return;

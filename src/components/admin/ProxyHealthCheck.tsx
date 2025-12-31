@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Globe, 
-  RefreshCw, 
-  CheckCircle2, 
-  XCircle, 
-  AlertTriangle, 
+import {
+  Globe,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
   Loader2,
-  ExternalLink,
   Shield,
-  Server
+  Server,
+  FileText,
 } from "lucide-react";
 
 interface ProxyCheckResult {
@@ -23,12 +23,22 @@ interface ProxyCheckResult {
   statusText?: string;
   responseTime?: number;
   headers?: Record<string, string>;
+  contentType?: string;
+  bodySnippet?: string;
   error?: string;
   mixedContent?: boolean;
+  viteBlockedHost?: boolean;
+}
+
+function normalizeUrl(input: string) {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+  return `https://${trimmed}`;
 }
 
 export const ProxyHealthCheck = () => {
-  const [proxyUrl, setProxyUrl] = useState("https://update.gjerdet.casa");
+  const [proxyUrl, setProxyUrl] = useState("https://update.gjerdet.casa/");
   const [isChecking, setIsChecking] = useState(false);
   const [result, setResult] = useState<ProxyCheckResult | null>(null);
 
@@ -37,68 +47,75 @@ export const ProxyHealthCheck = () => {
     setResult(null);
 
     const startTime = Date.now();
-    
-    try {
-      // Check for mixed content issues first
-      const currentProtocol = window.location.protocol;
-      const targetUrl = new URL(proxyUrl);
-      const mixedContent = currentProtocol === 'https:' && targetUrl.protocol === 'http:';
 
+    try {
+      const normalized = normalizeUrl(proxyUrl);
+      const target = new URL(normalized);
+      if (!target.pathname) target.pathname = "/";
+
+      // Mixed content detection (browser blocks HTTPS -> HTTP)
+      const mixedContent = window.location.protocol === "https:" && target.protocol === "http:";
       if (mixedContent) {
         setResult({
-          url: proxyUrl,
+          url: target.toString(),
           success: false,
-          error: "Mixed Content: HTTPS-side kan ikke laste HTTP-ressurser",
           mixedContent: true,
+          error: "Mixed Content: Du kan ikke teste en http:// URL fra en https:// side",
         });
-        setIsChecking(false);
         return;
       }
 
-      // Try to fetch health endpoint
-      const healthUrl = `${proxyUrl.replace(/\/$/, '')}/health`;
-      
-      const response = await fetch(healthUrl, {
-        method: 'GET',
+      const response = await fetch(target.toString(), {
+        method: "GET",
         headers: {
-          'Accept': 'application/json',
+          Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
         },
         signal: AbortSignal.timeout(10000),
       });
 
       const responseTime = Date.now() - startTime;
 
-      // Extract relevant headers
       const headers: Record<string, string> = {};
       response.headers.forEach((value, key) => {
-        if (['content-type', 'server', 'x-powered-by', 'access-control-allow-origin'].includes(key.toLowerCase())) {
+        const k = key.toLowerCase();
+        if (["content-type", "server", "via", "x-powered-by", "access-control-allow-origin"].includes(k)) {
           headers[key] = value;
         }
       });
 
-      const data = await response.json().catch(() => null);
+      const contentType = response.headers.get("content-type") || undefined;
+      const bodyText = await response.text().catch(() => "");
+      const bodySnippet = bodyText ? bodyText.slice(0, 500) : undefined;
+
+      const viteBlockedHost = bodyText.includes("Blocked request. This host is not allowed");
+
+      const ok = response.ok && !viteBlockedHost;
 
       setResult({
-        url: proxyUrl,
-        success: response.ok,
+        url: target.toString(),
+        success: ok,
         status: response.status,
         statusText: response.statusText,
         responseTime,
         headers,
-        error: response.ok ? undefined : `HTTP ${response.status}: ${response.statusText}`,
+        contentType,
+        bodySnippet,
+        viteBlockedHost,
+        error: ok
+          ? undefined
+          : viteBlockedHost
+            ? "Vite blokkerer host-header (allowedHosts)"
+            : `HTTP ${response.status}: ${response.statusText}`,
       });
     } catch (err) {
       const responseTime = Date.now() - startTime;
-      
-      let errorMessage = "Ukjent feil";
-      let mixedContent = false;
 
+      let errorMessage = "Ukjent feil";
       if (err instanceof Error) {
-        if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
-          // Could be CORS, network error, or mixed content
-          errorMessage = "Kunne ikke koble til serveren (CORS/Network error)";
-        } else if (err.name === 'AbortError' || err.message.includes('timeout')) {
-          errorMessage = "Timeout - serveren svarte ikke innen 10 sekunder";
+        if (err.name === "TypeError" && err.message.includes("Failed to fetch")) {
+          errorMessage = "Kunne ikke koble til (CORS/Network error)";
+        } else if (err.name === "AbortError" || err.message.toLowerCase().includes("timeout")) {
+          errorMessage = "Timeout (10s)";
         } else {
           errorMessage = err.message;
         }
@@ -109,7 +126,6 @@ export const ProxyHealthCheck = () => {
         success: false,
         responseTime,
         error: errorMessage,
-        mixedContent,
       });
     } finally {
       setIsChecking(false);
@@ -124,18 +140,20 @@ export const ProxyHealthCheck = () => {
           <CardTitle>Proxy Health Check</CardTitle>
         </div>
         <CardDescription>
-          Test tilgang til web-UI via ekstern proxy (update.gjerdet.casa)
+          Tester om domenet/proxyen faktisk når web-UI, og viser typiske Vite/Host-feil.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <div className="flex-1">
-            <Label htmlFor="proxy-url" className="sr-only">Proxy URL</Label>
+            <Label htmlFor="proxy-url" className="sr-only">
+              Proxy URL
+            </Label>
             <Input
               id="proxy-url"
               value={proxyUrl}
               onChange={(e) => setProxyUrl(e.target.value)}
-              placeholder="https://update.gjerdet.casa"
+              placeholder="https://update.gjerdet.casa/"
             />
           </div>
           <Button onClick={checkProxy} disabled={isChecking}>
@@ -150,57 +168,56 @@ export const ProxyHealthCheck = () => {
 
         {result && (
           <div className="space-y-4">
-            {/* Status Badge */}
             <div className="flex items-center gap-3">
               {result.success ? (
-                <CheckCircle2 className="h-6 w-6 text-green-500" />
+                <CheckCircle2 className="h-6 w-6 text-primary" />
               ) : (
-                <XCircle className="h-6 w-6 text-red-500" />
+                <XCircle className="h-6 w-6 text-destructive" />
               )}
               <div>
                 <Badge variant={result.success ? "default" : "destructive"}>
-                  {result.success ? "Tilgjengelig" : "Ikke tilgjengelig"}
+                  {result.success ? "Tilgjengelig" : "Feil"}
                 </Badge>
-                {result.responseTime && (
-                  <span className="ml-2 text-sm text-muted-foreground">
-                    {result.responseTime}ms
-                  </span>
+                {typeof result.responseTime === "number" && (
+                  <span className="ml-2 text-sm text-muted-foreground">{result.responseTime}ms</span>
                 )}
               </div>
             </div>
 
-            {/* Error Message */}
             {result.error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4">
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4">
                 <div className="flex gap-2">
-                  <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0" />
+                  <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
                   <div className="space-y-2">
-                    <p className="text-sm font-medium text-red-600 dark:text-red-400">
-                      {result.error}
-                    </p>
-                    
+                    <p className="text-sm font-medium text-destructive">{result.error}</p>
+
                     {result.mixedContent && (
                       <div className="text-xs text-muted-foreground space-y-1">
                         <p className="flex items-center gap-1">
-                          <Shield className="h-3 w-3" />
-                          Mixed Content blokkert av nettleseren
+                          <Shield className="h-3 w-3" /> Mixed Content blokkert av nettleseren
                         </p>
                         <p>
-                          <strong>Løsning:</strong> Bruk HTTPS for git-pull serveren, eller 
-                          åpne admin-panelet via lokal IP (http://192.168.9.24:4173)
+                          Løsning: bruk HTTPS på proxyen (anbefalt) eller test fra en HTTP-side.
                         </p>
                       </div>
                     )}
-                    
-                    {!result.mixedContent && result.error.includes('CORS') && (
+
+                    {result.viteBlockedHost && (
                       <div className="text-xs text-muted-foreground space-y-1">
-                        <p>Mulige årsaker:</p>
-                        <ul className="list-disc list-inside">
-                          <li>Git-pull serveren kjører ikke</li>
-                          <li>Proxy/tunnel er ikke aktiv</li>
-                          <li>Feil port eller URL</li>
-                          <li>Brannmur blokkerer tilgang</li>
-                        </ul>
+                        <p>
+                          Dette betyr at Vite Preview har avvist domenet i <code className="bg-muted px-1 rounded">Host</code>-headeren.
+                        </p>
+                        <p>
+                          Løsning: sett <code className="bg-muted px-1 rounded">allowedHosts: true</code> og restart web-UI.
+                        </p>
+                      </div>
+                    )}
+
+                    {!result.mixedContent && !result.viteBlockedHost && result.error.includes("CORS") && (
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>
+                          Tips: denne testen fungerer best når du åpner admin via samme domene (ellers kan CORS stoppe fetch()).
+                        </p>
                       </div>
                     )}
                   </div>
@@ -208,23 +225,22 @@ export const ProxyHealthCheck = () => {
               </div>
             )}
 
-            {/* Success Details */}
             {result.success && (
-              <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
+              <div className="rounded-lg border border-primary/20 bg-primary/10 p-4">
                 <div className="flex gap-2">
-                  <Server className="h-5 w-5 text-green-500 flex-shrink-0" />
+                  <Server className="h-5 w-5 text-primary flex-shrink-0" />
                   <div className="space-y-2 flex-1">
-                    <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                      Proxy fungerer korrekt
-                    </p>
-                    {result.status && (
-                      <p className="text-xs text-muted-foreground">
-                        HTTP Status: {result.status} {result.statusText}
+                    <p className="text-sm font-medium text-primary">Proxy ser OK ut</p>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p>
+                        HTTP: {result.status} {result.statusText}
                       </p>
-                    )}
+                      {result.contentType && <p>Content-Type: {result.contentType}</p>}
+                    </div>
+
                     {result.headers && Object.keys(result.headers).length > 0 && (
                       <div className="text-xs text-muted-foreground">
-                        <p className="font-medium mb-1">Response Headers:</p>
+                        <p className="font-medium mb-1">Headers (utvalg):</p>
                         <div className="font-mono bg-background/50 rounded p-2 space-y-0.5">
                           {Object.entries(result.headers).map(([key, value]) => (
                             <div key={key}>
@@ -239,31 +255,22 @@ export const ProxyHealthCheck = () => {
               </div>
             )}
 
-            {/* Tips */}
-            <div className="text-xs text-muted-foreground border-t pt-4 mt-4">
-              <p className="font-medium mb-2">Feilsøkingstips:</p>
-              <ul className="space-y-1">
-                <li className="flex items-start gap-2">
-                  <span>•</span>
-                  <span>Sjekk at <code className="bg-muted px-1 rounded">jelly-git-pull</code> tjenesten kjører på port 3002</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>•</span>
-                  <span>Verifiser at Cloudflare tunnel / proxy ruter til riktig intern adresse</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span>•</span>
-                  <span>For HTTPS-sider må proxy også bruke HTTPS for å unngå mixed content</span>
-                </li>
-              </ul>
-            </div>
+            {result.bodySnippet && (
+              <div className="rounded-lg border bg-card p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">Respons (første 500 tegn)</p>
+                </div>
+                <pre className="text-xs text-muted-foreground whitespace-pre-wrap break-words font-mono bg-background/50 rounded p-2">
+                  {result.bodySnippet}
+                </pre>
+              </div>
+            )}
           </div>
         )}
 
         {!result && !isChecking && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Klikk "Test" for å sjekke proxy-tilkobling
-          </p>
+          <p className="text-sm text-muted-foreground text-center py-4">Klikk “Test” for å sjekke proxyen</p>
         )}
       </CardContent>
     </Card>

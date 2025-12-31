@@ -2,29 +2,30 @@ import { useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Server, 
-  RefreshCw, 
-  Play, 
-  Loader2, 
-  CheckCircle2, 
+import {
+  Server,
+  RefreshCw,
+  Play,
+  Loader2,
+  CheckCircle2,
   XCircle,
   Clock,
-  Hash
+  Hash,
+  AlertTriangle,
 } from "lucide-react";
 import { useServiceStatus, ServiceInfo } from "@/hooks/useServiceStatus";
 import { toast } from "sonner";
 
 const ServiceCard = ({ service }: { service: ServiceInfo }) => {
   const isActive = service.active;
-  
+  const notFound = service.loadState === "not-found";
+
   const formatStartTime = (timestamp: string | null) => {
     if (!timestamp) return null;
     try {
-      // Parse systemd timestamp format
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return timestamp;
-      return date.toLocaleString('no-NO');
+      return date.toLocaleString("no-NO");
     } catch {
       return timestamp;
     }
@@ -44,19 +45,37 @@ const ServiceCard = ({ service }: { service: ServiceInfo }) => {
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <XCircle className="h-3 w-3" /> {service.state}
+              <XCircle className="h-3 w-3" /> {notFound ? "not-found" : service.state}
             </span>
           )}
         </Badge>
       </div>
-      
+
+      {notFound && (
+        <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 mb-3">
+          <div className="flex gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+            <div className="text-xs text-muted-foreground">
+              Finner ikke systemd-service <code className="bg-muted px-1 rounded">{service.name}</code>. Kjør
+              <code className="bg-muted px-1 rounded ml-1">sudo bash setup-preview-service.sh</code>
+              for å opprette den.
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2 text-xs text-muted-foreground">
+        <div className="flex justify-between">
+          <span>LoadState:</span>
+          <span className="font-mono">{service.loadState}</span>
+        </div>
+
         <div className="flex justify-between">
           <span>State:</span>
           <span className="font-mono">{service.activeState}/{service.subState}</span>
         </div>
-        
-        {service.pid && service.pid !== '0' && (
+
+        {service.pid && service.pid !== "0" && (
           <div className="flex justify-between">
             <span className="flex items-center gap-1">
               <Hash className="h-3 w-3" /> PID:
@@ -64,15 +83,13 @@ const ServiceCard = ({ service }: { service: ServiceInfo }) => {
             <span className="font-mono">{service.pid}</span>
           </div>
         )}
-        
+
         {service.startedAt && (
           <div className="flex justify-between">
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" /> Started:
             </span>
-            <span className="font-mono text-right">
-              {formatStartTime(service.startedAt)}
-            </span>
+            <span className="font-mono text-right">{formatStartTime(service.startedAt)}</span>
           </div>
         )}
       </div>
@@ -87,17 +104,16 @@ export const ServiceStatusPanel = () => {
     fetchStatus();
   }, [fetchStatus]);
 
+  const previewService = status?.services?.["jelly-stream-preview"];
+  const gitPullService = status?.services?.["jelly-git-pull"];
+
+  const disableRestart = isLoading || !previewService || previewService.loadState === "not-found";
+
   const handleRestart = async () => {
     const success = await restartPreview();
-    if (success) {
-      toast.success("jelly-stream-preview restartet");
-    } else {
-      toast.error("Kunne ikke restarte tjenesten");
-    }
+    if (success) toast.success("Restartet web-UI");
+    else toast.error("Kunne ikke restarte web-UI");
   };
-
-  const previewService = status?.services?.['jelly-stream-preview'];
-  const gitPullService = status?.services?.['jelly-git-pull'];
 
   return (
     <Card>
@@ -108,40 +124,26 @@ export const ServiceStatusPanel = () => {
             <CardTitle>Systemd Services</CardTitle>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={fetchStatus}
-              disabled={isLoading}
-            >
+            <Button variant="outline" size="sm" onClick={fetchStatus} disabled={isLoading}>
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
               )}
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleRestart}
-              disabled={isLoading}
-            >
+            <Button variant="secondary" size="sm" onClick={handleRestart} disabled={disableRestart}>
               <Play className="h-4 w-4 mr-1" />
               Restart Web UI
             </Button>
           </div>
         </div>
-        <CardDescription>
-          Status for lokale systemd-tjenester (port 4173 og 3002)
-        </CardDescription>
+        <CardDescription>Status for lokale systemd-tjenester (4173 og 3002)</CardDescription>
       </CardHeader>
       <CardContent>
         {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 mb-4">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sjekk at git-pull serveren kjører og er tilgjengelig
-            </p>
+          <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 mb-4">
+            <p className="text-sm text-destructive">{error}</p>
+            <p className="text-xs text-muted-foreground mt-1">Sjekk at git-pull serveren kjører og er tilgjengelig.</p>
           </div>
         )}
 
@@ -160,7 +162,7 @@ export const ServiceStatusPanel = () => {
 
         {status && (
           <p className="text-xs text-muted-foreground text-right mt-4">
-            Sist oppdatert: {new Date(status.timestamp).toLocaleTimeString('no-NO')}
+            Sist oppdatert: {new Date(status.timestamp).toLocaleTimeString("no-NO")}
           </p>
         )}
       </CardContent>
