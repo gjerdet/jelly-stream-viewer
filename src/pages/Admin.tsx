@@ -33,6 +33,7 @@ import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager"
 import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { ProxyHealthCheck } from "@/components/admin/ProxyHealthCheck";
 import { ServiceStatusPanel } from "@/components/admin/ServiceStatusPanel";
+import { SystemDiagnosticsPanel } from "@/components/admin/SystemDiagnosticsPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -1139,6 +1140,9 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </TabsContent>
 
             <TabsContent value="servers" className="space-y-6 mt-0">
+              {/* System Diagnostics */}
+              <SystemDiagnosticsPanel />
+              
               {/* Service Status & Proxy Health */}
               <div className="grid gap-6 lg:grid-cols-2">
                 <ServiceStatusPanel />
