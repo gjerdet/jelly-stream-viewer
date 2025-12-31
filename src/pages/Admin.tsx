@@ -31,7 +31,7 @@ import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
 import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
 import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager";
 import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
-import { ProxyHealthCheck } from "@/components/admin/ProxyHealthCheck";
+
 import { ServiceStatusPanel } from "@/components/admin/ServiceStatusPanel";
 import { SystemDiagnosticsPanel } from "@/components/admin/SystemDiagnosticsPanel";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -1143,11 +1143,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               {/* System Diagnostics */}
               <SystemDiagnosticsPanel />
               
-              {/* Service Status & Proxy Health */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                <ServiceStatusPanel />
-                <ProxyHealthCheck />
-              </div>
+              {/* Service Status */}
+              <ServiceStatusPanel />
 
               <Card className="border-border/50">
                 <CardHeader>
