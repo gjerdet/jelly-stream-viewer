@@ -34,9 +34,11 @@ const getGitPullBaseUrl = async () => {
   const { data: settings } = await supabase
     .from("server_settings")
     .select("setting_key, setting_value")
-    .in("setting_key", ["git_pull_server_url", "update_webhook_secret"]);
+    .in("setting_key", ["git_pull_server_url", "update_webhook_url", "update_webhook_secret"]);
 
-  const gitPullUrl = settings?.find(s => s.setting_key === "git_pull_server_url")?.setting_value;
+  // Try git_pull_server_url first, fallback to update_webhook_url
+  const gitPullUrl = settings?.find(s => s.setting_key === "git_pull_server_url")?.setting_value
+    || settings?.find(s => s.setting_key === "update_webhook_url")?.setting_value;
   const secret = settings?.find(s => s.setting_key === "update_webhook_secret")?.setting_value;
 
   if (!gitPullUrl) {
