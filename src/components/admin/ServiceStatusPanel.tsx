@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,11 +12,27 @@ import {
   Clock,
   Hash,
   AlertTriangle,
+  FileText,
+  X,
 } from "lucide-react";
 import { useServiceStatus, ServiceInfo } from "@/hooks/useServiceStatus";
 import { toast } from "sonner";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const ServiceCard = ({ service }: { service: ServiceInfo }) => {
+const ServiceCard = ({ 
+  service, 
+  onViewLogs 
+}: { 
+  service: ServiceInfo;
+  onViewLogs: (serviceName: string) => void;
+}) => {
   const isActive = service.active;
   const notFound = service.loadState === "not-found";
 
@@ -93,12 +109,37 @@ const ServiceCard = ({ service }: { service: ServiceInfo }) => {
           </div>
         )}
       </div>
+
+      {!notFound && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full mt-3"
+          onClick={() => onViewLogs(service.name)}
+        >
+          <FileText className="h-3 w-3 mr-1" />
+          Vis logger
+        </Button>
+      )}
     </div>
   );
 };
 
 export const ServiceStatusPanel = () => {
-  const { status, isLoading, error, fetchStatus, restartPreview } = useServiceStatus();
+  const { 
+    status, 
+    isLoading, 
+    error, 
+    logs, 
+    logsLoading, 
+    fetchStatus, 
+    fetchLogs, 
+    restartPreview,
+    clearLogs 
+  } = useServiceStatus();
+  
+  const [logsDialogOpen, setLogsDialogOpen] = useState(false);
+  const [selectedService, setSelectedService] = useState<string>("");
 
   useEffect(() => {
     fetchStatus();
@@ -115,57 +156,120 @@ export const ServiceStatusPanel = () => {
     else toast.error("Kunne ikke restarte web-UI");
   };
 
+  const handleViewLogs = (serviceName: string) => {
+    setSelectedService(serviceName);
+    setLogsDialogOpen(true);
+    fetchLogs(serviceName, 100);
+  };
+
+  const handleCloseLogsDialog = () => {
+    setLogsDialogOpen(false);
+    clearLogs();
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
-            <CardTitle>Systemd Services</CardTitle>
+    <>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Server className="h-5 w-5" />
+              <CardTitle>Systemd Services</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={fetchStatus} disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleRestart} disabled={disableRestart}>
+                <Play className="h-4 w-4 mr-1" />
+                Restart Web UI
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={fetchStatus} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
+          <CardDescription>Status for lokale systemd-tjenester (4173 og 3002)</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 mb-4">
+              <p className="text-sm text-destructive">{error}</p>
+              <p className="text-xs text-muted-foreground mt-1">Sjekk at git-pull serveren kjører og er tilgjengelig.</p>
+            </div>
+          )}
+
+          {!status && !error && isLoading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {status && (
+            <div className="grid gap-4 md:grid-cols-2">
+              {previewService && <ServiceCard service={previewService} onViewLogs={handleViewLogs} />}
+              {gitPullService && <ServiceCard service={gitPullService} onViewLogs={handleViewLogs} />}
+            </div>
+          )}
+
+          {status && (
+            <p className="text-xs text-muted-foreground text-right mt-4">
+              Sist oppdatert: {new Date(status.timestamp).toLocaleTimeString("no-NO")}
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={logsDialogOpen} onOpenChange={setLogsDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Logger for {selectedService}
+            </DialogTitle>
+            <DialogDescription>
+              Siste 100 linjer fra journalctl
+            </DialogDescription>
+          </DialogHeader>
+          
+          {logsLoading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+
+          {logs && !logsLoading && (
+            <ScrollArea className="h-[50vh] rounded border bg-muted/50 p-4">
+              <pre className="text-xs font-mono whitespace-pre-wrap break-all">
+                {logs.logs || "Ingen logger tilgjengelig"}
+              </pre>
+            </ScrollArea>
+          )}
+
+          {logs?.error && (
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">{logs.error}</p>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchLogs(selectedService, 100)}
+              disabled={logsLoading}
+            >
+              {logsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              <span className="ml-2">Oppdater</span>
             </Button>
-            <Button variant="secondary" size="sm" onClick={handleRestart} disabled={disableRestart}>
-              <Play className="h-4 w-4 mr-1" />
-              Restart Web UI
+            <Button variant="ghost" size="sm" onClick={handleCloseLogsDialog}>
+              <X className="h-4 w-4 mr-1" />
+              Lukk
             </Button>
           </div>
-        </div>
-        <CardDescription>Status for lokale systemd-tjenester (4173 og 3002)</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {error && (
-          <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-4 mb-4">
-            <p className="text-sm text-destructive">{error}</p>
-            <p className="text-xs text-muted-foreground mt-1">Sjekk at git-pull serveren kjører og er tilgjengelig.</p>
-          </div>
-        )}
-
-        {!status && !error && isLoading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
-
-        {status && (
-          <div className="grid gap-4 md:grid-cols-2">
-            {previewService && <ServiceCard service={previewService} />}
-            {gitPullService && <ServiceCard service={gitPullService} />}
-          </div>
-        )}
-
-        {status && (
-          <p className="text-xs text-muted-foreground text-right mt-4">
-            Sist oppdatert: {new Date(status.timestamp).toLocaleTimeString("no-NO")}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

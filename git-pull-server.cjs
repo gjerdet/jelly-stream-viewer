@@ -488,6 +488,165 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Diagnostics endpoint - check Node version, dist/ permissions, and Netdata status
+  if (req.url === '/diagnostics' && req.method === 'GET') {
+    console.log('🔍 Received diagnostics request');
+    
+    const results = {
+      node: { ok: false, version: '', required: '20.0.0', message: '' },
+      distPermissions: { ok: false, writable: false, exists: false, message: '' },
+      netdata: { ok: false, running: false, message: '' },
+      services: {
+        preview: { ok: false, active: false, exists: false },
+        gitPull: { ok: false, active: false, exists: false }
+      }
+    };
+    
+    // Check Node version
+    try {
+      const nodeVersion = process.version.replace('v', '');
+      const majorVersion = parseInt(nodeVersion.split('.')[0], 10);
+      results.node.version = process.version;
+      results.node.ok = majorVersion >= 20;
+      results.node.message = majorVersion >= 20 
+        ? `Node ${process.version} ✓` 
+        : `Node ${process.version} er for gammel. Krever v20+`;
+    } catch (err) {
+      results.node.message = `Kunne ikke sjekke Node-versjon: ${err.message}`;
+    }
+    
+    // Check dist/ permissions
+    const distPath = path.join(APP_DIR, 'dist');
+    try {
+      results.distPermissions.exists = fs.existsSync(distPath);
+      if (results.distPermissions.exists) {
+        // Try to write a test file
+        const testFile = path.join(distPath, '.write-test-' + Date.now());
+        try {
+          fs.writeFileSync(testFile, 'test');
+          fs.unlinkSync(testFile);
+          results.distPermissions.writable = true;
+          results.distPermissions.ok = true;
+          results.distPermissions.message = 'dist/ er skrivbar ✓';
+        } catch (writeErr) {
+          results.distPermissions.writable = false;
+          results.distPermissions.message = `Ingen skrivetilgang til dist/: ${writeErr.message}`;
+        }
+      } else {
+        // dist/ doesn't exist - check if we can create it
+        try {
+          fs.mkdirSync(distPath);
+          fs.rmdirSync(distPath);
+          results.distPermissions.writable = true;
+          results.distPermissions.ok = true;
+          results.distPermissions.message = 'dist/ eksisterer ikke, men kan opprettes ✓';
+        } catch (createErr) {
+          results.distPermissions.writable = false;
+          results.distPermissions.message = `Kan ikke opprette dist/: ${createErr.message}`;
+        }
+      }
+    } catch (err) {
+      results.distPermissions.message = `Feil ved sjekk av dist/: ${err.message}`;
+    }
+    
+    // Check Netdata status
+    const checkNetdata = () => {
+      return new Promise((resolve) => {
+        exec('systemctl is-active netdata', (error, stdout) => {
+          const isActive = stdout.trim() === 'active';
+          if (isActive) {
+            results.netdata.ok = true;
+            results.netdata.running = true;
+            results.netdata.message = 'Netdata kjører ✓';
+          } else {
+            // Check if installed but not running
+            exec('which netdata', (err2, which) => {
+              if (which && which.trim()) {
+                results.netdata.running = false;
+                results.netdata.message = 'Netdata er installert men kjører ikke';
+              } else {
+                results.netdata.running = false;
+                results.netdata.message = 'Netdata er ikke installert';
+              }
+              resolve();
+            });
+            return;
+          }
+          resolve();
+        });
+      });
+    };
+    
+    // Check service status
+    const checkService = (name) => {
+      return new Promise((resolve) => {
+        exec(`systemctl is-active ${name}`, (error, stdout) => {
+          const isActive = stdout.trim() === 'active';
+          exec(`systemctl show ${name} --property=LoadState`, (err2, details) => {
+            const loadState = details ? details.split('=')[1]?.trim() : 'unknown';
+            resolve({
+              ok: isActive,
+              active: isActive,
+              exists: loadState !== 'not-found'
+            });
+          });
+        });
+      });
+    };
+    
+    Promise.all([
+      checkNetdata(),
+      checkService('jelly-stream-preview'),
+      checkService('jelly-git-pull')
+    ]).then(([_, previewStatus, gitPullStatus]) => {
+      results.services.preview = previewStatus;
+      results.services.gitPull = gitPullStatus;
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: true,
+        diagnostics: results,
+        fixCommands: {
+          nodeVersion: 'nvm install 20 && nvm use 20',
+          distPermissions: `sudo chown -R $(whoami):$(whoami) ${APP_DIR} && sudo rm -rf ${distPath}`,
+          netdataInstall: 'bash <(curl -Ss https://my-netdata.io/kickstart.sh) --dont-wait --disable-telemetry',
+          netdataStart: 'sudo systemctl start netdata && sudo systemctl enable netdata',
+          previewService: 'sudo bash setup-preview-service.sh',
+          gitPullService: 'sudo bash setup-git-pull-service.sh'
+        },
+        timestamp: new Date().toISOString()
+      }));
+    });
+    return;
+  }
+
+  // Service logs endpoint - get recent journalctl logs for a service
+  if (req.url?.startsWith('/service-logs') && req.method === 'GET') {
+    const urlParts = new URL(req.url, `http://${req.headers.host}`);
+    const serviceName = urlParts.searchParams.get('service') || 'jelly-stream-preview';
+    const lines = parseInt(urlParts.searchParams.get('lines') || '50', 10);
+    
+    // Validate service name to prevent command injection
+    const allowedServices = ['jelly-stream-preview', 'jelly-git-pull', 'netdata'];
+    if (!allowedServices.includes(serviceName)) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Invalid service name' }));
+      return;
+    }
+    
+    exec(`journalctl -u ${serviceName} -n ${Math.min(lines, 500)} --no-pager`, (error, stdout, stderr) => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        success: !error,
+        service: serviceName,
+        logs: stdout || stderr || 'No logs available',
+        error: error ? error.message : null,
+        timestamp: new Date().toISOString()
+      }));
+    });
+    return;
+  }
+
   // Service status endpoint - get systemd status for jelly-stream-preview
   if (req.url === '/service-status' && req.method === 'GET') {
     console.log('📊 Received service-status request');

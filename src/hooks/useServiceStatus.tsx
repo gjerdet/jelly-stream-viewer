@@ -22,36 +22,48 @@ export interface ServiceStatusResult {
   error?: string;
 }
 
+export interface ServiceLogsResult {
+  success: boolean;
+  service: string;
+  logs: string;
+  error: string | null;
+  timestamp: string;
+}
+
+const getGitPullBaseUrl = async () => {
+  const { data: settings } = await supabase
+    .from("server_settings")
+    .select("setting_key, setting_value")
+    .in("setting_key", ["git_pull_server_url", "update_webhook_secret"]);
+
+  const gitPullUrl = settings?.find(s => s.setting_key === "git_pull_server_url")?.setting_value;
+  const secret = settings?.find(s => s.setting_key === "update_webhook_secret")?.setting_value;
+
+  if (!gitPullUrl) {
+    throw new Error("Git pull server URL ikke konfigurert");
+  }
+
+  let baseUrl = gitPullUrl.replace(/\/$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  return { baseUrl, secret };
+};
+
 export const useServiceStatus = () => {
   const [status, setStatus] = useState<ServiceStatusResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs] = useState<ServiceLogsResult | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   const fetchStatus = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Get git_pull_server_url from database
-      const { data: settings } = await supabase
-        .from("server_settings")
-        .select("setting_value")
-        .eq("setting_key", "git_pull_server_url")
-        .maybeSingle();
-
-      const gitPullUrl = settings?.setting_value;
-      
-      if (!gitPullUrl) {
-        setError("Git pull server URL ikke konfigurert");
-        setIsLoading(false);
-        return null;
-      }
-
-      // Normalize URL
-      let baseUrl = gitPullUrl.replace(/\/$/, '');
-      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        baseUrl = `http://${baseUrl}`;
-      }
+      const { baseUrl } = await getGitPullBaseUrl();
 
       const response = await fetch(`${baseUrl}/service-status`, {
         method: 'GET',
@@ -77,29 +89,42 @@ export const useServiceStatus = () => {
     }
   }, []);
 
+  const fetchLogs = useCallback(async (serviceName: string, lines: number = 50) => {
+    setLogsLoading(true);
+
+    try {
+      const { baseUrl } = await getGitPullBaseUrl();
+
+      const response = await fetch(`${baseUrl}/service-logs?service=${serviceName}&lines=${lines}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: ServiceLogsResult = await response.json();
+      setLogs(data);
+      setLogsLoading(false);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ukjent feil";
+      setLogs({ success: false, service: serviceName, logs: '', error: message, timestamp: new Date().toISOString() });
+      setLogsLoading(false);
+      return null;
+    }
+  }, []);
+
   const restartPreview = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const { data: settings } = await supabase
-        .from("server_settings")
-        .select("setting_key, setting_value")
-        .in("setting_key", ["git_pull_server_url", "update_webhook_secret"]);
-
-      const gitPullUrl = settings?.find(s => s.setting_key === "git_pull_server_url")?.setting_value;
-      const secret = settings?.find(s => s.setting_key === "update_webhook_secret")?.setting_value;
-
-      if (!gitPullUrl) {
-        setError("Git pull server URL ikke konfigurert");
-        setIsLoading(false);
-        return false;
-      }
-
-      let baseUrl = gitPullUrl.replace(/\/$/, '');
-      if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-        baseUrl = `http://${baseUrl}`;
-      }
+      const { baseUrl, secret } = await getGitPullBaseUrl();
 
       const response = await fetch(`${baseUrl}/restart-preview`, {
         method: 'POST',
@@ -129,11 +154,19 @@ export const useServiceStatus = () => {
     }
   }, [fetchStatus]);
 
+  const clearLogs = useCallback(() => {
+    setLogs(null);
+  }, []);
+
   return {
     status,
     isLoading,
     error,
+    logs,
+    logsLoading,
     fetchStatus,
+    fetchLogs,
     restartPreview,
+    clearLogs,
   };
 };
