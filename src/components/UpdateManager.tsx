@@ -8,7 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe, Wrench, ExternalLink } from "lucide-react";
+import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe, Wrench, ExternalLink, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -64,6 +64,16 @@ export const UpdateManager = () => {
     canAutoFix: boolean;
     localAppUrl?: string;
   } | null>(null);
+
+  // Connection test state
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{
+    status: 'idle' | 'ok' | 'error';
+    message: string;
+    details?: string;
+    suggestion?: string;
+    url?: string;
+  }>({ status: 'idle', message: '' });
 
   // Helper to check if a URL is a local/private IP
   const isLocalUrl = (url: string) => {
@@ -159,6 +169,109 @@ export const UpdateManager = () => {
       setIsSetupComplete(false);
     } finally {
       setChecking(false);
+    }
+  };
+
+  // Test connection to git-pull server
+  const testConnection = async () => {
+    setTestingConnection(true);
+    setConnectionStatus({ status: 'idle', message: language === 'no' ? 'Testar tilkobling...' : 'Testing connection...' });
+
+    try {
+      // Get git-pull URL from settings
+      const { data: settings } = await supabase
+        .from('server_settings')
+        .select('setting_key, setting_value')
+        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
+
+      const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
+      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url');
+
+      if (!gitPullUrl) {
+        setConnectionStatus({
+          status: 'error',
+          message: language === 'no' ? 'Git-pull URL er ikkje konfigurert' : 'Git-pull URL is not configured',
+          suggestion: language === 'no' ? 'Gå til Servere-fanen og sett inn Git Pull Server URL' : 'Go to Servers tab and enter Git Pull Server URL',
+        });
+        return;
+      }
+
+      // Build health URL
+      let healthUrl = gitPullUrl;
+      if (healthUrl.endsWith('/git-pull')) {
+        healthUrl = healthUrl.replace(/\/git-pull$/, '/health');
+      } else {
+        healthUrl = healthUrl.replace(/\/$/, '') + '/health';
+      }
+
+      // Check for mixed content issue BEFORE trying fetch
+      if (window.location.protocol === 'https:' && healthUrl.startsWith('http:')) {
+        setConnectionStatus({
+          status: 'error',
+          message: language === 'no' ? 'Blokkert: HTTPS → HTTP' : 'Blocked: HTTPS → HTTP',
+          url: healthUrl,
+          details: language === 'no'
+            ? `Du er på HTTPS (${window.location.origin}), men git-pull serveren brukar HTTP. Nettlesaren blokkerer dette.`
+            : `You are on HTTPS (${window.location.origin}), but git-pull server uses HTTP. Browser blocks this.`,
+          suggestion: language === 'no'
+            ? 'Åpne appen lokalt via http:// (f.eks. http://192.168.x.x:5173) eller legg git-pull serveren bak HTTPS.'
+            : 'Open the app locally via http:// (e.g. http://192.168.x.x:5173) or put git-pull server behind HTTPS.',
+        });
+        return;
+      }
+
+      // Attempt fetch with timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+
+      try {
+        const response = await fetch(healthUrl, { method: 'GET', signal: controller.signal });
+        clearTimeout(timeout);
+
+        if (response.ok) {
+          const data = await response.json().catch(() => ({}));
+          setConnectionStatus({
+            status: 'ok',
+            message: language === 'no' ? 'Tilkobling OK!' : 'Connection OK!',
+            url: healthUrl,
+            details: data.service ? `Service: ${data.service}` : undefined,
+          });
+        } else {
+          const text = await response.text().catch(() => '');
+          setConnectionStatus({
+            status: 'error',
+            message: language === 'no' ? `Feil ${response.status}` : `Error ${response.status}`,
+            url: healthUrl,
+            details: text || undefined,
+            suggestion: language === 'no' ? 'Sjekk at git-pull-server køyrer og er riktig konfigurert.' : 'Check that git-pull-server is running and correctly configured.',
+          });
+        }
+      } catch (fetchErr: any) {
+        clearTimeout(timeout);
+        const isTimeout = fetchErr?.name === 'AbortError';
+        setConnectionStatus({
+          status: 'error',
+          message: isTimeout
+            ? (language === 'no' ? 'Tidsavbrudd (5s)' : 'Timeout (5s)')
+            : (language === 'no' ? 'Kunne ikkje nå serveren' : 'Could not reach server'),
+          url: healthUrl,
+          details: isTimeout
+            ? undefined
+            : (fetchErr?.message || String(fetchErr)),
+          suggestion: language === 'no'
+            ? 'Sjekk at git-pull-server køyrer:\n• sudo systemctl status jelly-git-pull\n• curl http://localhost:3002/health'
+            : 'Check that git-pull-server is running:\n• sudo systemctl status jelly-git-pull\n• curl http://localhost:3002/health',
+        });
+      }
+    } catch (err: any) {
+      console.error('Test connection error:', err);
+      setConnectionStatus({
+        status: 'error',
+        message: language === 'no' ? 'Feil under testing' : 'Error during test',
+        details: err?.message || String(err),
+      });
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -909,6 +1022,77 @@ export const UpdateManager = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Connection Test Section */}
+        <div className="p-4 bg-secondary/20 border border-border rounded-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {connectionStatus.status === 'idle' && <Wifi className="h-4 w-4 text-muted-foreground" />}
+              {connectionStatus.status === 'ok' && <Wifi className="h-4 w-4 text-green-500" />}
+              {connectionStatus.status === 'error' && <WifiOff className="h-4 w-4 text-destructive" />}
+              <p className="text-sm font-medium">
+                {language === 'no' ? 'Git-pull server tilkobling' : 'Git-pull server connection'}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={testConnection}
+              disabled={testingConnection}
+            >
+              {testingConnection ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  {language === 'no' ? 'Testar...' : 'Testing...'}
+                </>
+              ) : (
+                <>
+                  <Wifi className="h-4 w-4 mr-2" />
+                  {language === 'no' ? 'Test tilkobling' : 'Test connection'}
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Connection status result */}
+          {connectionStatus.status !== 'idle' && (
+            <div className={`p-3 rounded-lg ${
+              connectionStatus.status === 'ok' 
+                ? 'bg-green-500/10 border border-green-500/30' 
+                : 'bg-destructive/10 border border-destructive/30'
+            }`}>
+              <div className="flex items-start gap-2">
+                {connectionStatus.status === 'ok' ? (
+                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+                )}
+                <div className="flex-1 space-y-1">
+                  <p className={`text-sm font-medium ${
+                    connectionStatus.status === 'ok' ? 'text-green-500' : 'text-destructive'
+                  }`}>
+                    {connectionStatus.message}
+                  </p>
+                  {connectionStatus.url && (
+                    <p className="text-xs text-muted-foreground font-mono break-all">
+                      {connectionStatus.url}
+                    </p>
+                  )}
+                  {connectionStatus.details && (
+                    <p className="text-xs text-muted-foreground">
+                      {connectionStatus.details}
+                    </p>
+                  )}
+                  {connectionStatus.suggestion && (
+                    <p className="text-xs text-muted-foreground whitespace-pre-line mt-2 p-2 bg-background/50 rounded">
+                      💡 {connectionStatus.suggestion}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Setup instructions - show by default until setup is verified */}
