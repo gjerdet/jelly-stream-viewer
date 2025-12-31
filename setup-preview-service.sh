@@ -36,10 +36,10 @@ rm -rf "$APP_DIR/node_modules/.vite" 2>/dev/null || true
 echo -e "${GREEN}[3/6]${NC} Installing dependencies..."
 cd "$APP_DIR"
 # Prefer Node 20+ if available via nvm, fallback to whatever is installed
-su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; command -v nvm >/dev/null 2>&1 && (nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm install"
+su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; command -v nvm >/dev/null 2>&1 && (nvm install 20.19.0 >/dev/null 2>&1 || true; nvm use 20.19.0 >/dev/null 2>&1 || nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm install"
 
 echo -e "${GREEN}[4/6]${NC} Building application..."
-su - "$ACTUAL_USER" -c "[ -f ~/.nvm/nvm.sh ] && . ~/.nvm/nvm.sh; command -v nvm >/dev/null 2>&1 && (nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm run build"
+su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; command -v nvm >/dev/null 2>&1 && (nvm install 20.19.0 >/dev/null 2>&1 || true; nvm use 20.19.0 >/dev/null 2>&1 || nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm run build"
 
 echo -e "${GREEN}[5/6]${NC} Creating systemd service for preview (port 4173)..."
 
