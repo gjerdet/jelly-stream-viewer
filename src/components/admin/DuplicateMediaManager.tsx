@@ -124,15 +124,27 @@ export const DuplicateMediaManager = () => {
         // Check for multiple versions of the same movie
         const allFiles: MediaFile[] = [];
         const seenPaths = new Set<string>();
+        const seenItemIds = new Set<string>();
         
         movieGroup.forEach((movie: any) => {
+          // Skip if we've already processed this exact Jellyfin item
+          if (seenItemIds.has(movie.Id)) return;
+          seenItemIds.add(movie.Id);
+          
           if (movie.MediaSources && movie.MediaSources.length > 0) {
             movie.MediaSources.forEach((source: any) => {
               const filePath = source.Path || '';
               // Skip if we've already seen this exact file path (avoid duplicates from same file)
               const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
-              if (seenPaths.has(normalizedPath)) return;
-              if (filePath) seenPaths.add(normalizedPath);
+              
+              // Also check by filename only (handles different mount points showing same file)
+              const fileName = normalizedPath.split('/').pop() || '';
+              
+              if (seenPaths.has(normalizedPath) || (fileName && seenPaths.has(fileName))) return;
+              if (filePath) {
+                seenPaths.add(normalizedPath);
+                if (fileName) seenPaths.add(fileName);
+              }
               
               const videoStream = source.MediaStreams?.find((s: any) => s.Type === 'Video');
               const audioStream = source.MediaStreams?.find((s: any) => s.Type === 'Audio');
@@ -153,8 +165,9 @@ export const DuplicateMediaManager = () => {
           }
         });
 
-        // Only add if there are multiple UNIQUE files
+        // Only add if there are multiple UNIQUE files (different actual files, not same file from different libraries)
         if (allFiles.length > 1) {
+          console.log(`Found potential duplicates for "${movieGroup[0].Name}":`, allFiles.map(f => ({ path: f.path, size: f.size })));
           foundDuplicates.push({
             title: movieGroup[0].Name,
             type: "Movie",
