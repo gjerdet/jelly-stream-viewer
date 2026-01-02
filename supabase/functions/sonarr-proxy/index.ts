@@ -176,12 +176,30 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error(`Sonarr API error: ${response.status} - ${errorText}`);
       return new Response(
-        JSON.stringify({ error: `Sonarr API error: ${response.status}` }),
+        JSON.stringify({ error: `Sonarr API error: ${response.status}`, details: errorText }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
+    // Handle DELETE responses (often empty body)
+    if (method === 'DELETE') {
+      console.log(`Sonarr ${action} DELETE successful`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const responseText = await response.text();
+    if (!responseText || responseText.trim() === '') {
+      console.log(`Sonarr ${action} returned empty response`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data = JSON.parse(responseText);
     console.log(`Sonarr ${action} response received, items:`, Array.isArray(data) ? data.length : 1);
 
     return new Response(
