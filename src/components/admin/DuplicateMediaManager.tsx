@@ -311,47 +311,63 @@ export const DuplicateMediaManager = () => {
         
         const filePathNorm = normalizePath(file.path);
         const fileName = getFileName(file.path);
-        const normalizedTitle = group.title.toLowerCase().replace(/[^a-z0-9]/g, '');
         
         console.log('Searching for file to delete:', { 
           originalPath: file.path, 
           normalizedPath: filePathNorm, 
-          fileName,
-          normalizedTitle
+          fileName
         });
         
-        // Get ALL movie files from Radarr and match by path (more reliable than title matching)
-        const allFilesResp = await supabase.functions.invoke('radarr-proxy', {
-          body: { action: 'movieFiles' }
+        // Get all movies from Radarr first
+        const moviesResp = await supabase.functions.invoke('radarr-proxy', {
+          body: { action: 'movies' }
         });
         
-        if (allFilesResp.error) throw allFilesResp.error;
-        let movieFiles: any[] = Array.isArray(allFilesResp.data) ? allFilesResp.data : [];
+        if (moviesResp.error) throw moviesResp.error;
+        const movies: any[] = Array.isArray(moviesResp.data) ? moviesResp.data : [];
         
-        console.log('Fetched all movie files from Radarr:', {
-          totalFiles: movieFiles.length,
-          searchingFor: file.path,
-          normalizedSearch: filePathNorm
-        });
+        // Find the movie that might have this file
+        let matchedFile: any = null;
         
-        // Find the matching file by path
-        const matchedFile = movieFiles?.find((f: any) => {
-          if (!f.path) return false;
+        for (const movie of movies) {
+          if (!movie.hasFile || !movie.id) continue;
           
-          const radarrPathNorm = normalizePath(f.path);
-          const radarrFileName = getFileName(f.path);
+          // Get files for this movie
+          const filesResp = await supabase.functions.invoke('radarr-proxy', {
+            body: { action: 'movieFiles', params: { movieId: movie.id } }
+          });
           
-          // Strategy 1: Exact path match
-          if (radarrPathNorm === filePathNorm) return true;
+          if (filesResp.error) continue;
+          const movieFiles: any[] = Array.isArray(filesResp.data) ? filesResp.data : [];
           
-          // Strategy 2: Filename exact match
-          if (radarrFileName === fileName && fileName.length > 5) return true;
+          // Check if any file matches our target
+          for (const f of movieFiles) {
+            if (!f.path) continue;
+            
+            const radarrPathNorm = normalizePath(f.path);
+            const radarrFileName = getFileName(f.path);
+            
+            // Strategy 1: Exact path match
+            if (radarrPathNorm === filePathNorm) {
+              matchedFile = f;
+              break;
+            }
+            
+            // Strategy 2: Filename exact match
+            if (radarrFileName === fileName && fileName.length > 5) {
+              matchedFile = f;
+              break;
+            }
+            
+            // Strategy 3: Path ends-with (handles different mount points)
+            if (filePathNorm.endsWith(radarrFileName) || radarrPathNorm.endsWith(fileName)) {
+              matchedFile = f;
+              break;
+            }
+          }
           
-          // Strategy 3: Path ends-with (handles different mount points)
-          if (filePathNorm.endsWith(radarrFileName) || radarrPathNorm.endsWith(fileName)) return true;
-          
-          return false;
-        });
+          if (matchedFile) break;
+        }
         
         const movieFileId = matchedFile?.id;
         
