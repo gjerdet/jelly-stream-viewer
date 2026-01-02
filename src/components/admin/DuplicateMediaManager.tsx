@@ -123,17 +123,24 @@ export const DuplicateMediaManager = () => {
       moviesByName.forEach((movieGroup, normalizedName) => {
         // Check for multiple versions of the same movie
         const allFiles: MediaFile[] = [];
+        const seenPaths = new Set<string>();
         
         movieGroup.forEach((movie: any) => {
           if (movie.MediaSources && movie.MediaSources.length > 0) {
             movie.MediaSources.forEach((source: any) => {
+              const filePath = source.Path || '';
+              // Skip if we've already seen this exact file path (avoid duplicates from same file)
+              const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
+              if (seenPaths.has(normalizedPath)) return;
+              if (filePath) seenPaths.add(normalizedPath);
+              
               const videoStream = source.MediaStreams?.find((s: any) => s.Type === 'Video');
               const audioStream = source.MediaStreams?.find((s: any) => s.Type === 'Audio');
               
               allFiles.push({
                 id: source.Id || movie.Id,
                 name: source.Name || movie.Name,
-                path: source.Path || '',
+                path: filePath,
                 container: source.Container || 'unknown',
                 videoCodec: videoStream?.Codec || 'unknown',
                 audioCodec: audioStream?.Codec || 'unknown',
@@ -146,7 +153,7 @@ export const DuplicateMediaManager = () => {
           }
         });
 
-        // Only add if there are multiple files
+        // Only add if there are multiple UNIQUE files
         if (allFiles.length > 1) {
           foundDuplicates.push({
             title: movieGroup[0].Name,
@@ -170,17 +177,24 @@ export const DuplicateMediaManager = () => {
 
       episodesByKey.forEach((episodeGroup, key) => {
         const allFiles: MediaFile[] = [];
+        const seenPaths = new Set<string>();
         
         episodeGroup.forEach((episode: any) => {
           if (episode.MediaSources && episode.MediaSources.length > 0) {
             episode.MediaSources.forEach((source: any) => {
+              const filePath = source.Path || '';
+              // Skip if we've already seen this exact file path (avoid duplicates from same file)
+              const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
+              if (seenPaths.has(normalizedPath)) return;
+              if (filePath) seenPaths.add(normalizedPath);
+              
               const videoStream = source.MediaStreams?.find((s: any) => s.Type === 'Video');
               const audioStream = source.MediaStreams?.find((s: any) => s.Type === 'Audio');
               
               allFiles.push({
                 id: source.Id || episode.Id,
                 name: source.Name || episode.Name,
-                path: source.Path || '',
+                path: filePath,
                 container: source.Container || 'unknown',
                 videoCodec: videoStream?.Codec || 'unknown',
                 audioCodec: audioStream?.Codec || 'unknown',
@@ -193,6 +207,7 @@ export const DuplicateMediaManager = () => {
           }
         });
 
+        // Only add if there are multiple UNIQUE files
         if (allFiles.length > 1) {
           const firstEpisode = episodeGroup[0];
           foundDuplicates.push({
