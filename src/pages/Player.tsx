@@ -245,87 +245,30 @@ const Player = () => {
   // Get userId from localStorage session (not /Users endpoint which requires admin)
   const { userId } = useJellyfinSession();
 
-  // Direct streaming from Jellyfin with smart codec handling
+  // Stream via edge function proxy to avoid Mixed Content / Private Network Access issues
   useEffect(() => {
     const setupStream = async () => {
-      if (!serverUrl || !id || !userId) return;
+      if (!id) return;
       
-      const jellyfinSession = localStorage.getItem('jellyfin_session');
-      const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+      // Get Supabase session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseToken = session?.access_token;
       
-      if (!accessToken) {
-        console.error('No Jellyfin access token found');
+      if (!supabaseToken) {
+        console.error('No Supabase session token found');
         return;
       }
-
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
       
-      try {
-        // Get media info to check codec
-        const infoUrl = `${normalizedUrl.replace(/\/$/, '')}/Users/${userId}/Items/${id}?Fields=MediaStreams&api_key=${accessToken}`;
-        const infoResponse = await fetch(infoUrl);
-        const itemInfo = await infoResponse.json();
-        
-        const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
-        const videoCodec = videoStream?.Codec?.toLowerCase();
-        
-        console.log(`Video codec: ${videoCodec}, container: ${itemInfo.Container}`);
-        
-        let streamingUrl;
-        // Browser-compatible codecs: H264, VP8, VP9, AV1
-        if (videoCodec && ['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
-          // Direct stream for compatible codecs
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream?`
-            + `UserId=${userId}`
-            + `&Static=true`
-            + `&MediaSourceId=${id}`
-            + `&api_key=${accessToken}`;
-          console.log('Direct streaming (high quality)');
-        } else {
-          // Transcode to MP4 with seeking support
-          streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
-            + `UserId=${userId}`
-            + `&MediaSourceId=${id}`
-            + `&VideoCodec=h264`
-            + `&AudioCodec=aac`
-            + `&VideoBitrate=8000000`
-            + `&AudioBitrate=192000`
-            + `&MaxAudioChannels=2`
-            + `&SegmentContainer=mp4`
-            + `&api_key=${accessToken}`;
-          console.log(`Transcoding ${videoCodec} to MP4 with seeking support`);
-        }
-        
-        setStreamUrl(streamingUrl);
-      } catch (error) {
-        console.error('Failed to get codec info:', error);
-        // Fallback to MP4 transcoding via Jellyfin
-        let normalizedUrl = serverUrl;
-        if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-          normalizedUrl = `http://${normalizedUrl}`;
-        }
-        const jellyfinSession = localStorage.getItem('jellyfin_session');
-        const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
-        
-        const streamingUrl = `${normalizedUrl.replace(/\/$/, '')}/Videos/${id}/stream.mp4?`
-          + `UserId=${userId}`
-          + `&MediaSourceId=${id}`
-          + `&VideoCodec=h264`
-          + `&AudioCodec=aac`
-          + `&VideoBitrate=8000000`
-          + `&AudioBitrate=192000`
-          + `&MaxAudioChannels=2`
-          + `&SegmentContainer=mp4`
-          + `&api_key=${accessToken}`;
-        setStreamUrl(streamingUrl);
-      }
+      // Use edge function proxy for streaming (handles HTTPS→HTTP, codec detection, transcoding)
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
+      const streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+      
+      console.log('Using edge function proxy for streaming');
+      setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [serverUrl, id, userId]);
+  }, [id]);
   
   // Handle video errors
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
