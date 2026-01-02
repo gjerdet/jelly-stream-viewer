@@ -25,6 +25,7 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
+  Info,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,6 +34,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ServiceStatus {
   name: string;
@@ -73,6 +81,7 @@ export const SystemStatusDashboard = () => {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [gitPullBaseUrl, setGitPullBaseUrl] = useState<string | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
+  const [infoDialogOpen, setInfoDialogOpen] = useState<string | null>(null);
 
   // Fetch git-pull server URL from settings
   useEffect(() => {
@@ -188,21 +197,42 @@ export const SystemStatusDashboard = () => {
   }, [gitPullBaseUrl]);
 
   const fetchServiceLogs = async (serviceName: string) => {
-    if (!gitPullBaseUrl) return;
+    if (!gitPullBaseUrl) {
+      toast.error("Git Pull Server URL ikke konfigurert");
+      return;
+    }
 
     setIsLoadingLogs(true);
     try {
+      // Map display name to actual systemd service name
+      const serviceMap: Record<string, string> = {
+        "jelly-stream-preview": "jelly-stream-preview",
+        "jelly-git-pull": "jelly-git-pull",
+      };
+      const actualServiceName = serviceMap[serviceName] || serviceName;
+      
+      console.log(`Fetching logs for service: ${actualServiceName}`);
+      
       const res = await fetch(
-        `${gitPullBaseUrl}/service-logs?service=${serviceName}&lines=100`,
+        `${gitPullBaseUrl}/service-logs?service=${actualServiceName}&lines=100`,
         { signal: AbortSignal.timeout(10000) }
       );
 
       if (res.ok) {
         const data = await res.json();
-        setLogs({ service: serviceName, content: data.logs });
-        setLogsOpen(true);
+        if (data.logs) {
+          setLogs({ service: actualServiceName, content: data.logs });
+          setLogsOpen(true);
+        } else if (data.error) {
+          toast.error(`Feil: ${data.error}`);
+        }
+      } else {
+        const text = await res.text();
+        console.error("Failed to fetch logs:", res.status, text);
+        toast.error(`Kunne ikke hente logger (${res.status})`);
       }
     } catch (error) {
+      console.error("Error fetching logs:", error);
       toast.error("Kunne ikke hente logger");
     } finally {
       setIsLoadingLogs(false);
@@ -417,10 +447,14 @@ export const SystemStatusDashboard = () => {
               <Cpu className="h-4 w-4" />
               Systemkrav
             </CardTitle>
+            <CardDescription>Klikk på et kort for mer informasjon</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+              <button
+                onClick={() => setInfoDialogOpen('nodejs')}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-secondary/30 transition-colors cursor-pointer text-left w-full"
+              >
                 <div className="flex items-center gap-2">
                   <Server className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Node.js</span>
@@ -433,35 +467,148 @@ export const SystemStatusDashboard = () => {
                     <XCircle className="h-4 w-4 text-destructive" />
                   )}
                 </div>
-              </div>
+              </button>
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+              <button
+                onClick={() => setInfoDialogOpen('dist')}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-secondary/30 transition-colors cursor-pointer text-left w-full"
+              >
                 <div className="flex items-center gap-2">
                   <HardDrive className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">dist/ Tilgang</span>
                 </div>
-                {systemInfo.distWritable ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-destructive" />
-                )}
-              </div>
+                <div className="flex items-center gap-2">
+                  {systemInfo.distWritable ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                </div>
+              </button>
 
-              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+              <button
+                onClick={() => setInfoDialogOpen('netdata')}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-secondary/30 transition-colors cursor-pointer text-left w-full"
+              >
                 <div className="flex items-center gap-2">
                   <Activity className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm">Netdata</span>
                 </div>
-                {systemInfo.netdataRunning ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-destructive" />
-                )}
-              </div>
+                <div className="flex items-center gap-2">
+                  {systemInfo.netdataRunning ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-destructive" />
+                  )}
+                </div>
+              </button>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* System Info Dialogs */}
+      <Dialog open={infoDialogOpen === 'nodejs'} onOpenChange={() => setInfoDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Server className="h-5 w-5" />
+              Node.js
+            </DialogTitle>
+            <DialogDescription>
+              Runtime-miljøet for backend-tjenestene
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+              <span className="text-sm text-muted-foreground">Versjon:</span>
+              <span className="font-mono text-sm">{systemInfo?.nodeVersion || 'Ukjent'}</span>
+            </div>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+              <span className="text-sm text-muted-foreground">Status:</span>
+              {systemInfo?.nodeOk ? (
+                <Badge className="bg-green-500/10 text-green-500 border-green-500/20">OK</Badge>
+              ) : (
+                <Badge variant="destructive">Krever oppdatering</Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Node.js v18+ er påkrevd for å kjøre Git Pull Server og andre backend-tjenester. 
+              Hvis versjonen er rød, oppdater Node.js på serveren.
+            </p>
+            <div className="p-3 rounded-lg bg-secondary/30">
+              <p className="text-xs text-muted-foreground mb-1">Sjekk/oppdater Node.js:</p>
+              <code className="text-xs font-mono">nvm install --lts && nvm use --lts</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={infoDialogOpen === 'dist'} onOpenChange={() => setInfoDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              dist/ Tilgang
+            </DialogTitle>
+            <DialogDescription>
+              Skrivetilgang til build-mappen
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+              <span className="text-sm text-muted-foreground">Status:</span>
+              {systemInfo?.distWritable ? (
+                <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Skrivbar</Badge>
+              ) : (
+                <Badge variant="destructive">Ikke skrivbar</Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              dist/-mappen må være skrivbar for at Git Pull Server skal kunne oppdatere frontend-bygget 
+              etter en git pull. Hvis status er rød, sjekk filrettigheter.
+            </p>
+            <div className="p-3 rounded-lg bg-secondary/30 space-y-2">
+              <p className="text-xs text-muted-foreground">Fiks rettigheter:</p>
+              <code className="text-xs font-mono block">sudo chown -R $USER:$USER /path/to/project/dist</code>
+              <code className="text-xs font-mono block">chmod -R 755 /path/to/project/dist</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={infoDialogOpen === 'netdata'} onOpenChange={() => setInfoDialogOpen(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Netdata
+            </DialogTitle>
+            <DialogDescription>
+              Systemovervåking og statistikk
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+              <span className="text-sm text-muted-foreground">Status:</span>
+              {systemInfo?.netdataRunning ? (
+                <Badge className="bg-green-500/10 text-green-500 border-green-500/20">Kjører</Badge>
+              ) : (
+                <Badge variant="destructive">Stoppet</Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Netdata gir sanntidsstatistikk for CPU, minne, nettverk og disk. Den kjører normalt på port 19999. 
+              Hvis status er rød, start Netdata-tjenesten.
+            </p>
+            <div className="p-3 rounded-lg bg-secondary/30 space-y-2">
+              <p className="text-xs text-muted-foreground">Start Netdata:</p>
+              <code className="text-xs font-mono block">sudo systemctl start netdata</code>
+              <code className="text-xs font-mono block">sudo systemctl enable netdata</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Ports Status */}
       {ports.length > 0 && (

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw, Trash2, AlertTriangle, ShieldAlert, History, CheckCircle } from "lucide-react";
+import { Loader2, Search, Film, Tv, Copy, HardDrive, RefreshCw, Trash2, AlertTriangle, ShieldAlert, History, CheckCircle, FolderOpen, LogIn } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -70,6 +70,7 @@ export const DuplicateMediaManager = () => {
   const [confirmCode, setConfirmCode] = useState("");
   const [deleteLog, setDeleteLog] = useState<DeleteLogEntry[]>([]);
   const [showDeleteLog, setShowDeleteLog] = useState(false);
+  const [jellyfinError, setJellyfinError] = useState<string | null>(null);
 
   // Generate a random 4-digit code for confirmation
   const getConfirmationCode = () => {
@@ -148,6 +149,7 @@ export const DuplicateMediaManager = () => {
     setScanComplete(false);
     setDuplicates([]);
     setManualDuplicates([]);
+    setJellyfinError(null);
 
     try {
       // Get all movies from Jellyfin
@@ -158,7 +160,17 @@ export const DuplicateMediaManager = () => {
         },
       });
 
-      if (moviesError) throw moviesError;
+      if (moviesError) {
+        if (moviesError.message?.includes('Unauthorized') || moviesError.message?.includes('401')) {
+          setJellyfinError('unauthorized');
+        }
+        throw moviesError;
+      }
+      
+      if (moviesData?.error === 'Unauthorized') {
+        setJellyfinError('unauthorized');
+        throw new Error('Unauthorized');
+      }
 
       // Get all episodes from Jellyfin  
       const { data: episodesData, error: episodesError } = await supabase.functions.invoke('jellyfin-proxy', {
@@ -812,6 +824,34 @@ export const DuplicateMediaManager = () => {
             )}
           </div>
 
+          {/* Jellyfin Unauthorized Banner */}
+          {jellyfinError === 'unauthorized' && (
+            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/30 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-destructive" />
+                <div>
+                  <p className="font-medium text-destructive">
+                    {language === 'no' ? 'Kunne ikke koble til Jellyfin' : 'Could not connect to Jellyfin'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {language === 'no' 
+                      ? 'Sesjonen din har utløpt eller Jellyfin er ikke tilgjengelig. Logg inn på nytt for å fortsette.' 
+                      : 'Your session has expired or Jellyfin is unavailable. Log in again to continue.'}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0 gap-2 border-destructive/30 text-destructive hover:bg-destructive/10"
+                onClick={() => window.location.href = '/login'}
+              >
+                <LogIn className="h-4 w-4" />
+                {language === 'no' ? 'Logg inn' : 'Log in'}
+              </Button>
+            </div>
+          )}
+
           {scanComplete && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
               <div className="p-4 rounded-lg bg-secondary/30 border border-border/50">
@@ -971,13 +1011,40 @@ export const DuplicateMediaManager = () => {
 
                   <div className="mt-2 space-y-2">
                     {group.files.map((file, fi) => (
-                      <div key={fi} className="text-xs">
-                        <div className="font-mono break-all text-muted-foreground">{file.path}</div>
-                        {file.manualDeleteReason && (
-                          <div className="text-[11px] text-destructive mt-1">{file.manualDeleteReason}</div>
-                        )}
+                      <div key={fi} className="p-2 rounded-md bg-secondary/20 border border-border/30">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono text-xs break-all text-muted-foreground">{file.path}</div>
+                            {file.manualDeleteReason && (
+                              <div className="text-[11px] text-destructive mt-1">{file.manualDeleteReason}</div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="shrink-0 h-7 px-2 gap-1.5 text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              navigator.clipboard.writeText(file.path);
+                              toast.success(language === 'no' ? 'Sti kopiert!' : 'Path copied!');
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            {language === 'no' ? 'Kopier' : 'Copy'}
+                          </Button>
+                        </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-3 pt-2 border-t border-border/30">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <FolderOpen className="h-3.5 w-3.5" />
+                      <span>
+                        {language === 'no' 
+                          ? 'Åpne filutforsker på NAS og naviger til stien over for å slette filen manuelt.' 
+                          : 'Open file explorer on NAS and navigate to the path above to delete manually.'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
