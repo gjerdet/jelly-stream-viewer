@@ -32,6 +32,7 @@ import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
 import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager";
 import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { DownloadsPendingManager } from "@/components/admin/DownloadsPendingManager";
+import { NasAgentSettings } from "@/components/admin/NasAgentSettings";
 
 import { ProxyHealthCheck } from "@/components/admin/ProxyHealthCheck";
 import { SystemDiagnosticsPanel } from "@/components/admin/SystemDiagnosticsPanel";
@@ -1650,6 +1651,8 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
                   )}
                 </CardContent>
               </Card>
+
+              <NasAgentSettings />
               </TabsContent>
 
               <TabsContent value="database" className="space-y-6 mt-0">
