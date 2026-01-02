@@ -144,11 +144,20 @@ export const DuplicateMediaManager = () => {
     });
   };
 
+  const clearAllData = () => {
+    setDuplicates([]);
+    setManualDuplicates([]);
+    setDeleteLog([]);
+    setScanComplete(false);
+    setJellyfinError(null);
+  };
+
   const scanForDuplicates = async () => {
     setScanning(true);
     setScanComplete(false);
     setDuplicates([]);
     setManualDuplicates([]);
+    setDeleteLog([]);
     setJellyfinError(null);
 
     try {
@@ -858,6 +867,17 @@ export const DuplicateMediaManager = () => {
                 {language === 'no' ? 'Skann på nytt' : 'Rescan'}
               </Button>
             )}
+            
+            {(duplicates.length > 0 || manualDuplicates.length > 0 || deleteLog.length > 0) && (
+              <Button
+                onClick={clearAllData}
+                variant="ghost"
+                className="gap-2 text-muted-foreground"
+              >
+                <Trash2 className="h-4 w-4" />
+                {language === 'no' ? 'Tøm alt' : 'Clear all'}
+              </Button>
+            )}
           </div>
 
           {/* Jellyfin Unauthorized Banner */}
@@ -1017,15 +1037,28 @@ export const DuplicateMediaManager = () => {
       {manualDuplicates.length > 0 && (
         <Card className="border-border/50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              {language === 'no' ? 'Må slettes manuelt' : 'Must be deleted manually'}
-            </CardTitle>
-            <CardDescription>
-              {language === 'no'
-                ? 'Disse filene er ikke indeksert i Radarr/Sonarr og kan ikke slettes via appen. Slett dem direkte på disken, oppdater biblioteket, og skann på nytt.'
-                : 'These files are not indexed in Radarr/Sonarr and cannot be deleted via the app. Delete them on disk, refresh the library, and rescan.'}
-            </CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  {language === 'no' ? 'Må slettes manuelt' : 'Must be deleted manually'}
+                </CardTitle>
+                <CardDescription>
+                  {language === 'no'
+                    ? 'Disse filene er ikke indeksert i Radarr/Sonarr og kan ikke slettes via appen. Slett dem direkte på disken, oppdater biblioteket, og skann på nytt.'
+                    : 'These files are not indexed in Radarr/Sonarr and cannot be deleted via the app. Delete them on disk, refresh the library, and rescan.'}
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setManualDuplicates([])}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                {language === 'no' ? 'Tøm liste' : 'Clear list'}
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

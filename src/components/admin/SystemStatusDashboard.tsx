@@ -26,6 +26,9 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Globe,
+  Shield,
+  ShieldAlert,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -71,6 +74,14 @@ interface PortStatus {
   responseTime?: number;
 }
 
+interface ConnectionInfo {
+  isProxy: boolean;
+  isHttps: boolean;
+  isMixedContent: boolean;
+  currentUrl: string;
+  gitPullUrl: string;
+}
+
 export const SystemStatusDashboard = () => {
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
@@ -82,6 +93,7 @@ export const SystemStatusDashboard = () => {
   const [gitPullBaseUrl, setGitPullBaseUrl] = useState<string | null>(null);
   const [logsOpen, setLogsOpen] = useState(false);
   const [infoDialogOpen, setInfoDialogOpen] = useState<string | null>(null);
+  const [connectionInfo, setConnectionInfo] = useState<ConnectionInfo | null>(null);
 
   // Fetch git-pull server URL from settings
   useEffect(() => {
@@ -101,6 +113,26 @@ export const SystemStatusDashboard = () => {
           baseUrl = `http://${baseUrl}`;
         }
         setGitPullBaseUrl(baseUrl);
+        
+        // Analyze connection type
+        const currentUrl = window.location.href;
+        const isHttps = window.location.protocol === 'https:';
+        const gitPullIsHttp = baseUrl.startsWith('http://');
+        const isMixedContent = isHttps && gitPullIsHttp;
+        
+        // Check if accessing via proxy (external domain vs localhost)
+        const isLocalhost = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1' ||
+                            window.location.hostname.startsWith('192.168.') ||
+                            window.location.hostname.startsWith('10.');
+        
+        setConnectionInfo({
+          isProxy: !isLocalhost,
+          isHttps,
+          isMixedContent,
+          currentUrl,
+          gitPullUrl: baseUrl,
+        });
       }
     };
     fetchBaseUrl();
@@ -664,6 +696,112 @@ export const SystemStatusDashboard = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Connection Status */}
+      {connectionInfo && (
+        <Card className={connectionInfo.isMixedContent ? "border-yellow-500/30" : ""}>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Tilkoblingsstatus
+              {connectionInfo.isMixedContent ? (
+                <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                  Mixed Content
+                </Badge>
+              ) : connectionInfo.isProxy ? (
+                <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
+                  Via Proxy
+                </Badge>
+              ) : (
+                <Badge className="bg-green-500/10 text-green-500 border-green-500/20">
+                  Lokal
+                </Badge>
+              )}
+            </CardTitle>
+            <CardDescription>Hvordan du kobler til appen og backend-tjenester</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Nettleser</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {connectionInfo.isHttps ? (
+                    <Shield className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-yellow-500" />
+                  )}
+                  <span className="text-xs font-mono">{connectionInfo.isHttps ? 'HTTPS' : 'HTTP'}</span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                <div className="flex items-center gap-2">
+                  <Server className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Git Pull Server</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {connectionInfo.gitPullUrl.startsWith('https://') ? (
+                    <Shield className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <ShieldAlert className="h-4 w-4 text-yellow-500" />
+                  )}
+                  <span className="text-xs font-mono">
+                    {connectionInfo.gitPullUrl.startsWith('https://') ? 'HTTPS' : 'HTTP'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {connectionInfo.isMixedContent && (
+              <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-yellow-600">Mixed Content Advarsel</p>
+                    <p className="text-xs text-muted-foreground">
+                      Du bruker HTTPS for appen, men Git Pull Server er på HTTP. Dette blokkerer direkte
+                      tilkobling til backend-tjenester som oppdatering, logger, og diagnostikk.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      <strong>Løsning:</strong> Bruk en HTTPS-proxy for Git Pull Server (port 3002), 
+                      eller åpne appen direkte via lokal HTTP-adresse.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {connectionInfo.isProxy && !connectionInfo.isMixedContent && (
+              <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-blue-500">Tilgang via Proxy</p>
+                    <p className="text-xs text-muted-foreground">
+                      Du bruker en ekstern proxy til å nå appen. Sørg for at Git Pull Server 
+                      også er tilgjengelig via proxy for full funksjonalitet.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div className="grid gap-2 text-xs text-muted-foreground">
+              <div className="flex justify-between p-2 rounded bg-secondary/30">
+                <span>Nettleser URL:</span>
+                <span className="font-mono truncate max-w-[200px]">{window.location.hostname}</span>
+              </div>
+              <div className="flex justify-between p-2 rounded bg-secondary/30">
+                <span>Git Pull Server:</span>
+                <span className="font-mono truncate max-w-[200px]">{connectionInfo.gitPullUrl.replace(/https?:\/\//, '')}</span>
+              </div>
             </div>
           </CardContent>
         </Card>
