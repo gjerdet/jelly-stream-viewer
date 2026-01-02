@@ -751,9 +751,17 @@ export const DuplicateMediaManager = () => {
                               <HardDrive className="h-3 w-3" />
                               {formatFileSize(file.size)}
                             </div>
-                            <div className="flex-1 flex items-center justify-end gap-2">
-                              <div className="text-xs text-muted-foreground truncate max-w-[200px]" title={file.path}>
-                                {file.path.split('/').pop() || file.path}
+                            <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+                              <div className="min-w-0 text-right space-y-0.5">
+                                <div
+                                  className="text-xs text-muted-foreground truncate"
+                                  title={file.path}
+                                >
+                                  {file.path.split('/').pop() || file.path}
+                                </div>
+                                <div className="text-[11px] font-mono text-muted-foreground/80 break-all">
+                                  {file.path || (language === 'no' ? 'Ukjent sti' : 'Unknown path')}
+                                </div>
                               </div>
                               <Button
                                 variant="ghost"
