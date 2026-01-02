@@ -113,8 +113,7 @@ serve(async (req) => {
     const jellyfinData = await jellyfinResponse.json();
     console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
 
-    // Create or sign in Supabase user
-    // We'll use a deterministic email based on Jellyfin user ID
+    // Create or sign in Supabase user using the deterministic email
     const userEmail = `${jellyfinData.User.Id}@jellyfin.local`;
     const userPassword = `jellyfin_${jellyfinData.User.Id}_${jellyfinApiKey.slice(0, 8)}`;
 
@@ -123,91 +122,75 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Try to sign in first
-    console.log('Attempting to sign in Supabase user:', userEmail);
-    
-    // Check if user exists first by trying to sign in
-    let signInResult = await supabaseClient.auth.signInWithPassword({
-      email: userEmail,
-      password: userPassword,
-    });
+    // --- Prevent duplicates: look up by jellyfin_user_id first ---
+    const { data: profileByJellyfinId } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email')
+      .eq('jellyfin_user_id', jellyfinData.User.Id)
+      .limit(1)
+      .maybeSingle();
 
-    console.log('Initial sign in result:', { 
-      hasSession: !!signInResult.data.session, 
-      hasError: !!signInResult.error,
-      errorMessage: signInResult.error?.message 
-    });
+    let supabaseSession: Awaited<ReturnType<typeof supabaseClient.auth.signInWithPassword>>['data']['session'] = null;
 
-    let supabaseSession = signInResult.data.session;
+    if (profileByJellyfinId) {
+      // User already exists (by Jellyfin user id) – ensure password matches & sign in
+      console.log('Found existing profile by jellyfin_user_id:', profileByJellyfinId.id);
 
-    // If sign in failed with invalid credentials, the user might exist with old password
-    // or doesn't exist at all
-    if (signInResult.error) {
-      console.log('Sign in failed, checking if user exists...');
-      
-      // Check if user exists using admin API
-      const { data: userData } = await supabaseAdmin.auth.admin.listUsers();
-      const existingUser = userData?.users?.find(u => u.email === userEmail);
-      
-      if (existingUser) {
-        // User exists but password is different (API key changed)
-        console.log('User exists, updating password...');
-        const updateResult = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
-          password: userPassword,
-        });
-        
-        if (updateResult.error) {
-          console.error('Failed to update user password:', updateResult.error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to update user credentials' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        // Now sign in with the updated password
-        console.log('Password updated, signing in...');
+      const existingUserEmail = profileByJellyfinId.email;
+
+      // Update password so API key changes don't lock out the user
+      const { error: updatePwError } = await supabaseAdmin.auth.admin.updateUserById(
+        profileByJellyfinId.id,
+        { password: userPassword }
+      );
+      if (updatePwError) {
+        console.error('Failed to update password for existing user:', updatePwError);
+      }
+
+      // Sign in using the email from the existing profile
+      let signInResult = await supabaseClient.auth.signInWithPassword({
+        email: existingUserEmail,
+        password: userPassword,
+      });
+
+      if (signInResult.error) {
+        console.error('Sign in failed for existing user:', signInResult.error.message);
+        // One more attempt after short wait (edge case)
+        await new Promise((r) => setTimeout(r, 300));
         signInResult = await supabaseClient.auth.signInWithPassword({
-          email: userEmail,
+          email: existingUserEmail,
           password: userPassword,
         });
-        
-        if (signInResult.data.session) {
-          supabaseSession = signInResult.data.session;
-          console.log('Successfully signed in after password update');
-        } else {
-          console.error('Failed to sign in after password update:', signInResult.error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to create user session' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      } else {
-        // User doesn't exist, create them
-        console.log('User does not exist, creating new user...');
-        const signUpResult = await supabaseClient.auth.signUp({
-          email: userEmail,
-          password: userPassword,
-          options: {
-            data: {
-              jellyfin_user_id: jellyfinData.User.Id,
-              jellyfin_username: jellyfinData.User.Name,
-            },
-          },
-        });
+      }
 
-        if (signUpResult.error || !signUpResult.data.session) {
-          console.error('Failed to create Supabase user:', signUpResult.error);
-          return new Response(
-            JSON.stringify({ error: 'Failed to create user session' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
+      supabaseSession = signInResult.data.session;
+    } else {
+      // No existing profile for this Jellyfin user – create account
+      console.log('No profile found for jellyfin_user_id, creating new user');
+
+      const signUpResult = await supabaseClient.auth.signUp({
+        email: userEmail,
+        password: userPassword,
+        options: {
+          data: {
+            jellyfin_user_id: jellyfinData.User.Id,
+            jellyfin_username: jellyfinData.User.Name,
+          },
+        },
+      });
+
+      if (signUpResult.error) {
+        // May already exist by email – try sign in
+        console.log('Sign up error, trying sign in:', signUpResult.error.message);
+        const signInResult = await supabaseClient.auth.signInWithPassword({
+          email: userEmail,
+          password: userPassword,
+        });
+        supabaseSession = signInResult.data.session;
+      } else {
         supabaseSession = signUpResult.data.session;
         console.log('New user created successfully');
       }
-    } else {
-      console.log('Sign in successful');
     }
 
     if (!supabaseSession) {
