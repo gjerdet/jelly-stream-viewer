@@ -44,6 +44,7 @@ interface MediaFile {
   size: number;
   radarrFileId?: number;
   sonarrFileId?: number;
+  manualDeleteReason?: string;
 }
 
 interface DuplicateGroup {
@@ -62,6 +63,7 @@ export const DuplicateMediaManager = () => {
   const [scanning, setScanning] = useState(false);
   const [refreshingLibrary, setRefreshingLibrary] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
+  const [manualDuplicates, setManualDuplicates] = useState<DuplicateGroup[]>([]);
   const [scanComplete, setScanComplete] = useState(false);
   const [deletingFile, setDeletingFile] = useState<{groupIndex: number, fileIndex: number} | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{group: DuplicateGroup, file: MediaFile, groupIndex: number, fileIndex: number} | null>(null);
@@ -107,10 +109,45 @@ export const DuplicateMediaManager = () => {
     }
   };
 
+  const removeFileFromDuplicatesUI = (groupIndex: number, fileIndex: number) => {
+    const newDuplicates = [...duplicates];
+    newDuplicates[groupIndex].files.splice(fileIndex, 1);
+
+    // Remove group if only one file left
+    if (newDuplicates[groupIndex].files.length <= 1) {
+      newDuplicates.splice(groupIndex, 1);
+    }
+
+    setDuplicates(newDuplicates);
+  };
+
+  const addManualDuplicate = (group: DuplicateGroup, file: MediaFile, reason: string) => {
+    const manualFile: MediaFile = { ...file, manualDeleteReason: reason };
+
+    setManualDuplicates((prev) => {
+      const idx = prev.findIndex((g) =>
+        g.type === group.type &&
+        g.title === group.title &&
+        g.seriesName === group.seriesName &&
+        g.seasonNumber === group.seasonNumber &&
+        g.episodeNumber === group.episodeNumber
+      );
+
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], files: [manualFile, ...updated[idx].files] };
+        return updated;
+      }
+
+      return [{ ...group, files: [manualFile] }, ...prev];
+    });
+  };
+
   const scanForDuplicates = async () => {
     setScanning(true);
     setScanComplete(false);
     setDuplicates([]);
+    setManualDuplicates([]);
 
     try {
       // Get all movies from Jellyfin
@@ -266,6 +303,7 @@ export const DuplicateMediaManager = () => {
       setScanComplete(true);
     } catch (error) {
       console.error('Error scanning for duplicates:', error);
+      toast.error(language === 'no' ? 'Kunne ikke skanne etter duplikater' : 'Could not scan for duplicates');
     } finally {
       setScanning(false);
     }
@@ -423,41 +461,144 @@ export const DuplicateMediaManager = () => {
           console.warn('Movie file not found in Radarr - requires manual deletion:', {
             searchingFor: { path: file.path, title: group.title }
           });
-          logEntry.status = 'error';
-          logEntry.error = language === 'no' 
-            ? 'Filen er ikke indeksert i Radarr og må slettes manuelt' 
+
+          const reason = language === 'no'
+            ? 'Filen er ikke indeksert i Radarr og må slettes manuelt'
             : 'File is not indexed in Radarr and must be deleted manually';
+
+          logEntry.status = 'error';
+          logEntry.error = reason;
           setDeleteLog(prev => [logEntry, ...prev]);
+
           toast.warning(
-            language === 'no' 
-              ? `⚠️ Filen "${logEntry.fileName}" er ikke registrert i Radarr og må fjernes manuelt fra: ${file.path}` 
-              : `⚠️ File "${logEntry.fileName}" is not registered in Radarr and must be removed manually from: ${file.path}`,
+            language === 'no'
+              ? `⚠️ Må slettes manuelt: ${file.path}`
+              : `⚠️ Must be deleted manually: ${file.path}`,
             { duration: 10000 }
           );
+
+          addManualDuplicate(group, file, reason);
+          removeFileFromDuplicatesUI(groupIndex, fileIndex);
+
           setDeletingFile(null);
           setFileToDelete(null);
           setConfirmCode("");
           return;
         }
       } else {
-        // For episodes - similar approach with Sonarr
-        toast.info(language === 'no' ? 'Episode-sletting via Sonarr kommer snart' : 'Episode deletion via Sonarr coming soon');
-        logEntry.status = 'error';
-        logEntry.error = 'Not implemented for episodes';
-        setDeleteLog(prev => [logEntry, ...prev]);
-        return;
+        // Episodes via Sonarr
+        const normalizePath = (p: string) => {
+          if (!p) return '';
+          return p.toLowerCase().replace(/\\/g, '/').replace(/^[a-z]:/i, '').trim();
+        };
+
+        const getFileName = (p: string) => {
+          if (!p) return '';
+          const parts = p.replace(/\\/g, '/').split('/');
+          return parts[parts.length - 1]?.toLowerCase() || '';
+        };
+
+        const normalizeTitle = (t: string) => (t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        const filePathNorm = normalizePath(file.path);
+        const fileName = getFileName(file.path);
+        const targetSeriesNorm = normalizeTitle(group.seriesName || '');
+
+        const seriesResp = await supabase.functions.invoke('sonarr-proxy', {
+          body: { action: 'series' }
+        });
+
+        if (seriesResp.error) throw seriesResp.error;
+        const seriesList: any[] = Array.isArray(seriesResp.data) ? seriesResp.data : [];
+
+        const candidates = targetSeriesNorm
+          ? seriesList.filter((s: any) => {
+              const t = normalizeTitle(s?.title || '');
+              return t === targetSeriesNorm || t.includes(targetSeriesNorm) || targetSeriesNorm.includes(t);
+            })
+          : seriesList;
+
+        let matchedEpisodeFile: any = null;
+
+        for (const s of candidates) {
+          if (!s?.id) continue;
+
+          const filesResp = await supabase.functions.invoke('sonarr-proxy', {
+            body: { action: 'episodeFiles', params: { seriesId: s.id } }
+          });
+
+          if (filesResp.error) continue;
+          const episodeFiles: any[] = Array.isArray(filesResp.data) ? filesResp.data : [];
+
+          for (const f of episodeFiles) {
+            if (!f?.path) continue;
+
+            const sonarrPathNorm = normalizePath(f.path);
+            const sonarrFileName = getFileName(f.path);
+
+            if (sonarrPathNorm === filePathNorm) {
+              matchedEpisodeFile = f;
+              break;
+            }
+
+            if (sonarrFileName === fileName && fileName.length > 5) {
+              matchedEpisodeFile = f;
+              break;
+            }
+
+            if (filePathNorm.endsWith(sonarrFileName) || sonarrPathNorm.endsWith(fileName)) {
+              matchedEpisodeFile = f;
+              break;
+            }
+          }
+
+          if (matchedEpisodeFile) break;
+        }
+
+        const episodeFileId = matchedEpisodeFile?.id;
+
+        if (episodeFileId) {
+          const { error: deleteError } = await supabase.functions.invoke('sonarr-proxy', {
+            body: { action: 'deleteEpisodeFile', params: { episodeFileId } }
+          });
+
+          if (deleteError) throw deleteError;
+
+          toast.success(
+            language === 'no'
+              ? `✅ Slettet episodefil: ${logEntry.fileName}`
+              : `✅ Deleted episode file: ${logEntry.fileName}`,
+            { duration: 5000 }
+          );
+        } else {
+          const reason = language === 'no'
+            ? 'Filen er ikke indeksert i Sonarr og må slettes manuelt'
+            : 'File is not indexed in Sonarr and must be deleted manually';
+
+          logEntry.status = 'error';
+          logEntry.error = reason;
+          setDeleteLog(prev => [logEntry, ...prev]);
+
+          toast.warning(
+            language === 'no'
+              ? `⚠️ Må slettes manuelt: ${file.path}`
+              : `⚠️ Must be deleted manually: ${file.path}`,
+            { duration: 10000 }
+          );
+
+          addManualDuplicate(group, file, reason);
+          removeFileFromDuplicatesUI(groupIndex, fileIndex);
+
+          setDeletingFile(null);
+          setFileToDelete(null);
+          setConfirmCode("");
+          return;
+        }
       }
       
       // Remove file from UI
-      const newDuplicates = [...duplicates];
-      newDuplicates[groupIndex].files.splice(fileIndex, 1);
-      
-      // Remove group if only one file left
-      if (newDuplicates[groupIndex].files.length <= 1) {
-        newDuplicates.splice(groupIndex, 1);
-      }
-      
-      setDuplicates(newDuplicates);
+      removeFileFromDuplicatesUI(groupIndex, fileIndex);
+
       setDeleteLog(prev => [logEntry, ...prev]);
     } catch (error) {
       console.error('Error deleting file:', error);
@@ -700,7 +841,7 @@ export const DuplicateMediaManager = () => {
         </CardContent>
       </Card>
 
-      {scanComplete && duplicates.length === 0 && (
+      {scanComplete && duplicates.length === 0 && manualDuplicates.length === 0 && (
         <Card className="border-border/50">
           <CardContent className="py-8 text-center">
             <div className="text-muted-foreground">
@@ -726,9 +867,7 @@ export const DuplicateMediaManager = () => {
                         <Tv className="h-5 w-5 text-primary" />
                       )}
                       <div>
-                        <CardTitle className="text-base">
-                          {group.title}
-                        </CardTitle>
+                        <CardTitle className="text-base">{group.title}</CardTitle>
                         {group.seriesName && (
                           <CardDescription>
                             {group.seriesName} - S{group.seasonNumber?.toString().padStart(2, '0')}E{group.episodeNumber?.toString().padStart(2, '0')}
@@ -748,7 +887,7 @@ export const DuplicateMediaManager = () => {
                       .map((file, fileIndex) => {
                         const isDeleting = deletingFile?.groupIndex === index && deletingFile?.fileIndex === fileIndex;
                         return (
-                          <div 
+                          <div
                             key={fileIndex}
                             className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-secondary/20 border border-border/30"
                           >
@@ -767,10 +906,7 @@ export const DuplicateMediaManager = () => {
                             </div>
                             <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
                               <div className="min-w-0 text-right space-y-0.5">
-                                <div
-                                  className="text-xs text-muted-foreground truncate"
-                                  title={file.path}
-                                >
+                                <div className="text-xs text-muted-foreground truncate" title={file.path}>
                                   {file.path.split('/').pop() || file.path}
                                 </div>
                                 <div className="text-[11px] font-mono text-muted-foreground/80 break-all">
@@ -800,6 +936,54 @@ export const DuplicateMediaManager = () => {
             ))}
           </div>
         </ScrollArea>
+      )}
+
+      {manualDuplicates.length > 0 && (
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              {language === 'no' ? 'Må slettes manuelt' : 'Must be deleted manually'}
+            </CardTitle>
+            <CardDescription>
+              {language === 'no'
+                ? 'Disse filene er ikke indeksert i Radarr/Sonarr og kan ikke slettes via appen. Slett dem direkte på disken, oppdater biblioteket, og skann på nytt.'
+                : 'These files are not indexed in Radarr/Sonarr and cannot be deleted via the app. Delete them on disk, refresh the library, and rescan.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {manualDuplicates.map((group, gi) => (
+                <div key={gi} className="rounded-lg border border-border/50 bg-secondary/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">{group.title}</div>
+                      {group.seriesName && (
+                        <div className="text-xs text-muted-foreground">
+                          {group.seriesName} - S{group.seasonNumber?.toString().padStart(2, '0')}E{group.episodeNumber?.toString().padStart(2, '0')}
+                        </div>
+                      )}
+                    </div>
+                    <Badge variant="destructive">
+                      {language === 'no' ? 'Manuell' : 'Manual'}
+                    </Badge>
+                  </div>
+
+                  <div className="mt-2 space-y-2">
+                    {group.files.map((file, fi) => (
+                      <div key={fi} className="text-xs">
+                        <div className="font-mono break-all text-muted-foreground">{file.path}</div>
+                        {file.manualDeleteReason && (
+                          <div className="text-[11px] text-destructive mt-1">{file.manualDeleteReason}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
