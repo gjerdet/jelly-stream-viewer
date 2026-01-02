@@ -123,11 +123,18 @@ export const SystemStatusDashboard = () => {
         const statusData = await statusRes.json();
         const servicesList: ServiceStatus[] = [];
 
+        const displayNames: Record<string, { name: string; description: string; port: number }> = {
+          "jelly-stream-preview": { name: "Preview (Web UI)", description: "Port 4173", port: 4173 },
+          "jelly-git-pull": { name: "Git Pull Server", description: "Port 3002", port: 3002 },
+          "jelly-transcode": { name: "Transcode Server", description: "Port 3001", port: 3001 },
+        };
+        
         for (const [name, info] of Object.entries(statusData.services) as [string, any][]) {
+          const display = displayNames[name] || { name, description: "", port: 0 };
           servicesList.push({
             name,
-            displayName: name === "jelly-stream-preview" ? "Preview (Web UI)" : "Git Pull Server",
-            description: name === "jelly-stream-preview" ? "Port 4173" : "Port 3002",
+            displayName: display.name,
+            description: display.description,
             active: info.active,
             state: info.state,
             loadState: info.loadState,
@@ -135,7 +142,7 @@ export const SystemStatusDashboard = () => {
             subState: info.subState,
             pid: info.pid,
             startedAt: info.startedAt,
-            port: name === "jelly-stream-preview" ? 4173 : 3002,
+            port: display.port,
           });
         }
 
@@ -208,6 +215,7 @@ export const SystemStatusDashboard = () => {
       const serviceMap: Record<string, string> = {
         "jelly-stream-preview": "jelly-stream-preview",
         "jelly-git-pull": "jelly-git-pull",
+        "jelly-transcode": "jelly-transcode",
       };
       const actualServiceName = serviceMap[serviceName] || serviceName;
       

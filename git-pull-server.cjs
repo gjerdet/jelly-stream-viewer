@@ -627,7 +627,7 @@ const server = http.createServer((req, res) => {
     const lines = parseInt(urlParts.searchParams.get('lines') || '50', 10);
     
     // Validate service name to prevent command injection
-    const allowedServices = ['jelly-stream-preview', 'jelly-git-pull', 'netdata'];
+    const allowedServices = ['jelly-stream-preview', 'jelly-git-pull', 'jelly-transcode', 'netdata'];
     if (!allowedServices.includes(serviceName)) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: 'Invalid service name' }));
@@ -679,18 +679,21 @@ const server = http.createServer((req, res) => {
       });
     };
     
-    // Check both services
+    // Check all services
     getServiceStatus('jelly-stream-preview', (previewStatus) => {
       getServiceStatus('jelly-git-pull', (gitPullStatus) => {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          success: true,
-          services: {
-            'jelly-stream-preview': previewStatus,
-            'jelly-git-pull': gitPullStatus
-          },
-          timestamp: new Date().toISOString()
-        }));
+        getServiceStatus('jelly-transcode', (transcodeStatus) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({
+            success: true,
+            services: {
+              'jelly-stream-preview': previewStatus,
+              'jelly-git-pull': gitPullStatus,
+              'jelly-transcode': transcodeStatus
+            },
+            timestamp: new Date().toISOString()
+          }));
+        });
       });
     });
     return;
