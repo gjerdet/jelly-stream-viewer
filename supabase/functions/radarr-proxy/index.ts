@@ -183,12 +183,33 @@ serve(async (req) => {
       const errorText = await response.text();
       console.error(`Radarr API error: ${response.status} - ${errorText}`);
       return new Response(
-        JSON.stringify({ error: `Radarr API error: ${response.status}` }),
+        JSON.stringify({ error: `Radarr API error: ${response.status}`, details: errorText }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const data = await response.json();
+    // Handle DELETE responses (usually 200 with empty body or 204 No Content)
+    if (method === 'DELETE') {
+      console.log(`Radarr ${action} DELETE successful`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if response has content before parsing
+    const contentType = response.headers.get('content-type');
+    const responseText = await response.text();
+    
+    if (!responseText || responseText.trim() === '') {
+      console.log(`Radarr ${action} returned empty response`);
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const data = JSON.parse(responseText);
     console.log(`Radarr ${action} response received, items:`, Array.isArray(data) ? data.length : 1);
 
     return new Response(
