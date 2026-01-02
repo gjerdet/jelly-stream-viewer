@@ -37,7 +37,7 @@ export const UserAccessManagement = () => {
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
       // Get profiles
-      const { data: profiles, error: profileError } = await supabase
+      const { data: profilesRaw, error: profileError } = await supabase
         .from("profiles")
         .select("id, email, jellyfin_username, created_at")
         .order("created_at", { ascending: false });
@@ -45,22 +45,34 @@ export const UserAccessManagement = () => {
       if (profileError) throw profileError;
 
       // Get roles for all users
-      const { data: roles, error: roleError } = await supabase
+      const { data: rolesRaw, error: roleError } = await supabase
         .from("user_roles")
         .select("user_id, role");
 
       if (roleError) throw roleError;
 
-      // Combine data
-      const usersWithRoles: UserWithRole[] = profiles.map(profile => {
-        const userRole = roles?.find(r => r.user_id === profile.id);
-        return {
-          ...profile,
-          role: userRole?.role || null,
-        };
+      const profiles = profilesRaw ?? [];
+      const roles = rolesRaw ?? [];
+
+      // Defensive dedupe (prevents accidental double-render if backend returns duplicates)
+      const seenProfileIds = new Set<string>();
+      const uniqueProfiles = profiles.filter((p) => {
+        if (seenProfileIds.has(p.id)) return false;
+        seenProfileIds.add(p.id);
+        return true;
       });
 
-      return usersWithRoles;
+      const roleByUserId = new Map<string, UserWithRole["role"]>();
+      for (const r of roles) {
+        if (!roleByUserId.has(r.user_id)) {
+          roleByUserId.set(r.user_id, r.role);
+        }
+      }
+
+      return uniqueProfiles.map((profile) => ({
+        ...profile,
+        role: roleByUserId.get(profile.id) ?? null,
+      }));
     },
   });
 
@@ -68,10 +80,12 @@ export const UserAccessManagement = () => {
   const updateRole = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: 'admin' | 'user' }) => {
       // First delete existing role
-      await supabase
+      const { error: deleteError } = await supabase
         .from("user_roles")
         .delete()
         .eq("user_id", userId);
+
+      if (deleteError) throw deleteError;
 
       // Insert new role
       const { error } = await supabase
