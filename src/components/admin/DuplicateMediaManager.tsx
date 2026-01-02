@@ -184,7 +184,7 @@ export const DuplicateMediaManager = () => {
       // Get all episodes from Jellyfin  
       const { data: episodesData, error: episodesError } = await supabase.functions.invoke('jellyfin-proxy', {
         body: {
-          endpoint: '/Items?IncludeItemTypes=Episode&Recursive=true&Fields=MediaSources,Path,SeriesName,ParentIndexNumber,IndexNumber',
+          endpoint: '/Items?IncludeItemTypes=Episode&Recursive=true&Fields=MediaSources,Path,SeriesName,SeriesId,ParentIndexNumber,IndexNumber',
           method: 'GET',
         },
       });
@@ -986,6 +986,15 @@ export const DuplicateMediaManager = () => {
                       .sort((a, b) => b.height - a.height)
                       .map((file, fileIndex) => {
                         const isDeleting = deletingFile?.groupIndex === index && deletingFile?.fileIndex === fileIndex;
+
+                        const folderSeasonMatch = (file.path ?? "").match(/(?:season|sesong)\s*0*([0-9]{1,3})/i);
+                        const folderSeason = folderSeasonMatch ? Number(folderSeasonMatch[1]) : null;
+                        const seasonMismatch =
+                          group.type === "Episode" &&
+                          typeof group.seasonNumber === "number" &&
+                          folderSeason !== null &&
+                          folderSeason !== group.seasonNumber;
+
                         return (
                           <div
                             key={fileIndex}
@@ -1000,6 +1009,12 @@ export const DuplicateMediaManager = () => {
                             <Badge variant="outline" className="font-mono text-xs">
                               {file.audioCodec.toUpperCase()}
                             </Badge>
+                            {seasonMismatch && (
+                              <Badge variant="destructive" className="gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                {language === "no" ? `Mappe: S${folderSeason}` : `Folder: S${folderSeason}`}
+                              </Badge>
+                            )}
                             <div className="flex items-center gap-1 text-sm text-muted-foreground">
                               <HardDrive className="h-3 w-3" />
                               {formatFileSize(file.size)}
