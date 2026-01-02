@@ -33,6 +33,7 @@ const ALLOWED_ENDPOINT_PATTERNS = [
   /^\/Search\/Hints/i,
   /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/i,
   /^\/Sessions\/Playing/i,
+  /^\/Library\/VirtualFolders$/i,
 ];
 
 function validateEndpoint(endpoint: string): boolean {
