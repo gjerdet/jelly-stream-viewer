@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCw, Download, Film, Tv, CheckCircle2, AlertCircle, FolderOpen } from "lucide-react";
+import { Loader2, RefreshCw, Download, Film, Tv, CheckCircle2, AlertCircle, FolderOpen, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 interface JellyfinLibrary {
   ItemId: string;
   Name: string;
@@ -40,6 +39,8 @@ interface PendingItem extends JellyfinItem {
 export const DownloadsPendingManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<"pending" | "all">("pending");
+  const [movingItem, setMovingItem] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   // Fetch all libraries using VirtualFolders endpoint
   const { data: libraries, isLoading: loadingLibraries } = useQuery({
@@ -174,6 +175,99 @@ export const DownloadsPendingManager = () => {
     toast.info("Oppdaterer nedlastinger...");
     await refetchDownloads();
     toast.success("Liste oppdatert");
+  };
+
+  // Handle move file via Radarr/Sonarr
+  const handleMoveFile = async (item: PendingItem) => {
+    setMovingItem(item.Id);
+    try {
+      if (item.Type === "Movie") {
+        // Find the movie in Radarr and trigger a rename/move command
+        const { data: movies, error: moviesError } = await supabase.functions.invoke('radarr-proxy', {
+          body: { action: 'movies' }
+        });
+        
+        if (moviesError) throw moviesError;
+        
+        // Normalize title for matching
+        const normalizedTitle = item.Name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedYear = item.ProductionYear;
+        
+        const movie = movies?.find((m: any) => {
+          const mTitle = m.title?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+          const mYear = m.year;
+          // Match by title and optionally by year
+          return mTitle === normalizedTitle && (!normalizedYear || !mYear || mYear === normalizedYear);
+        });
+        
+        if (!movie) {
+          // Movie not in Radarr yet - tell user to import it first
+          toast.error(`"${item.Name}" finnes ikke i Radarr. Importer den først via Radarr.`);
+          return;
+        }
+        
+        // Trigger a rename command in Radarr which moves files to correct location
+        const { error: commandError } = await supabase.functions.invoke('radarr-proxy', {
+          body: { 
+            action: 'command', 
+            params: { 
+              name: 'RenameMovie',
+              movieIds: [movie.id]
+            } 
+          }
+        });
+        
+        if (commandError) throw commandError;
+        
+        toast.success(`Flyttekommando sendt for "${item.Name}". Radarr vil flytte filen.`);
+        
+        // Refresh list after a short delay
+        setTimeout(() => refetchDownloads(), 3000);
+        
+      } else if (item.Type === "Episode" || item.Type === "Series") {
+        // For episodes/series, use Sonarr
+        const { data: series, error: seriesError } = await supabase.functions.invoke('sonarr-proxy', {
+          body: { action: 'series' }
+        });
+        
+        if (seriesError) throw seriesError;
+        
+        const seriesName = item.SeriesName || item.Name;
+        const normalizedSeriesName = seriesName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        
+        const matchedSeries = series?.find((s: any) => 
+          s.title?.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedSeriesName
+        );
+        
+        if (!matchedSeries) {
+          toast.error(`"${seriesName}" finnes ikke i Sonarr. Importer den først via Sonarr.`);
+          return;
+        }
+        
+        // Trigger a rename command in Sonarr
+        const { error: commandError } = await supabase.functions.invoke('sonarr-proxy', {
+          body: { 
+            action: 'command', 
+            params: { 
+              name: 'RenameSeries',
+              seriesIds: [matchedSeries.id]
+            } 
+          }
+        });
+        
+        if (commandError) throw commandError;
+        
+        toast.success(`Flyttekommando sendt for "${seriesName}". Sonarr vil flytte filen.`);
+        
+        // Refresh list after a short delay
+        setTimeout(() => refetchDownloads(), 3000);
+      }
+    } catch (error) {
+      console.error('Move error:', error);
+      toast.error(error instanceof Error ? error.message : 'Kunne ikke flytte filen');
+    } finally {
+      setMovingItem(null);
+    }
   };
 
   const isLoading = loadingLibraries || loadingDownloads || loadingOthers;
@@ -323,10 +417,28 @@ export const DownloadsPendingManager = () => {
                           {item.matchedLibrary || "Finnes"}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Venter
-                        </Badge>
+                        <>
+                          <Badge variant="outline" className="bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                            Venter
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleMoveFile(item)}
+                            disabled={movingItem === item.Id}
+                            className="h-7 px-2"
+                          >
+                            {movingItem === item.Id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <ArrowRight className="h-3 w-3 mr-1" />
+                                Flytt
+                              </>
+                            )}
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>

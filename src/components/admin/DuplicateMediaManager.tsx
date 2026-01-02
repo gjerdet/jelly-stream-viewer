@@ -268,19 +268,48 @@ export const DuplicateMediaManager = () => {
     
     try {
       if (group.type === "Movie") {
-        // For movies, we need to find the Radarr movie file ID from the path
-        // First get all movies from Radarr to find the matching file
+        // For movies, we need to find the Radarr movie file ID
+        // First get all movies from Radarr
         const { data: movies, error: moviesError } = await supabase.functions.invoke('radarr-proxy', {
           body: { action: 'movies' }
         });
         
         if (moviesError) throw moviesError;
         
-        // Find the movie that has this file path
-        const movie = movies?.find((m: any) => 
-          m.movieFile?.path === file.path || 
-          m.path && file.path.startsWith(m.path)
-        );
+        // Normalize path for comparison (remove drive letters, normalize slashes)
+        const normalizePath = (p: string) => p?.toLowerCase().replace(/\\/g, '/').replace(/^[a-z]:/i, '') || '';
+        const filePathNorm = normalizePath(file.path);
+        const fileName = file.path.split('/').pop()?.toLowerCase() || file.path.split('\\').pop()?.toLowerCase();
+        
+        // Find the movie that has this file - match by path OR by filename if movie title matches
+        let movie = movies?.find((m: any) => {
+          if (!m.movieFile) return false;
+          const radarrPathNorm = normalizePath(m.movieFile?.path);
+          // Exact path match
+          if (radarrPathNorm === filePathNorm) return true;
+          // Path contains check
+          if (filePathNorm.includes(radarrPathNorm) || radarrPathNorm.includes(filePathNorm)) return true;
+          // Filename + title match
+          const radarrFileName = m.movieFile?.path?.split('/').pop()?.toLowerCase() || m.movieFile?.path?.split('\\').pop()?.toLowerCase();
+          if (radarrFileName === fileName) return true;
+          return false;
+        });
+        
+        // If no match found, try by normalized title
+        if (!movie) {
+          const normalizedTitle = group.title.toLowerCase().replace(/[^a-z0-9]/g, '');
+          movie = movies?.find((m: any) => 
+            m.movieFile && 
+            m.title?.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedTitle
+          );
+        }
+        
+        console.log('Delete search result:', { 
+          filePathNorm, 
+          fileName, 
+          foundMovie: movie?.title, 
+          movieFileId: movie?.movieFile?.id 
+        });
         
         if (movie?.movieFile?.id) {
           const { error: deleteError } = await supabase.functions.invoke('radarr-proxy', {
@@ -296,7 +325,8 @@ export const DuplicateMediaManager = () => {
             { duration: 5000 }
           );
         } else {
-          throw new Error(language === 'no' ? 'Kunne ikke finne filen i Radarr' : 'Could not find file in Radarr');
+          console.error('Movie not found in Radarr. File path:', file.path, 'Available movies:', movies?.slice(0, 5)?.map((m: any) => ({ title: m.title, path: m.movieFile?.path })));
+          throw new Error(language === 'no' ? 'Kunne ikke finne filen i Radarr. Sjekk at filmen er importert.' : 'Could not find file in Radarr. Check that the movie is imported.');
         }
       } else {
         // For episodes - similar approach with Sonarr
