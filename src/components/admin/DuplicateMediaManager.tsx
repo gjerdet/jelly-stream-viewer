@@ -316,6 +316,9 @@ export const DuplicateMediaManager = () => {
           if (initialFilesResp.error) throw initialFilesResp.error;
           let movieFiles: any[] = Array.isArray(initialFilesResp.data) ? initialFilesResp.data : [];
 
+
+          let filesSource: 'movieId' | 'global' = 'movieId';
+
           // If Radarr thinks the movie has no files, ask it to rescan once and try again
           if (movieFiles.length === 0) {
             console.log('No movie files returned from Radarr, requesting rescan...', { movieId: movie.id, movieTitle: movie.title });
@@ -323,7 +326,7 @@ export const DuplicateMediaManager = () => {
             const rescanResp = await supabase.functions.invoke('radarr-proxy', {
               body: { action: 'command', params: { name: 'RescanMovie', movieId: movie.id } }
             });
-            
+
             if (rescanResp.error) throw rescanResp.error;
 
             await new Promise((r) => setTimeout(r, 2500));
@@ -335,12 +338,30 @@ export const DuplicateMediaManager = () => {
             if (retryFilesResp.error) throw retryFilesResp.error;
             movieFiles = Array.isArray(retryFilesResp.data) ? retryFilesResp.data : [];
           }
-          
-          console.log('Movie files from Radarr:', { 
+
+          // If still empty, fall back to global movie file list (handles wrong movieId mapping)
+          if (movieFiles.length === 0) {
+            console.log('Still no files for movieId; falling back to global movieFiles list...', {
+              movieId: movie.id,
+              movieTitle: movie.title,
+              filePath: file.path,
+            });
+
+            const allFilesResp = await supabase.functions.invoke('radarr-proxy', {
+              body: { action: 'movieFiles' }
+            });
+
+            if (allFilesResp.error) throw allFilesResp.error;
+            movieFiles = Array.isArray(allFilesResp.data) ? allFilesResp.data : [];
+            filesSource = 'global';
+          }
+
+          console.log('Movie files from Radarr:', {
             movieId: movie.id,
             movieTitle: movie.title,
+            filesSource,
             filesCount: movieFiles?.length || 0,
-            files: movieFiles?.map((f: any) => ({ id: f.id, path: f.path }))
+            filesPreview: (movieFiles || []).slice(0, 10).map((f: any) => ({ id: f.id, path: f.path, movieId: f.movieId })),
           });
           
           // Find the matching file
