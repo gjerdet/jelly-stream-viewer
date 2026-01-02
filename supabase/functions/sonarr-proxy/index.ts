@@ -138,6 +138,17 @@ serve(async (req) => {
         console.log(`Deleting episode file: ${params?.episodeFileId}`);
         break;
       
+      case 'command':
+        // Execute a command (e.g. RenameSeries)
+        endpoint = '/api/v3/command';
+        method = 'POST';
+        body = JSON.stringify({
+          name: params?.name,
+          seriesIds: params?.seriesIds,
+        });
+        console.log(`Executing command: ${params?.name} for series:`, params?.seriesIds);
+        break;
+      
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),

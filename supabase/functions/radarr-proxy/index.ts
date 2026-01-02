@@ -132,6 +132,17 @@ serve(async (req) => {
         console.log(`Deleting movie file: ${params?.movieFileId}`);
         break;
       
+      case 'command':
+        // Execute a command (e.g. RenameMovie)
+        endpoint = '/api/v3/command';
+        method = 'POST';
+        body = JSON.stringify({
+          name: params?.name,
+          movieIds: params?.movieIds,
+        });
+        console.log(`Executing command: ${params?.name} for movies:`, params?.movieIds);
+        break;
+      
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action' }),
