@@ -138,14 +138,16 @@ serve(async (req) => {
         break;
       
       case 'command':
-        // Execute a command (e.g. RenameMovie)
+        // Execute a command (e.g. RenameMovie, RescanMovie, RefreshMovie)
         endpoint = '/api/v3/command';
         method = 'POST';
         body = JSON.stringify({
           name: params?.name,
+          movieId: params?.movieId,
           movieIds: params?.movieIds,
+          files: params?.files,
         });
-        console.log(`Executing command: ${params?.name} for movies:`, params?.movieIds);
+        console.log(`Executing command: ${params?.name}`, { movieId: params?.movieId, movieIds: params?.movieIds, files: params?.files });
         break;
       
       default:

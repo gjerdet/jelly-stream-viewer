@@ -309,11 +309,32 @@ export const DuplicateMediaManager = () => {
         
         if (movie?.id) {
           // Get all files for this specific movie
-          const { data: movieFiles, error: filesError } = await supabase.functions.invoke('radarr-proxy', {
+          const initialFilesResp = await supabase.functions.invoke('radarr-proxy', {
             body: { action: 'movieFiles', params: { movieId: movie.id } }
           });
           
-          if (filesError) throw filesError;
+          if (initialFilesResp.error) throw initialFilesResp.error;
+          let movieFiles: any[] = Array.isArray(initialFilesResp.data) ? initialFilesResp.data : [];
+
+          // If Radarr thinks the movie has no files, ask it to rescan once and try again
+          if (movieFiles.length === 0) {
+            console.log('No movie files returned from Radarr, requesting rescan...', { movieId: movie.id, movieTitle: movie.title });
+
+            const rescanResp = await supabase.functions.invoke('radarr-proxy', {
+              body: { action: 'command', params: { name: 'RescanMovie', movieId: movie.id } }
+            });
+            
+            if (rescanResp.error) throw rescanResp.error;
+
+            await new Promise((r) => setTimeout(r, 2500));
+
+            const retryFilesResp = await supabase.functions.invoke('radarr-proxy', {
+              body: { action: 'movieFiles', params: { movieId: movie.id } }
+            });
+
+            if (retryFilesResp.error) throw retryFilesResp.error;
+            movieFiles = Array.isArray(retryFilesResp.data) ? retryFilesResp.data : [];
+          }
           
           console.log('Movie files from Radarr:', { 
             movieId: movie.id,
