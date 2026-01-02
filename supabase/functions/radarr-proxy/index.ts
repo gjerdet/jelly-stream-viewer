@@ -121,8 +121,13 @@ serve(async (req) => {
         break;
       
       case 'movieFiles':
-        // Get all movie files for a movie
-        endpoint = `/api/v3/moviefile?movieId=${params?.movieId}`;
+        // Get all movie files - either for a specific movie or all files
+        if (params?.movieId) {
+          endpoint = `/api/v3/moviefile?movieId=${params.movieId}`;
+        } else {
+          // Get ALL movie files in the system
+          endpoint = '/api/v3/moviefile';
+        }
         break;
       
       case 'deleteMovieFile':
