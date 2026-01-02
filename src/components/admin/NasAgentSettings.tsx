@@ -7,7 +7,8 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { HardDrive, Loader2, Shield, Check, X } from "lucide-react";
+import { HardDrive, Loader2, Shield, FolderOpen } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 export const NasAgentSettings = () => {
   const { language } = useLanguage();
@@ -15,6 +16,9 @@ export const NasAgentSettings = () => {
   
   const [nasAgentUrl, setNasAgentUrl] = useState("");
   const [nasDeleteSecret, setNasDeleteSecret] = useState("");
+  const [nasMoviesPath, setNasMoviesPath] = useState("");
+  const [nasShowsPath, setNasShowsPath] = useState("");
+  const [nasDownloadsPath, setNasDownloadsPath] = useState("");
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
 
@@ -25,7 +29,13 @@ export const NasAgentSettings = () => {
       const { data, error } = await supabase
         .from("server_settings")
         .select("setting_key, setting_value")
-        .in("setting_key", ["nas_delete_agent_url", "nas_delete_secret"]);
+        .in("setting_key", [
+          "nas_delete_agent_url", 
+          "nas_delete_secret",
+          "nas_movies_path",
+          "nas_shows_path",
+          "nas_downloads_path"
+        ]);
 
       if (error) throw error;
       
@@ -45,14 +55,30 @@ export const NasAgentSettings = () => {
       if (settings.nas_delete_secret && !nasDeleteSecret) {
         setNasDeleteSecret(settings.nas_delete_secret);
       }
+      if (settings.nas_movies_path && !nasMoviesPath) {
+        setNasMoviesPath(settings.nas_movies_path);
+      }
+      if (settings.nas_shows_path && !nasShowsPath) {
+        setNasShowsPath(settings.nas_shows_path);
+      }
+      if (settings.nas_downloads_path && !nasDownloadsPath) {
+        setNasDownloadsPath(settings.nas_downloads_path);
+      }
     }
   }, [settings]);
 
   const updateSettings = useMutation({
-    mutationFn: async ({ url, secret }: { url: string; secret: string }) => {
+    mutationFn: async ({ 
+      url, secret, moviesPath, showsPath, downloadsPath 
+    }: { 
+      url: string; secret: string; moviesPath: string; showsPath: string; downloadsPath: string;
+    }) => {
       const updates = [
         { setting_key: "nas_delete_agent_url", setting_value: url, updated_at: new Date().toISOString() },
         { setting_key: "nas_delete_secret", setting_value: secret, updated_at: new Date().toISOString() },
+        { setting_key: "nas_movies_path", setting_value: moviesPath, updated_at: new Date().toISOString() },
+        { setting_key: "nas_shows_path", setting_value: showsPath, updated_at: new Date().toISOString() },
+        { setting_key: "nas_downloads_path", setting_value: downloadsPath, updated_at: new Date().toISOString() },
       ];
 
       for (const update of updates) {
@@ -72,7 +98,13 @@ export const NasAgentSettings = () => {
   });
 
   const handleSave = () => {
-    updateSettings.mutate({ url: nasAgentUrl.trim(), secret: nasDeleteSecret.trim() });
+    updateSettings.mutate({ 
+      url: nasAgentUrl.trim(), 
+      secret: nasDeleteSecret.trim(),
+      moviesPath: nasMoviesPath.trim(),
+      showsPath: nasShowsPath.trim(),
+      downloadsPath: nasDownloadsPath.trim(),
+    });
   };
 
   const handleTestConnection = async () => {
@@ -186,6 +218,69 @@ export const NasAgentSettings = () => {
               : 'This secret must be identical on both the web app and the NAS agent'}
           </p>
         </div>
+
+        <Separator className="my-4" />
+
+        {/* Media Paths Section */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            <Label className="text-sm font-medium">
+              {language === 'no' ? 'Tillatte stier (referanse)' : 'Allowed paths (reference)'}
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {language === 'no' 
+              ? 'Disse stiene brukes av NAS-agenten for å validere slette-forespørsler. Oppdater dem her for referanse og på NAS-agenten for faktisk kontroll.' 
+              : 'These paths are used by the NAS agent to validate delete requests. Update them here for reference and on the NAS agent for actual control.'}
+          </p>
+          
+          <div className="grid gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nas-movies-path" className="text-xs">
+                {language === 'no' ? 'Filmer' : 'Movies'}
+              </Label>
+              <Input
+                id="nas-movies-path"
+                type="text"
+                placeholder="/mnt/data/movies"
+                value={nasMoviesPath}
+                onChange={(e) => setNasMoviesPath(e.target.value)}
+                className="bg-secondary/50 border-border/50 font-mono text-sm h-9"
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="nas-shows-path" className="text-xs">
+                {language === 'no' ? 'TV-serier' : 'TV Shows'}
+              </Label>
+              <Input
+                id="nas-shows-path"
+                type="text"
+                placeholder="/mnt/data/shows"
+                value={nasShowsPath}
+                onChange={(e) => setNasShowsPath(e.target.value)}
+                className="bg-secondary/50 border-border/50 font-mono text-sm h-9"
+              />
+            </div>
+            
+            <div className="space-y-1.5">
+              <Label htmlFor="nas-downloads-path" className="text-xs">
+                {language === 'no' ? 'Nedlastinger' : 'Downloads'}
+              </Label>
+              <Input
+                id="nas-downloads-path"
+                type="text"
+                placeholder="/mnt/data/downloads"
+                value={nasDownloadsPath}
+                onChange={(e) => setNasDownloadsPath(e.target.value)}
+                className="bg-secondary/50 border-border/50 font-mono text-sm h-9"
+              />
+            </div>
+          </div>
+        </div>
+
+        <Separator className="my-4" />
 
         <div className="flex gap-2">
           <Button 
