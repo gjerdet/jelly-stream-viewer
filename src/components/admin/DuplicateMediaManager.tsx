@@ -376,10 +376,24 @@ export const DuplicateMediaManager = () => {
             { duration: 5000 }
           );
         } else {
-          console.error('Movie file not found in Radarr.', {
+          console.warn('Movie file not found in Radarr - requires manual deletion:', {
             searchingFor: { path: file.path, title: group.title }
           });
-          throw new Error(language === 'no' ? 'Kunne ikke finne filen i Radarr. Sjekk at filmen er importert.' : 'Could not find file in Radarr. Check that the movie is imported.');
+          logEntry.status = 'error';
+          logEntry.error = language === 'no' 
+            ? 'Filen er ikke indeksert i Radarr og må slettes manuelt' 
+            : 'File is not indexed in Radarr and must be deleted manually';
+          setDeleteLog(prev => [logEntry, ...prev]);
+          toast.warning(
+            language === 'no' 
+              ? `⚠️ Filen "${logEntry.fileName}" er ikke registrert i Radarr og må fjernes manuelt fra: ${file.path}` 
+              : `⚠️ File "${logEntry.fileName}" is not registered in Radarr and must be removed manually from: ${file.path}`,
+            { duration: 10000 }
+          );
+          setDeletingFile(null);
+          setFileToDelete(null);
+          setConfirmCode("");
+          return;
         }
       } else {
         // For episodes - similar approach with Sonarr
