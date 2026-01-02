@@ -290,12 +290,16 @@ export const DuplicateMediaManager = () => {
 
       episodes.forEach((episode: any) => {
         const seriesName = (episode.SeriesName ?? "").toString().trim();
+        const seriesId = (episode.SeriesId ?? "").toString().trim();
         const seasonNo = episode.ParentIndexNumber;
         const episodeNo = episode.IndexNumber;
 
-        if (!seriesName || typeof seasonNo !== "number" || typeof episodeNo !== "number") return;
+        // Must have season+episode numbers; seriesId preferred (avoids grouping different series with same name)
+        if (typeof seasonNo !== "number" || typeof episodeNo !== "number") return;
+        if (!seriesName && !seriesId) return;
 
-        const key = `${seriesName.toLowerCase()}-S${seasonNo}E${episodeNo}`;
+        const seriesKey = seriesId ? `id:${seriesId}` : `name:${seriesName.toLowerCase()}`;
+        const key = `${seriesKey}-S${seasonNo}E${episodeNo}`;
         if (!episodesByKey.has(key)) {
           episodesByKey.set(key, []);
         }
