@@ -184,67 +184,89 @@ export const DuplicateMediaManager = () => {
 
       const foundDuplicates: DuplicateGroup[] = [];
 
-      // Process movies - group by name and find those with multiple MediaSources or similar names
+      const normalizeFsPath = (p: string) =>
+        p.trim().replace(/\\/g, "/").replace(/\/+/g, "/");
+
+      const getPathTail = (p: string, segments = 4) => {
+        const parts = normalizeFsPath(p)
+          .toLowerCase()
+          .split("/")
+          .filter(Boolean);
+        return parts.slice(-segments).join("/");
+      };
+
+      // Process movies - group by name
       const movies = moviesData?.Items || [];
       const moviesByName = new Map<string, any[]>();
-      
+
       movies.forEach((movie: any) => {
-        // Normalize title for comparison
-        const normalizedName = movie.Name?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
+        const normalizedName = movie.Name?.toLowerCase().replace(/[^a-z0-9]/g, "") || "";
+        if (!normalizedName) return; // avoid false grouping when name is missing
+
         if (!moviesByName.has(normalizedName)) {
           moviesByName.set(normalizedName, []);
         }
         moviesByName.get(normalizedName)!.push(movie);
       });
 
-      moviesByName.forEach((movieGroup, normalizedName) => {
-        // Check for multiple versions of the same movie
+      moviesByName.forEach((movieGroup) => {
         const allFiles: MediaFile[] = [];
         const seenPaths = new Set<string>();
         const seenItemIds = new Set<string>();
-        
+
         movieGroup.forEach((movie: any) => {
-          // Skip if we've already processed this exact Jellyfin item
           if (seenItemIds.has(movie.Id)) return;
           seenItemIds.add(movie.Id);
-          
+
           if (movie.MediaSources && movie.MediaSources.length > 0) {
             movie.MediaSources.forEach((source: any) => {
-              const filePath = source.Path || '';
-              // Skip if we've already seen this exact file path (avoid duplicates from same file)
-              const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
-              
-              // Also check by filename only (handles different mount points showing same file)
-              const fileName = normalizedPath.split('/').pop() || '';
-              
-              if (seenPaths.has(normalizedPath) || (fileName && seenPaths.has(fileName))) return;
-              if (filePath) {
-                seenPaths.add(normalizedPath);
-                if (fileName) seenPaths.add(fileName);
+              const rawPath = source.Path;
+              if (!rawPath || typeof rawPath !== "string") return;
+
+              const filePath = rawPath.trim();
+              if (!filePath) return;
+
+              const normalizedPath = normalizeFsPath(filePath).toLowerCase();
+              const fileName = normalizedPath.split("/").pop() || "";
+              const size = Number(source.Size || 0);
+
+              // De-dupe using full path + a stable tail signature (+ size) to avoid false positives
+              // from different mount points or from missing/empty paths.
+              const tailKey = `${getPathTail(filePath)}|${size}`;
+              const fileNameKey = fileName ? `${fileName}|${size}` : "";
+
+              if (
+                seenPaths.has(normalizedPath) ||
+                seenPaths.has(tailKey) ||
+                (fileNameKey && seenPaths.has(fileNameKey))
+              ) {
+                return;
               }
-              
-              const videoStream = source.MediaStreams?.find((s: any) => s.Type === 'Video');
-              const audioStream = source.MediaStreams?.find((s: any) => s.Type === 'Audio');
-              
+
+              seenPaths.add(normalizedPath);
+              seenPaths.add(tailKey);
+              if (fileNameKey) seenPaths.add(fileNameKey);
+
+              const videoStream = source.MediaStreams?.find((s: any) => s.Type === "Video");
+              const audioStream = source.MediaStreams?.find((s: any) => s.Type === "Audio");
+
               allFiles.push({
                 id: source.Id || movie.Id,
                 name: source.Name || movie.Name,
                 path: filePath,
-                container: source.Container || 'unknown',
-                videoCodec: videoStream?.Codec || 'unknown',
-                audioCodec: audioStream?.Codec || 'unknown',
+                container: source.Container || "unknown",
+                videoCodec: videoStream?.Codec || "unknown",
+                audioCodec: audioStream?.Codec || "unknown",
                 width: videoStream?.Width || 0,
                 height: videoStream?.Height || 0,
                 bitrate: source.Bitrate || 0,
-                size: source.Size || 0,
+                size,
               });
             });
           }
         });
 
-        // Only add if there are multiple UNIQUE files (different actual files, not same file from different libraries)
         if (allFiles.length > 1) {
-          console.log(`Found potential duplicates for "${movieGroup[0].Name}":`, allFiles.map(f => ({ path: f.path, size: f.size })));
           foundDuplicates.push({
             title: movieGroup[0].Name,
             type: "Movie",
@@ -256,48 +278,62 @@ export const DuplicateMediaManager = () => {
       // Process episodes - group by series + season + episode
       const episodes = episodesData?.Items || [];
       const episodesByKey = new Map<string, any[]>();
-      
+
       episodes.forEach((episode: any) => {
-        const key = `${episode.SeriesName}-S${episode.ParentIndexNumber}E${episode.IndexNumber}`;
+        const seriesName = (episode.SeriesName ?? "").toString().trim();
+        const seasonNo = episode.ParentIndexNumber;
+        const episodeNo = episode.IndexNumber;
+
+        if (!seriesName || typeof seasonNo !== "number" || typeof episodeNo !== "number") return;
+
+        const key = `${seriesName.toLowerCase()}-S${seasonNo}E${episodeNo}`;
         if (!episodesByKey.has(key)) {
           episodesByKey.set(key, []);
         }
         episodesByKey.get(key)!.push(episode);
       });
 
-      episodesByKey.forEach((episodeGroup, key) => {
+      episodesByKey.forEach((episodeGroup) => {
         const allFiles: MediaFile[] = [];
-        const seenPaths = new Set<string>();
-        
+        const seenFileKeys = new Set<string>();
+
         episodeGroup.forEach((episode: any) => {
           if (episode.MediaSources && episode.MediaSources.length > 0) {
             episode.MediaSources.forEach((source: any) => {
-              const filePath = source.Path || '';
-              // Skip if we've already seen this exact file path (avoid duplicates from same file)
-              const normalizedPath = filePath.toLowerCase().replace(/\\/g, '/');
-              if (seenPaths.has(normalizedPath)) return;
-              if (filePath) seenPaths.add(normalizedPath);
-              
-              const videoStream = source.MediaStreams?.find((s: any) => s.Type === 'Video');
-              const audioStream = source.MediaStreams?.find((s: any) => s.Type === 'Audio');
-              
+              const rawPath = source.Path;
+              if (!rawPath || typeof rawPath !== "string") return;
+
+              const filePath = rawPath.trim();
+              if (!filePath) return;
+
+              const normalizedPath = normalizeFsPath(filePath).toLowerCase();
+              const size = Number(source.Size || 0);
+
+              const tailKey = `${getPathTail(filePath)}|${size}`;
+              if (seenFileKeys.has(normalizedPath) || seenFileKeys.has(tailKey)) return;
+
+              seenFileKeys.add(normalizedPath);
+              seenFileKeys.add(tailKey);
+
+              const videoStream = source.MediaStreams?.find((s: any) => s.Type === "Video");
+              const audioStream = source.MediaStreams?.find((s: any) => s.Type === "Audio");
+
               allFiles.push({
                 id: source.Id || episode.Id,
                 name: source.Name || episode.Name,
                 path: filePath,
-                container: source.Container || 'unknown',
-                videoCodec: videoStream?.Codec || 'unknown',
-                audioCodec: audioStream?.Codec || 'unknown',
+                container: source.Container || "unknown",
+                videoCodec: videoStream?.Codec || "unknown",
+                audioCodec: audioStream?.Codec || "unknown",
                 width: videoStream?.Width || 0,
                 height: videoStream?.Height || 0,
                 bitrate: source.Bitrate || 0,
-                size: source.Size || 0,
+                size,
               });
             });
           }
         });
 
-        // Only add if there are multiple UNIQUE files
         if (allFiles.length > 1) {
           const firstEpisode = episodeGroup[0];
           foundDuplicates.push({
