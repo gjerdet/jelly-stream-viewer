@@ -320,110 +320,47 @@ export const DuplicateMediaManager = () => {
           normalizedTitle
         });
         
-        // First, get all movies to find the movie ID
-        const { data: movies, error: moviesError } = await supabase.functions.invoke('radarr-proxy', {
-          body: { action: 'movies' }
+        // Get ALL movie files from Radarr and match by path (more reliable than title matching)
+        const allFilesResp = await supabase.functions.invoke('radarr-proxy', {
+          body: { action: 'movieFiles' }
         });
         
-        if (moviesError) throw moviesError;
+        if (allFilesResp.error) throw allFilesResp.error;
+        let movieFiles: any[] = Array.isArray(allFilesResp.data) ? allFilesResp.data : [];
         
-        // Find movie by title
-        const movie = movies?.find((m: any) => {
-          const movieTitleNorm = m.title?.toLowerCase().replace(/[^a-z0-9]/g, '') || '';
-          return movieTitleNorm === normalizedTitle;
+        console.log('Fetched all movie files from Radarr:', {
+          totalFiles: movieFiles.length,
+          searchingFor: file.path,
+          normalizedSearch: filePathNorm
         });
         
-        let movieFileId: number | null = null;
+        // Find the matching file by path
+        const matchedFile = movieFiles?.find((f: any) => {
+          if (!f.path) return false;
+          
+          const radarrPathNorm = normalizePath(f.path);
+          const radarrFileName = getFileName(f.path);
+          
+          // Strategy 1: Exact path match
+          if (radarrPathNorm === filePathNorm) return true;
+          
+          // Strategy 2: Filename exact match
+          if (radarrFileName === fileName && fileName.length > 5) return true;
+          
+          // Strategy 3: Path ends-with (handles different mount points)
+          if (filePathNorm.endsWith(radarrFileName) || radarrPathNorm.endsWith(fileName)) return true;
+          
+          return false;
+        });
         
-        if (movie?.id) {
-          // Get all files for this specific movie
-          const initialFilesResp = await supabase.functions.invoke('radarr-proxy', {
-            body: { action: 'movieFiles', params: { movieId: movie.id } }
-          });
-          
-          if (initialFilesResp.error) throw initialFilesResp.error;
-          let movieFiles: any[] = Array.isArray(initialFilesResp.data) ? initialFilesResp.data : [];
-
-
-          let filesSource: 'movieId' | 'global' = 'movieId';
-
-          // If Radarr thinks the movie has no files, ask it to rescan once and try again
-          if (movieFiles.length === 0) {
-            console.log('No movie files returned from Radarr, requesting rescan...', { movieId: movie.id, movieTitle: movie.title });
-
-            const rescanResp = await supabase.functions.invoke('radarr-proxy', {
-              body: { action: 'command', params: { name: 'RescanMovie', movieId: movie.id } }
-            });
-
-            if (rescanResp.error) throw rescanResp.error;
-
-            await new Promise((r) => setTimeout(r, 2500));
-
-            const retryFilesResp = await supabase.functions.invoke('radarr-proxy', {
-              body: { action: 'movieFiles', params: { movieId: movie.id } }
-            });
-
-            if (retryFilesResp.error) throw retryFilesResp.error;
-            movieFiles = Array.isArray(retryFilesResp.data) ? retryFilesResp.data : [];
-          }
-
-          // If still empty, fall back to global movie file list (handles wrong movieId mapping)
-          if (movieFiles.length === 0) {
-            console.log('Still no files for movieId; falling back to global movieFiles list...', {
-              movieId: movie.id,
-              movieTitle: movie.title,
-              filePath: file.path,
-            });
-
-            const allFilesResp = await supabase.functions.invoke('radarr-proxy', {
-              body: { action: 'movieFiles' }
-            });
-
-            if (allFilesResp.error) throw allFilesResp.error;
-            movieFiles = Array.isArray(allFilesResp.data) ? allFilesResp.data : [];
-            filesSource = 'global';
-          }
-
-          console.log('Movie files from Radarr:', {
-            movieId: movie.id,
-            movieTitle: movie.title,
-            filesSource,
-            filesCount: movieFiles?.length || 0,
-            filesPreview: (movieFiles || []).slice(0, 10).map((f: any) => ({ id: f.id, path: f.path, movieId: f.movieId })),
-          });
-          
-          // Find the matching file
-          const matchedFile = movieFiles?.find((f: any) => {
-            if (!f.path) return false;
-            
-            const radarrPathNorm = normalizePath(f.path);
-            const radarrFileName = getFileName(f.path);
-            
-            // Strategy 1: Exact path match
-            if (radarrPathNorm === filePathNorm) return true;
-            
-            // Strategy 2: Filename exact match
-            if (radarrFileName === fileName && fileName.length > 5) return true;
-            
-            // Strategy 3: Path ends-with (handles different mount points)
-            if (filePathNorm.endsWith(radarrFileName) || radarrPathNorm.endsWith(fileName)) return true;
-            
-            return false;
-          });
-          
-          movieFileId = matchedFile?.id;
-          
-          console.log('Delete search result:', { 
-            filePathNorm, 
-            fileName, 
-            movieId: movie.id,
-            movieTitle: movie.title,
-            matchedFile: matchedFile?.path,
-            movieFileId
-          });
-        } else {
-          console.log('Movie not found in Radarr:', { normalizedTitle });
-        }
+        const movieFileId = matchedFile?.id;
+        
+        console.log('Delete search result:', { 
+          filePathNorm, 
+          fileName, 
+          matchedFile: matchedFile?.path,
+          movieFileId
+        });
         
         if (movieFileId) {
           const { error: deleteError } = await supabase.functions.invoke('radarr-proxy', {
