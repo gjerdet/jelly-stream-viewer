@@ -60,6 +60,7 @@ interface DuplicateGroup {
 export const DuplicateMediaManager = () => {
   const { language } = useLanguage();
   const [scanning, setScanning] = useState(false);
+  const [refreshingLibrary, setRefreshingLibrary] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [scanComplete, setScanComplete] = useState(false);
   const [deletingFile, setDeletingFile] = useState<{groupIndex: number, fileIndex: number} | null>(null);
@@ -77,6 +78,33 @@ export const DuplicateMediaManager = () => {
       return a & a;
     }, 0);
     return Math.abs(hash % 10000).toString().padStart(4, '0');
+  };
+
+  const refreshJellyfinLibrary = async () => {
+    setRefreshingLibrary(true);
+
+    try {
+      const { error } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: {
+          endpoint: '/Library/Refresh',
+          method: 'POST',
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(
+        language === 'no'
+          ? 'Bibliotek-oppdatering startet. Vent litt og skann på nytt.'
+          : 'Library refresh started. Wait a bit and rescan.',
+        { duration: 6000 }
+      );
+    } catch (error) {
+      console.error('Error refreshing library:', error);
+      toast.error(language === 'no' ? 'Kunne ikke oppdatere bibliotek' : 'Could not refresh library');
+    } finally {
+      setRefreshingLibrary(false);
+    }
   };
 
   const scanForDuplicates = async () => {
@@ -608,6 +636,25 @@ export const DuplicateMediaManager = () => {
                 <>
                   <Search className="h-4 w-4" />
                   {language === 'no' ? 'Skann etter duplikater' : 'Scan for duplicates'}
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={refreshJellyfinLibrary}
+              disabled={scanning || refreshingLibrary}
+              variant="outline"
+              className="gap-2"
+            >
+              {refreshingLibrary ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {language === 'no' ? 'Oppdaterer bibliotek...' : 'Refreshing library...'}
+                </>
+              ) : (
+                <>
+                  <HardDrive className="h-4 w-4" />
+                  {language === 'no' ? 'Oppdater bibliotek' : 'Refresh library'}
                 </>
               )}
             </Button>

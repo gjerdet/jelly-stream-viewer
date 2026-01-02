@@ -34,6 +34,7 @@ const ALLOWED_ENDPOINT_PATTERNS = [
   /^\/Videos\/[a-f0-9]{32}\/[a-f0-9]{32}\/Subtitles/i,
   /^\/Sessions\/Playing/i,
   /^\/Library\/VirtualFolders$/i,
+  /^\/Library\/Refresh$/i,
 ];
 
 function validateEndpoint(endpoint: string): boolean {
@@ -74,11 +75,20 @@ serve(async (req) => {
 
     // Parse request body
     const { endpoint, method = 'GET', body }: JellyfinRequest = await req.json();
+    const endpointPath = (endpoint ?? '').split('?')[0];
+    const isLibraryRefresh = endpointPath.toLowerCase() === '/library/refresh';
 
     // Validate endpoint
     if (!endpoint || !validateEndpoint(endpoint)) {
       console.warn(`Invalid or disallowed endpoint: ${endpoint}`);
       return new Response(JSON.stringify({ error: 'Invalid endpoint' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (isLibraryRefresh && method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Invalid method for endpoint' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -96,12 +106,29 @@ serve(async (req) => {
       .eq('setting_key', 'jellyfin_server_url')
       .single();
 
-    if (settingsError || !settings) {
-      console.error('Error fetching server settings');
+    if (settingsError || !settings?.setting_value) {
+      console.error('Error fetching server settings', settingsError);
       return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Admin-only operations
+    if (isLibraryRefresh) {
+      const { data: roleData } = await supabaseAdmin
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      if (!roleData) {
+        return new Response(JSON.stringify({ error: 'Admin access required' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const jellyfinServerUrl = settings.setting_value.replace(/\/$/, '');
@@ -136,28 +163,44 @@ serve(async (req) => {
       client: httpClient,
     });
 
-    // Check if response is JSON
     const contentType = jellyfinResponse.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      const textResponse = await jellyfinResponse.text();
-      console.error('Non-JSON response from Jellyfin');
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid response from service'
-        }),
-        {
-          status: jellyfinResponse.status || 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
+    const responseText = await jellyfinResponse.text();
+
+    // Handle empty responses (e.g. 204 No Content from /Library/Refresh)
+    if (!responseText || responseText.trim() === '') {
+      return new Response(JSON.stringify({ success: true }), {
+        status: jellyfinResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
-    const jellyfinData = await jellyfinResponse.json();
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        const jellyfinData = JSON.parse(responseText);
+        return new Response(JSON.stringify(jellyfinData), {
+          status: jellyfinResponse.status,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch (e) {
+        console.error('Invalid JSON response from Jellyfin');
+        return new Response(
+          JSON.stringify({ error: 'Invalid response from service', details: responseText }),
+          {
+            status: 502,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+    }
 
-    return new Response(JSON.stringify(jellyfinData), {
-      status: jellyfinResponse.status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    // Non-JSON response
+    return new Response(
+      JSON.stringify({ success: true, details: responseText }),
+      {
+        status: jellyfinResponse.status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
   } catch (error) {
     console.error('Error in jellyfin-proxy:', error);
     return new Response(
