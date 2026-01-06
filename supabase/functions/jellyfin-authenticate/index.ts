@@ -64,6 +64,10 @@ serve(async (req) => {
     console.log('Full URL:', authUrl);
     console.log('Request user:', username.trim());
 
+    let jellyfinData: any = null;
+    let usedApiKeyAuth = false;
+
+    // First, try normal password authentication
     const jellyfinResponse = await fetch(authUrl, {
       method: 'POST',
       headers: {
@@ -78,40 +82,90 @@ serve(async (req) => {
     });
 
     console.log('Response status:', jellyfinResponse.status);
-    console.log('Response headers:', Object.fromEntries(jellyfinResponse.headers.entries()));
 
-    if (!jellyfinResponse.ok) {
-      const errorText = await jellyfinResponse.text();
-      const contentType = jellyfinResponse.headers.get('content-type') ?? '';
-      const serverHeader = (jellyfinResponse.headers.get('server') ?? '').toLowerCase();
-      const hasWwwAuth = !!jellyfinResponse.headers.get('www-authenticate');
-
-      const looksLikeProxyAuth =
-        jellyfinResponse.status === 401 &&
-        (contentType.includes('text/plain') || serverHeader.includes('openresty') || hasWwwAuth);
-
-      console.error('Jellyfin authentication failed:', {
-        status: jellyfinResponse.status,
-        statusText: jellyfinResponse.statusText,
-        error: errorText,
-        username,
-        serverUrl,
-        apiKeyPrefix: jellyfinApiKey.slice(0, 8),
-        looksLikeProxyAuth,
+    if (jellyfinResponse.ok) {
+      jellyfinData = await jellyfinResponse.json();
+      console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
+    } else {
+      // Normal auth failed - try API key authentication for new/unactivated users
+      console.log('Normal auth failed, trying API key lookup for new users...');
+      
+      // Fetch all users via admin API
+      const usersResponse = await fetch(`${serverUrl}/Users`, {
+        headers: {
+          'X-Emby-Token': jellyfinApiKey,
+          'Accept': 'application/json',
+        },
       });
 
-      return new Response(
-        JSON.stringify({
-          error: looksLikeProxyAuth
-            ? 'Jellyfin-proxyen avviser API-innlogging (401). Sjekk reverse proxy/basic auth, eller bruk en URL som gir direkte tilgang til Jellyfin.'
-            : 'Ugyldig brukernavn eller passord',
-        }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (usersResponse.ok) {
+        const allUsers = await usersResponse.json();
+        const matchedUser = allUsers.find((u: any) => 
+          u.Name.toLowerCase() === username.trim().toLowerCase()
+        );
+
+        if (matchedUser) {
+          // Verify password by attempting to authenticate the user
+          // Use admin API to check if credentials are valid
+          const authByIdUrl = `${serverUrl}/Users/${matchedUser.Id}/Authenticate`;
+          const authByIdResponse = await fetch(authByIdUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Emby-Token': jellyfinApiKey,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              Pw: password,
+            }),
+          });
+
+          if (authByIdResponse.ok) {
+            const authResult = await authByIdResponse.json();
+            jellyfinData = {
+              AccessToken: authResult.AccessToken || jellyfinApiKey,
+              User: matchedUser,
+              ServerId: authResult.ServerId || matchedUser.ServerId,
+            };
+            usedApiKeyAuth = true;
+            console.log('API key authentication successful for new user:', matchedUser.Name);
+          } else {
+            console.log('Password verification failed for user:', matchedUser.Name);
+          }
+        }
+      }
+
+      if (!jellyfinData) {
+        const errorText = await jellyfinResponse.text();
+        const contentType = jellyfinResponse.headers.get('content-type') ?? '';
+        const serverHeader = (jellyfinResponse.headers.get('server') ?? '').toLowerCase();
+        const hasWwwAuth = !!jellyfinResponse.headers.get('www-authenticate');
+
+        const looksLikeProxyAuth =
+          jellyfinResponse.status === 401 &&
+          (contentType.includes('text/plain') || serverHeader.includes('openresty') || hasWwwAuth);
+
+        console.error('Jellyfin authentication failed:', {
+          status: jellyfinResponse.status,
+          statusText: jellyfinResponse.statusText,
+          error: errorText,
+          username,
+          serverUrl,
+          apiKeyPrefix: jellyfinApiKey.slice(0, 8),
+          looksLikeProxyAuth,
+        });
+
+        return new Response(
+          JSON.stringify({
+            error: looksLikeProxyAuth
+              ? 'Jellyfin-proxyen avviser API-innlogging (401). Sjekk reverse proxy/basic auth, eller bruk en URL som gir direkte tilgang til Jellyfin.'
+              : 'Ugyldig brukernavn eller passord',
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
-    const jellyfinData = await jellyfinResponse.json();
-    console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
 
     // Create or sign in Supabase user using the deterministic email
     const userEmail = `${jellyfinData.User.Id}@jellyfin.local`;
