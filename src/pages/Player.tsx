@@ -143,7 +143,12 @@ const Player = () => {
   
   // Streaming status and error state
   const [streamError, setStreamError] = useState<string | null>(null);
+  // Status from info endpoint (metadata)
   const [streamHttpStatus, setStreamHttpStatus] = useState<number | null>(null);
+  // Status from probing the actual stream URL (Range request)
+  const [streamProbeStatus, setStreamProbeStatus] = useState<number | null>(null);
+  const [streamProbeContentType, setStreamProbeContentType] = useState<string | null>(null);
+
   const [streamStatus, setStreamStatus] = useState<{
     isTranscoding: boolean;
     codec: string | null;
@@ -361,6 +366,49 @@ const Player = () => {
     
     fetchStreamStatus();
   }, [id]);
+
+  // Probe the actual stream URL on-demand (when diagnostics is opened)
+  useEffect(() => {
+    const probeStream = async () => {
+      if (!showDiagnostics || !id) return;
+
+      setStreamProbeStatus(null);
+      setStreamProbeContentType(null);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseToken = session?.access_token;
+      if (!supabaseToken) {
+        setStreamProbeStatus(401);
+        return;
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
+      let streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+
+      if (selectedQuality !== 'auto') {
+        const qualityConfig = qualityOptions.find(q => q.value === selectedQuality);
+        if (qualityConfig) streamingUrl += `&bitrate=${qualityConfig.bitrate}`;
+      }
+
+      try {
+        const response = await fetch(streamingUrl, {
+          headers: { Range: 'bytes=0-0' },
+        });
+
+        setStreamProbeStatus(response.status);
+        setStreamProbeContentType(response.headers.get('content-type'));
+
+        // Consume the tiny response so the connection closes cleanly
+        await response.arrayBuffer().catch(() => null);
+      } catch (error) {
+        console.log('Could not probe stream:', error);
+        setStreamProbeStatus(-1);
+        setStreamProbeContentType(null);
+      }
+    };
+
+    probeStream();
+  }, [showDiagnostics, id, selectedQuality]);
   
   // Handle video errors with user-friendly messages
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -1241,7 +1289,9 @@ const Player = () => {
             <button onClick={() => setShowDiagnostics(false)} className="text-white/60 hover:text-white">✕</button>
           </div>
           <div className="space-y-1 text-white/80">
-            <p><span className="text-white/50">HTTP status:</span> {streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}</p>
+            <p><span className="text-white/50">HTTP (info):</span> {streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}</p>
+            <p><span className="text-white/50">HTTP (stream):</span> {streamProbeStatus === -1 ? 'Nettverksfeil' : streamProbeStatus ?? 'Åpne diagnose for å teste'}</p>
+            <p><span className="text-white/50">Content-Type:</span> {streamProbeContentType || '–'}</p>
             <p><span className="text-white/50">Bruker-id-kilde:</span> {streamStatus.userIdSource || '–'}</p>
             <p><span className="text-white/50">Video-codec:</span> {streamStatus.codec || '–'}</p>
             <p><span className="text-white/50">Container:</span> {streamStatus.container || '–'}</p>
