@@ -201,7 +201,9 @@ serve(async (req) => {
 
     // If info-only request, return stream metadata
     if (infoOnly) {
-      const isTranscoding = videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec);
+      const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
+      const needsAudioTranscode = !!(audioCodec && !['aac', 'mp3', 'opus'].includes(audioCodec));
+      const isTranscoding = needsVideoTranscode || needsAudioTranscode;
       const bitrate = videoBitrate ? `${Math.round(videoBitrate / 1000000)} Mbps` : null;
       
       return new Response(JSON.stringify({
@@ -222,7 +224,9 @@ serve(async (req) => {
 
     let streamUrl;
     const targetBitrate = requestedBitrate ? parseInt(requestedBitrate) : 8000000;
-    const needsTranscode = videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec);
+    const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
+    const needsAudioTranscode = !!(audioCodec && !['aac', 'mp3', 'opus'].includes(audioCodec));
+    const needsTranscode = needsVideoTranscode || needsAudioTranscode;
     const forceTranscode = requestedBitrate !== null; // Manual quality selection always transcodes
     
     // Transcode if codec is NOT browser-compatible OR if user requested specific quality

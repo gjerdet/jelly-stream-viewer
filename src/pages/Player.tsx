@@ -113,6 +113,7 @@ const Player = () => {
   const player = t.player as any;
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const lastAutoplayUrlRef = useRef<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [showControls, setShowControls] = useState(true);
@@ -340,6 +341,23 @@ const Player = () => {
 
     setupStream();
   }, [id, selectedQuality]);
+
+  // Try to start playback automatically when the stream URL changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    if (lastAutoplayUrlRef.current === streamUrl) return;
+    lastAutoplayUrlRef.current = streamUrl;
+
+    const p = video.play();
+    if (p && typeof (p as any).catch === 'function') {
+      (p as Promise<void>).catch((err: any) => {
+        console.log('Autoplay blocked:', err?.name || err);
+        toast.info('Trykk på videoen for å starte avspilling');
+      });
+    }
+  }, [streamUrl]);
 
   // Save quality preference
   useEffect(() => {
