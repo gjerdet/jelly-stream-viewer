@@ -112,6 +112,24 @@ serve(async (req) => {
       }
     }
 
+    // Delete orphaned users (profiles with jellyfin_user_id that no longer exist in Jellyfin)
+    let deletedCount = 0;
+    const deletedUsernames: string[] = [];
+    
+    for (const profile of deletedProfiles) {
+      console.log(`Deleting orphaned user: ${profile.jellyfin_username} (${profile.id})`);
+      
+      // Delete from auth.users (this will cascade to profiles due to foreign key)
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(profile.id);
+      
+      if (deleteError) {
+        console.error(`Failed to delete user ${profile.id}:`, deleteError);
+      } else {
+        deletedCount++;
+        deletedUsernames.push(profile.jellyfin_username || 'Unknown');
+      }
+    }
+
     // Update sync schedule status
     await supabaseAdmin
       .from('sync_schedule')
@@ -121,22 +139,23 @@ serve(async (req) => {
         last_run_details: {
           jellyfin_users: jellyfinUsers.length,
           new_users: newUsers.length,
-          deleted_users: deletedProfiles.length,
+          deleted_users: deletedCount,
           updated_usernames: updatedCount,
           new_user_names: newUsers.map(u => u.Name),
-          deleted_user_names: deletedProfiles.map(p => p.jellyfin_username),
+          deleted_user_names: deletedUsernames,
         },
       })
       .eq('sync_type', 'jellyfin_users');
 
-    console.log(`Sync complete: ${newUsers.length} new, ${deletedProfiles.length} deleted, ${updatedCount} updated`);
+    console.log(`Sync complete: ${newUsers.length} new, ${deletedCount} deleted, ${updatedCount} updated`);
 
     return new Response(
       JSON.stringify({
         success: true,
         jellyfin_users: jellyfinUsers.length,
         new_users: newUsers.map(u => ({ id: u.Id, name: u.Name })),
-        deleted_users: deletedProfiles.map(p => ({ id: p.id, username: p.jellyfin_username })),
+        deleted_users: deletedCount,
+        deleted_usernames: deletedUsernames,
         updated_usernames: updatedCount,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
