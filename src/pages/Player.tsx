@@ -138,6 +138,10 @@ const Player = () => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   
+  // Progress bar hover state
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<number>(0);
+  const progressBarRef = useRef<HTMLDivElement>(null);
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
   const [currentSegment, setCurrentSegment] = useState<MediaSegment | null>(null);
@@ -1466,7 +1470,28 @@ const Player = () => {
           </span>
 
           {/* Progress bar */}
-          <div className="flex-1 relative">
+          <div 
+            ref={progressBarRef}
+            className="flex-1 relative group"
+            onMouseMove={(e) => {
+              if (!progressBarRef.current || !duration) return;
+              const rect = progressBarRef.current.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const percentage = Math.max(0, Math.min(1, x / rect.width));
+              setHoverTime(percentage * duration);
+              setHoverPosition(x);
+            }}
+            onMouseLeave={() => setHoverTime(null)}
+          >
+            {/* Hover time preview tooltip */}
+            {hoverTime !== null && (
+              <div 
+                className="absolute bottom-6 -translate-x-1/2 bg-black/90 backdrop-blur-sm text-white text-xs font-mono px-2 py-1 rounded pointer-events-none z-10 animate-fade-in"
+                style={{ left: hoverPosition }}
+              >
+                {formatTime(Math.floor(hoverTime))}
+              </div>
+            )}
             <input
               type="range"
               min={0}
