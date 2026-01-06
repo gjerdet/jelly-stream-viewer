@@ -12,7 +12,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useSiteSettings } from "@/hooks/useSiteSettings";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type, Edit, Save, X, Copy } from "lucide-react";
+import { Settings, Newspaper, Trash2, Pin, Loader2, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Bold, Italic, List, Link, Type, Edit, Save, X, Copy, RefreshCw } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -34,6 +34,7 @@ import { DuplicateReportsManager } from "@/components/admin/DuplicateReportsMana
 import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { DownloadsPendingManager } from "@/components/admin/DownloadsPendingManager";
 import { NasAgentSettings } from "@/components/admin/NasAgentSettings";
+import { SyncScheduleManager } from "@/components/admin/SyncScheduleManager";
 
 import { ProxyHealthCheck } from "@/components/admin/ProxyHealthCheck";
 import { SystemDiagnosticsPanel } from "@/components/admin/SystemDiagnosticsPanel";
@@ -1069,6 +1070,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
     { value: "database", label: admin.database || "Database", icon: Database },
     { value: "site", label: language === 'no' ? 'Side' : 'Site', icon: Settings },
     { value: "monitoring", label: language === 'no' ? 'Status' : 'Status', icon: Activity },
+    { value: "sync", label: language === 'no' ? 'Synkronisering' : 'Sync', icon: RefreshCw },
     { value: "qbittorrent", label: "qBittorrent", icon: Download },
     { value: "users", label: admin.users || "Users", icon: Settings },
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
@@ -2171,6 +2173,10 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </Card>
 
               <ServerMonitoring monitoringUrl={monitoringUrl} />
+              </TabsContent>
+
+              <TabsContent value="sync" className="space-y-6 mt-0">
+                <SyncScheduleManager />
               </TabsContent>
 
               <TabsContent value="qbittorrent" className="space-y-6 mt-0">
