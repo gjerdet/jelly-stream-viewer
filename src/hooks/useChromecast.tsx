@@ -166,12 +166,8 @@ export const useChromecast = () => {
         setCastState((prev) => ({ ...prev, isAvailable: true }));
         setIsLoading(false);
 
-        const lastDevice = localStorage.getItem('last_cast_device');
-        if (lastDevice) {
-          toast.success(`Chromecast klar! Sist brukt: ${lastDevice}`);
-        } else {
-          toast.success('Chromecast klar!');
-        }
+        // Silent initialization - no toast on startup
+        console.log('[Chromecast] Initialized successfully');
 
         console.log('[Chromecast] Initialized successfully');
       } catch (error) {

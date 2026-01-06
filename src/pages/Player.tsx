@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
+import PlayerStatsPanel from "@/components/player/PlayerStatsPanel";
 
 interface MediaStream {
   Index: number;
@@ -150,6 +151,7 @@ const Player = () => {
     resolution: string | null;
   }>({ isTranscoding: false, codec: null, bitrate: null, container: null, resolution: null });
   const [showStreamStatus, setShowStreamStatus] = useState(false);
+  const [showStatsPanel, setShowStatsPanel] = useState(false);
   
   // Buffering state
   const [isBuffering, setIsBuffering] = useState(false);
@@ -1187,70 +1189,30 @@ const Player = () => {
       {/* Stream Status Indicator */}
       {showControls && streamStatus.codec && (
         <div className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-auto z-40">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowStreamStatus(!showStreamStatus); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                  streamStatus.isTranscoding 
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
-                    : 'bg-green-500/20 text-green-300 border border-green-500/30'
-                }`}
-              >
-                <Info className="h-3 w-3" />
-                {streamStatus.isTranscoding ? 'Transkoding' : 'Direktestrøm'}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="bg-background/95 backdrop-blur-xl border-border max-w-xs">
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Video:</span>
-                  <span className="font-mono">{streamStatus.codec || 'Ukjent'}</span>
-                </div>
-                {streamStatus.container && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Format:</span>
-                    <span className="font-mono">{streamStatus.container}</span>
-                  </div>
-                )}
-                {streamStatus.resolution && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Oppløsning:</span>
-                    <span className="font-mono">{streamStatus.resolution}</span>
-                  </div>
-                )}
-                {streamStatus.bitrate && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Kildebitrate:</span>
-                    <span className="font-mono">{streamStatus.bitrate}</span>
-                  </div>
-                )}
-                <div className="pt-1 border-t border-border mt-1 space-y-1">
-                  {networkStats.downloadSpeed && (
-                    <div className="flex justify-between gap-4">
-                      <span className="text-muted-foreground">Nedlasting:</span>
-                      <span className="font-mono text-blue-400">{formatBytes(networkStats.downloadSpeed)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Buffer:</span>
-                    <span className={`font-mono ${networkStats.bufferedSeconds > 10 ? 'text-green-400' : networkStats.bufferedSeconds > 3 ? 'text-yellow-400' : 'text-red-400'}`}>
-                      {networkStats.bufferedSeconds.toFixed(1)}s
-                    </span>
-                  </div>
-                </div>
-                <div className="pt-1 border-t border-border mt-1">
-                  <span className={streamStatus.isTranscoding ? 'text-amber-400' : 'text-green-400'}>
-                    {streamStatus.isTranscoding 
-                      ? '⚡ Transkodes til H.264 for nettleserkompatibilitet' 
-                      : '✓ Spilles direkte uten transkoding'}
-                  </span>
-                </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowStatsPanel(!showStatsPanel); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+              streamStatus.isTranscoding 
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                : 'bg-green-500/20 text-green-300 border border-green-500/30'
+            }`}
+          >
+            <Info className="h-3 w-3" />
+            {streamStatus.isTranscoding ? 'Transkoding' : 'Direktestrøm'}
+            {networkStats.downloadSpeed && (
+              <span className="text-blue-300 ml-1">• {formatBytes(networkStats.downloadSpeed)}</span>
+            )}
+          </button>
         </div>
       )}
+
+      {/* Stats Panel */}
+      <PlayerStatsPanel
+        stats={networkStats}
+        streamStatus={streamStatus}
+        isOpen={showStatsPanel}
+        onClose={() => setShowStatsPanel(false)}
+      />
 
       {/* Custom overlay controls */}
       <div 
