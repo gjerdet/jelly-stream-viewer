@@ -6,7 +6,7 @@ import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
 import { Button } from "@/components/ui/button";
-import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2, Flag } from "lucide-react";
+import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2, Flag, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +20,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReportMediaDialog } from "@/components/ReportMediaDialog";
+import { ReportDuplicateDialog } from "@/components/ReportDuplicateDialog";
 import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 
 interface MediaStream {
@@ -120,6 +121,7 @@ const Detail = () => {
   const [episodeSubtitleTab, setEpisodeSubtitleTab] = useState<'existing' | 'search'>('existing');
   const [loadingEpisodeSubtitles, setLoadingEpisodeSubtitles] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
@@ -675,6 +677,17 @@ const Detail = () => {
                 >
                   <Flag className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="hidden sm:inline">Rapporter</span>
+                </Button>
+
+                {/* Report Duplicate Button */}
+                <Button
+                  size="default"
+                  variant="outline"
+                  className="gap-1.5 sm:gap-2 h-10 sm:h-11"
+                  onClick={() => setDuplicateDialogOpen(true)}
+                >
+                  <Copy className="h-4 w-4 sm:h-5 sm:w-5" />
+                  <span className="hidden sm:inline">Duplikat</span>
                 </Button>
 
                 {/* Subtitle Dialog - Show existing subtitles and search for new */}
@@ -1321,6 +1334,19 @@ const Detail = () => {
       <ReportMediaDialog
         open={reportDialogOpen}
         onOpenChange={setReportDialogOpen}
+        itemId={item.Id}
+        itemName={item.Name}
+        itemType={item.Type}
+        imageUrl={item.ImageTags?.Primary && serverUrl 
+          ? getJellyfinImageUrl(serverUrl, item.Id, 'Primary', { maxHeight: '600' })
+          : undefined
+        }
+      />
+
+      {/* Report Duplicate Dialog */}
+      <ReportDuplicateDialog
+        open={duplicateDialogOpen}
+        onOpenChange={setDuplicateDialogOpen}
         itemId={item.Id}
         itemName={item.Name}
         itemType={item.Type}
