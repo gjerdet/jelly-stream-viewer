@@ -51,9 +51,10 @@ serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing backend configuration for jellyfin-proxy');
       return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
@@ -63,11 +64,10 @@ serve(async (req) => {
 
     const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Verify user is authenticated (use service role to validate JWT)
-    const authHeaderRaw = req.headers.get('authorization');
-    const bearerMatch = authHeaderRaw?.match(/^bearer\s+(.+)$/i);
+    // Verify user is authenticated using the caller's JWT
+    const authHeaderRaw = req.headers.get('authorization') ?? '';
 
-    if (!bearerMatch?.[1]) {
+    if (!authHeaderRaw) {
       console.warn('jellyfin-proxy unauthorized: missing bearer token');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
@@ -75,12 +75,21 @@ serve(async (req) => {
       });
     }
 
-    const token = bearerMatch[1].trim();
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: authHeaderRaw,
+        },
+      },
+      auth: {
+        persistSession: false,
+      },
+    });
 
     const {
       data: { user },
       error: userError,
-    } = await supabaseAdmin.auth.getUser(token);
+    } = await supabaseAuth.auth.getUser();
 
     if (userError || !user) {
       console.warn('jellyfin-proxy unauthorized: invalid user token', userError?.message);
