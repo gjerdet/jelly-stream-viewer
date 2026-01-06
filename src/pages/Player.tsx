@@ -192,6 +192,10 @@ const Player = () => {
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [fallbackAttempted, setFallbackAttempted] = useState(false);
+  
+  // Start position for server-side seeking (when byte-range is not supported)
+  const [streamStartPosition, setStreamStartPosition] = useState<number>(0);
+  const isSeekingViaReloadRef = useRef(false);
   const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
   // Buffering state
@@ -364,12 +368,17 @@ const Player = () => {
         streamingUrl += '&hls=true';
       }
       
-      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default', 'HLS:', useHls);
+      // Add start position for server-side seeking (used when byte-range is not supported)
+      if (streamStartPosition > 0) {
+        streamingUrl += `&startPosition=${streamStartPosition}`;
+      }
+      
+      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default', 'HLS:', useHls, 'startPosition:', streamStartPosition);
       setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition]);
 
   // HLS.js setup and cleanup
   useEffect(() => {
@@ -1019,13 +1028,10 @@ const Player = () => {
     }
   };
 
-  // Seek to position
+  // Seek to position (slider input)
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const video = videoRef.current;
-    if (!video) return;
     const time = parseFloat(e.target.value);
-    video.currentTime = time;
-    setCurrentTime(time);
+    handleSeekToPosition(time);
   };
 
   // Toggle mute
@@ -1036,11 +1042,41 @@ const Player = () => {
     setIsMuted(video.muted);
   };
 
-  // Skip forward/backward
+  // Skip forward/backward using server-side seeking (reload stream with new start position)
+  // This is necessary because transcoded streams don't support byte-range seeking
   const skip = (seconds: number) => {
     const video = videoRef.current;
-    if (!video) return;
-    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
+    if (!video || !Number.isFinite(video.duration)) return;
+    
+    const newTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
+    
+    // For transcoded streams, we need to reload with a new start position
+    // because byte-range seeking is not supported
+    if (streamStatus.isTranscoding) {
+      console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s`);
+      isSeekingViaReloadRef.current = true;
+      setStreamStartPosition(newTime);
+    } else {
+      // Direct stream supports seeking
+      video.currentTime = newTime;
+    }
+  };
+  
+  // Handle slider seek (also uses server-side seeking for transcoded streams)
+  const handleSeekToPosition = (newTime: number) => {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(video.duration)) return;
+    
+    const clampedTime = Math.max(0, Math.min(video.duration, newTime));
+    
+    if (streamStatus.isTranscoding) {
+      console.log(`Slider seek via reload: ${video.currentTime.toFixed(1)}s -> ${clampedTime.toFixed(1)}s`);
+      isSeekingViaReloadRef.current = true;
+      setStreamStartPosition(clampedTime);
+    } else {
+      video.currentTime = clampedTime;
+      setCurrentTime(clampedTime);
+    }
   };
 
   // Handle double-tap to seek on mobile
