@@ -658,15 +658,17 @@ const Header = () => {
                 </PopoverContent>
               </Popover>
               
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleSync}
-                title="Synkroniser med Jellyfin"
-                className="h-9 w-9"
-              >
-                <Zap className="h-4 w-4" />
-              </Button>
+              {userRole === "admin" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleSync}
+                  title="Synkroniser med Jellyfin"
+                  className="h-9 w-9"
+                >
+                  <Zap className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -687,15 +689,17 @@ const Header = () => {
                   <Settings className="h-4 w-4" />
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleStatus}
-                title="Server-status"
-                className="h-9 w-9"
-              >
-                <Activity className="h-4 w-4" />
-              </Button>
+              {userRole === "admin" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleStatus}
+                  title="Server-status"
+                  className="h-9 w-9"
+                >
+                  <Activity className="h-4 w-4" />
+                </Button>
+              )}
             </div>
             
             <LanguageSwitcher />
