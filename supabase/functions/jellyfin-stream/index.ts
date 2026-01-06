@@ -32,6 +32,7 @@ serve(async (req) => {
     const token = url.searchParams.get('token');
     const infoOnly = url.searchParams.get('info') === 'true';
     const requestedBitrate = url.searchParams.get('bitrate'); // Manual quality selection
+    const requestedAudioIndex = url.searchParams.get('audioIndex'); // Manual audio track selection
     
     if (!videoId || !token) {
       return new Response('Missing required parameters', { 
@@ -227,9 +228,15 @@ serve(async (req) => {
     const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
     const needsAudioTranscode = !!(audioCodec && !['aac', 'mp3', 'opus'].includes(audioCodec));
     const needsTranscode = needsVideoTranscode || needsAudioTranscode;
-    const forceTranscode = requestedBitrate !== null; // Manual quality selection always transcodes
+    const hasManualAudioSelection = requestedAudioIndex !== null;
+    const forceTranscode = requestedBitrate !== null || hasManualAudioSelection; // Manual quality/audio selection always transcodes
+
+    // Determine which audio stream index to use
+    const effectiveAudioIndex = requestedAudioIndex !== null 
+      ? parseInt(requestedAudioIndex) 
+      : audioStreamIndex;
     
-    // Transcode if codec is NOT browser-compatible OR if user requested specific quality
+    // Transcode if codec is NOT browser-compatible OR if user requested specific quality/audio
     if (needsTranscode || forceTranscode) {
       // Build transcode URL with explicit audio stream selection
       const transcodeParams = new URLSearchParams({
@@ -246,13 +253,13 @@ serve(async (req) => {
       });
       
       // Add audio stream index if available to ensure correct audio track
-      if (audioStreamIndex !== undefined) {
-        transcodeParams.set('AudioStreamIndex', audioStreamIndex.toString());
+      if (effectiveAudioIndex !== undefined) {
+        transcodeParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
       }
       
       // Use an explicit .mp4 extension for best browser compatibility (content-type sniffing)
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?${transcodeParams.toString()}`;
-      console.log(`Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original codec: ${videoCodec}/${audioCodec}, audioStreamIndex: ${audioStreamIndex})`);
+      console.log(`Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${audioCodec}, audioStreamIndex: ${effectiveAudioIndex}${hasManualAudioSelection ? ' [user-selected]' : ''})`);
     } else {
       // Direct stream for compatible codecs
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
