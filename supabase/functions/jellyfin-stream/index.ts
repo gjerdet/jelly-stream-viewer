@@ -222,8 +222,8 @@ serve(async (req) => {
     
     // Transcode if codec is NOT browser-compatible OR if user requested specific quality
     if (needsTranscode || forceTranscode) {
-      // Progressive MP4 output is broadly supported in browsers (TS often isn't)
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
+      // Use an explicit .mp4 extension for best browser compatibility (content-type sniffing)
+      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?`
         + `UserId=${userId}`
         + `&MediaSourceId=${mediaSourceId}`
         + `&VideoCodec=h264`
@@ -233,7 +233,6 @@ serve(async (req) => {
         + `&MaxAudioChannels=2`
         + `&TranscodingContainer=mp4`
         + `&TranscodingProtocol=http`
-        + `&BreakOnNonKeyFrames=true`
         + `&api_key=${apiKey}`;
       console.log(`Transcoding to H264/MP4 at ${targetBitrate / 1000000} Mbps (original codec: ${videoCodec})`);
     } else {
@@ -262,10 +261,28 @@ serve(async (req) => {
       client: httpClient,
     });
 
+    const jellyfinContentType = jellyfinResponse.headers.get('content-type') ?? '';
+    console.log('Jellyfin stream response:', {
+      status: jellyfinResponse.status,
+      contentType: jellyfinContentType,
+      contentLength: jellyfinResponse.headers.get('content-length'),
+      contentRange: jellyfinResponse.headers.get('content-range'),
+      acceptRanges: jellyfinResponse.headers.get('accept-ranges'),
+    });
+
     if (!jellyfinResponse.ok) {
       console.error('Jellyfin streaming error:', jellyfinResponse.status);
       return new Response('Stream unavailable', {
         status: jellyfinResponse.status,
+        headers: corsHeaders,
+      });
+    }
+
+    // If Jellyfin returns non-video content, don't let the browser try to decode it.
+    if (jellyfinContentType && (jellyfinContentType.startsWith('text/') || jellyfinContentType.includes('application/json'))) {
+      console.error('Unexpected stream content-type from Jellyfin:', jellyfinContentType);
+      return new Response('Stream returned unexpected content', {
+        status: 502,
         headers: corsHeaders,
       });
     }
