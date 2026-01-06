@@ -1498,12 +1498,8 @@ const Player = () => {
         </div>
       </div>
 
-      {/* Top bar - Back button + title (kept outside pointer-events-none parents for fullscreen reliability) */}
-      <div
-        className={`absolute top-0 left-0 right-0 p-2 sm:p-4 flex items-center justify-between safe-area-top transition-opacity duration-300 ${
-          showControls ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
-        }`}
-      >
+      {/* Always visible back button - top left */}
+      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 pointer-events-auto safe-area-top">
         <Button
           variant="ghost"
           size="sm"
@@ -1511,23 +1507,24 @@ const Player = () => {
             e.stopPropagation();
             navigate(-1);
           }}
-          className="text-white hover:bg-white/20 h-12 w-12 sm:w-auto sm:px-3 bg-black/50 backdrop-blur-sm rounded-lg touch-manipulation"
+          className="text-white hover:bg-white/20 h-12 w-12 sm:w-auto sm:px-3 bg-black/60 backdrop-blur-sm rounded-lg touch-manipulation border border-white/10"
         >
           <ArrowLeft className="h-5 w-5 sm:mr-2" />
           <span className="hidden sm:inline">Tilbake</span>
         </Button>
+      </div>
 
-        {/* Title - Center */}
-        <div className="flex-1 text-center px-2">
-          <p className="text-white text-xs sm:text-base font-medium line-clamp-1">
-            {item?.SeriesName && `${item.SeriesName} - `}
-            {item?.IndexNumber && `E${item.IndexNumber}: `}
-            {item?.Name}
-          </p>
-        </div>
-
-        {/* Placeholder for balance */}
-        <div className="w-12 sm:w-auto" />
+      {/* Top bar - title only (controls visibility) */}
+      <div
+        className={`absolute top-2 left-16 right-2 sm:top-4 sm:left-20 sm:right-4 flex items-center justify-center safe-area-top transition-opacity duration-300 ${
+          showControls ? "opacity-100" : "opacity-0"
+        }`}
+      >
+        <p className="text-white text-xs sm:text-base font-medium line-clamp-1 bg-black/40 backdrop-blur-sm px-3 py-1 rounded-lg">
+          {item?.SeriesName && `${item.SeriesName} - `}
+          {item?.IndexNumber && `E${item.IndexNumber}: `}
+          {item?.Name}
+        </p>
       </div>
 
       {/* Single horizontal control bar - top right */}
