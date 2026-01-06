@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -147,8 +147,26 @@ const Player = () => {
     codec: string | null;
     bitrate: string | null;
     container: string | null;
-  }>({ isTranscoding: false, codec: null, bitrate: null, container: null });
+    resolution: string | null;
+  }>({ isTranscoding: false, codec: null, bitrate: null, container: null, resolution: null });
   const [showStreamStatus, setShowStreamStatus] = useState(false);
+  
+  // Buffering state
+  const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Quality selection
+  type QualityOption = 'auto' | '1080p' | '720p' | '480p' | '360p';
+  const [selectedQuality, setSelectedQuality] = useState<QualityOption>(() => {
+    const saved = localStorage.getItem('preferredQuality');
+    return (saved as QualityOption) || 'auto';
+  });
+  const qualityOptions: { value: QualityOption; label: string; bitrate: number }[] = [
+    { value: 'auto', label: 'Auto', bitrate: 0 },
+    { value: '1080p', label: '1080p (8 Mbps)', bitrate: 8000000 },
+    { value: '720p', label: '720p (4 Mbps)', bitrate: 4000000 },
+    { value: '480p', label: '480p (2 Mbps)', bitrate: 2000000 },
+    { value: '360p', label: '360p (1 Mbps)', bitrate: 1000000 },
+  ];
   
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
@@ -274,14 +292,27 @@ const Player = () => {
       
       // Use edge function proxy for streaming (handles HTTPS→HTTP, codec detection, transcoding)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
-      const streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+      let streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
       
-      console.log('Using edge function proxy for streaming');
+      // Add quality parameter if not auto
+      if (selectedQuality !== 'auto') {
+        const qualityConfig = qualityOptions.find(q => q.value === selectedQuality);
+        if (qualityConfig) {
+          streamingUrl += `&bitrate=${qualityConfig.bitrate}`;
+        }
+      }
+      
+      console.log('Using edge function proxy for streaming with quality:', selectedQuality);
       setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [id]);
+  }, [id, selectedQuality]);
+
+  // Save quality preference
+  useEffect(() => {
+    localStorage.setItem('preferredQuality', selectedQuality);
+  }, [selectedQuality]);
 
   // Fetch stream status (codec info) from edge function
   useEffect(() => {
@@ -303,6 +334,7 @@ const Player = () => {
             codec: info.videoCodec || null,
             bitrate: info.bitrate || null,
             container: info.container || null,
+            resolution: info.resolution || null,
           });
         }
       } catch (error) {
@@ -1041,9 +1073,22 @@ const Player = () => {
         onError={handleVideoError}
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
+        onWaiting={() => setIsBuffering(true)}
+        onPlaying={() => setIsBuffering(false)}
+        onCanPlay={() => setIsBuffering(false)}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
+
+      {/* Buffering Indicator */}
+      {isBuffering && !streamError && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
+          <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm rounded-2xl p-6">
+            <Loader2 className="h-12 w-12 text-white animate-spin" />
+            <span className="text-white text-sm font-medium">Laster...</span>
+          </div>
+        </div>
+      )}
 
       {/* Stream Error Overlay */}
       {streamError && (
@@ -1249,6 +1294,32 @@ const Player = () => {
                 </SelectContent>
               </Select>
             )}
+
+            {/* Quality selector */}
+            <Select 
+              value={selectedQuality} 
+              onValueChange={(value: QualityOption) => {
+                console.log('User selected quality:', value);
+                setSelectedQuality(value);
+                toast.info(`Kvalitet: ${qualityOptions.find(q => q.value === value)?.label || value}`);
+              }}
+            >
+              <SelectTrigger 
+                className="w-auto min-w-[60px] bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-2 justify-center gap-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="text-xs font-medium">
+                  {selectedQuality === 'auto' ? 'Auto' : selectedQuality}
+                </span>
+              </SelectTrigger>
+              <SelectContent className="bg-background z-[2147483647]">
+                {qualityOptions.map((quality) => (
+                  <SelectItem key={quality.value} value={quality.value}>
+                    {quality.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             {/* Cast */}
             <Button

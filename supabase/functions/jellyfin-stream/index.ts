@@ -31,6 +31,7 @@ serve(async (req) => {
     const videoId = url.searchParams.get('id');
     const token = url.searchParams.get('token');
     const infoOnly = url.searchParams.get('info') === 'true';
+    const requestedBitrate = url.searchParams.get('bitrate'); // Manual quality selection
     
     if (!videoId || !token) {
       return new Response('Missing required parameters', { 
@@ -158,22 +159,26 @@ serve(async (req) => {
     }
 
     let streamUrl;
-    // Only transcode if codec is NOT browser-compatible
-    if (videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec)) {
+    const targetBitrate = requestedBitrate ? parseInt(requestedBitrate) : 8000000;
+    const needsTranscode = videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec);
+    const forceTranscode = requestedBitrate !== null; // Manual quality selection always transcodes
+    
+    // Transcode if codec is NOT browser-compatible OR if user requested specific quality
+    if (needsTranscode || forceTranscode) {
       // Use progressive streaming with proper seeking support
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&MediaSourceId=${videoId}`
         + `&VideoCodec=h264`
         + `&AudioCodec=aac`
-        + `&VideoBitrate=8000000`
+        + `&VideoBitrate=${targetBitrate}`
         + `&AudioBitrate=192000`
         + `&MaxAudioChannels=2`
         + `&TranscodingContainer=ts`
         + `&TranscodingProtocol=http`
         + `&BreakOnNonKeyFrames=true`
         + `&api_key=${apiKey}`;
-      console.log(`Transcoding ${videoCodec} to H264 with seeking`);
+      console.log(`Transcoding to H264 at ${targetBitrate / 1000000} Mbps (original codec: ${videoCodec})`);
     } else {
       // Direct stream for compatible codecs
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
