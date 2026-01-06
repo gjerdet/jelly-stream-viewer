@@ -1375,383 +1375,412 @@ const Player = () => {
         </div>
       )}
 
-      {/* Custom overlay controls */}
-      <div 
+      {/* Custom overlay (visual only) */}
+      <div
         className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 transition-opacity duration-300 pointer-events-none ${
-          showControls ? 'opacity-100' : 'opacity-0'
+          showControls ? "opacity-100" : "opacity-0"
         }`}
-        onClick={() => setShowControls(!showControls)}
-      >
-        {/* Top bar - Back button only */}
-        <div className="absolute top-0 left-0 right-0 p-2 sm:p-4 flex items-center justify-between pointer-events-auto safe-area-top">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); navigate(-1); }}
-            className="text-white hover:bg-white/20 h-12 w-12 sm:w-auto sm:px-3 bg-black/50 backdrop-blur-sm rounded-lg touch-manipulation"
-          >
-            <ArrowLeft className="h-5 w-5 sm:mr-2" />
-            <span className="hidden sm:inline">Tilbake</span>
-          </Button>
+      />
 
-          {/* Title - Center */}
-          <div className="flex-1 text-center px-2">
-            <p className="text-white text-xs sm:text-base font-medium line-clamp-1">
-              {item?.SeriesName && `${item.SeriesName} - `}
-              {item?.IndexNumber && `E${item.IndexNumber}: `}
-              {item?.Name}
-            </p>
-          </div>
-          
-          {/* Placeholder for balance */}
-          <div className="w-12 sm:w-auto" />
+      {/* Top bar - Back button + title (kept outside pointer-events-none parents for fullscreen reliability) */}
+      <div
+        className={`absolute top-0 left-0 right-0 p-2 sm:p-4 flex items-center justify-between safe-area-top transition-opacity duration-300 ${
+          showControls ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(-1);
+          }}
+          className="text-white hover:bg-white/20 h-12 w-12 sm:w-auto sm:px-3 bg-black/50 backdrop-blur-sm rounded-lg touch-manipulation"
+        >
+          <ArrowLeft className="h-5 w-5 sm:mr-2" />
+          <span className="hidden sm:inline">Tilbake</span>
+        </Button>
+
+        {/* Title - Center */}
+        <div className="flex-1 text-center px-2">
+          <p className="text-white text-xs sm:text-base font-medium line-clamp-1">
+            {item?.SeriesName && `${item.SeriesName} - `}
+            {item?.IndexNumber && `E${item.IndexNumber}: `}
+            {item?.Name}
+          </p>
         </div>
 
-        {/* Single horizontal control bar - top right */}
-        <div className="absolute top-14 right-2 sm:right-3 pointer-events-auto z-50">
-          <div className="flex gap-1.5 items-center bg-black/80 backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl">
-            {/* Fullscreen */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-              className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
-              title={isFullscreen ? 'Avslutt fullskjerm' : 'Fullskjerm'}
-            >
-              {isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
-            </Button>
+        {/* Placeholder for balance */}
+        <div className="w-12 sm:w-auto" />
+      </div>
 
-            {/* Separator */}
-            {isEpisode && <div className="w-px h-8 bg-white/20" />}
+      {/* Single horizontal control bar - top right */}
+      <div
+        className={`absolute top-14 right-2 sm:right-3 z-50 transition-opacity duration-300 ${
+          showControls ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="flex gap-1.5 items-center bg-black/80 backdrop-blur-md rounded-xl p-2 border border-white/10 shadow-2xl">
+          {/* Fullscreen */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
+            className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
+            title={isFullscreen ? "Avslutt fullskjerm" : "Fullskjerm"}
+          >
+            {isFullscreen ? <Minimize className="h-6 w-6" /> : <Maximize className="h-6 w-6" />}
+          </Button>
 
-            {/* Episode navigation */}
-            {isEpisode && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => { e.stopPropagation(); playPreviousEpisode(); }}
-                  disabled={!previousEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
-                  title="Forrige episode"
-                >
-                  <SkipBack className="h-6 w-6" />
-                </Button>
+          {/* Separator */}
+          {isEpisode && <div className="w-px h-8 bg-white/20" />}
 
-                {/* Episode selector */}
-                {episodes.length > 0 && (
-                  <SheetTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => { e.stopPropagation(); }}
-                      className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
-                      title="Velg episode"
-                    >
-                      <ChevronLeft className="h-6 w-6" />
-                    </Button>
-                  </SheetTrigger>
-                )}
-
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={(e) => { e.stopPropagation(); playNextEpisode(); }}
-                  disabled={!nextEpisode}
-                  className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
-                  title="Neste episode"
-                >
-                  <SkipForward className="h-6 w-6" />
-                </Button>
-              </>
-            )}
-
-            {/* Separator */}
-            <div className="w-px h-8 bg-white/20" />
-
-            {/* Subtitles dropdown */}
-            {subtitles.length > 0 && (
-              <Select 
-                value={selectedSubtitle} 
-                onValueChange={(value) => {
-                  console.log('User selected subtitle:', value);
-                  setSelectedSubtitle(value);
+          {/* Episode navigation */}
+          {isEpisode && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playPreviousEpisode();
                 }}
+                disabled={!previousEpisode}
+                className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
+                title="Forrige episode"
               >
-                <SelectTrigger 
-                  className="w-12 bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-0 justify-center"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Subtitles className="h-6 w-6" />
-                </SelectTrigger>
-                <SelectContent className="bg-background z-[2147483647]">
-                  <SelectItem value="none">Ingen</SelectItem>
-                  {subtitles.map((subtitle) => (
-                    <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
-                      {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+                <SkipBack className="h-6 w-6" />
+              </Button>
 
-            {/* Quality selector */}
-            <Select 
-              value={selectedQuality} 
-              onValueChange={(value: QualityOption) => {
-                console.log('User selected quality:', value);
-                setSelectedQuality(value);
-                toast.info(`Kvalitet: ${qualityOptions.find(q => q.value === value)?.label || value}`);
+              {/* Episode selector */}
+              {episodes.length > 0 && (
+                <SheetTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
+                    title="Velg episode"
+                  >
+                    <ChevronLeft className="h-6 w-6" />
+                  </Button>
+                </SheetTrigger>
+              )}
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playNextEpisode();
+                }}
+                disabled={!nextEpisode}
+                className="text-white hover:bg-white/20 disabled:opacity-30 h-12 w-12 touch-manipulation rounded-lg"
+                title="Neste episode"
+              >
+                <SkipForward className="h-6 w-6" />
+              </Button>
+            </>
+          )}
+
+          {/* Separator */}
+          <div className="w-px h-8 bg-white/20" />
+
+          {/* Subtitles dropdown */}
+          {subtitles.length > 0 && (
+            <Select
+              value={selectedSubtitle}
+              onValueChange={(value) => {
+                console.log("User selected subtitle:", value);
+                setSelectedSubtitle(value);
               }}
             >
-              <SelectTrigger 
-                className="w-auto min-w-[60px] bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-2 justify-center gap-1"
+              <SelectTrigger
+                className="w-12 bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-0 justify-center"
                 onClick={(e) => e.stopPropagation()}
               >
-                <span className="text-xs font-medium">
-                  {selectedQuality === 'auto' ? 'Auto' : selectedQuality}
-                </span>
+                <Subtitles className="h-6 w-6" />
               </SelectTrigger>
               <SelectContent className="bg-background z-[2147483647]">
-                {qualityOptions.map((quality) => (
-                  <SelectItem key={quality.value} value={quality.value}>
-                    {quality.label}
+                <SelectItem value="none">Ingen</SelectItem>
+                {subtitles.map((subtitle) => (
+                  <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
+                    {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+          )}
 
-            {/* Separator */}
-            <div className="w-px h-8 bg-white/20" />
-
-            {/* Diagnose button */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
-              className={`text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg ${showDiagnostics ? 'bg-white/20' : ''}`}
-              title="Feildiagnostikk"
+          {/* Quality selector */}
+          <Select
+            value={selectedQuality}
+            onValueChange={(value: QualityOption) => {
+              console.log("User selected quality:", value);
+              setSelectedQuality(value);
+              toast.info(`Kvalitet: ${qualityOptions.find((q) => q.value === value)?.label || value}`);
+            }}
+          >
+            <SelectTrigger
+              className="w-auto min-w-[60px] bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-2 justify-center gap-1"
+              onClick={(e) => e.stopPropagation()}
             >
-              <Settings className="h-6 w-6" />
-            </Button>
+              <span className="text-xs font-medium">{selectedQuality === "auto" ? "Auto" : selectedQuality}</span>
+            </SelectTrigger>
+            <SelectContent className="bg-background z-[2147483647]">
+              {qualityOptions.map((quality) => (
+                <SelectItem key={quality.value} value={quality.value}>
+                  {quality.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-            {/* Cast */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={async (e) => {
-                e.stopPropagation();
-                if (castLoading) return;
+          {/* Separator */}
+          <div className="w-px h-8 bg-white/20" />
 
-                if (castState.isConnected) {
-                  endSession();
-                  return;
-                }
+          {/* Diagnose button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowDiagnostics(!showDiagnostics);
+            }}
+            className={`text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg ${showDiagnostics ? "bg-white/20" : ""}`}
+            title="Feildiagnostikk"
+          >
+            <Settings className="h-6 w-6" />
+          </Button>
 
-                const result = await requestSession();
-                if (result?.unsupported) {
-                  setCastUnsupportedOpen(true);
-                }
-              }}
-              className="text-white hover:bg-white/20 h-12 w-12 relative touch-manipulation rounded-lg"
-              title={castState.isConnected ? 'Koble frå Chromecast' : 'Koble til Chromecast'}
-            >
-              <Cast className="h-6 w-6" />
-              {castState.isConnected && !castLoading && (
-                <span className="absolute top-2 right-2 h-2 w-2 bg-primary rounded-full" />
+          {/* Cast */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (castLoading) return;
+
+              if (castState.isConnected) {
+                endSession();
+                return;
+              }
+
+              const result = await requestSession();
+              if (result?.unsupported) {
+                setCastUnsupportedOpen(true);
+              }
+            }}
+            className="text-white hover:bg-white/20 h-12 w-12 relative touch-manipulation rounded-lg"
+            title={castState.isConnected ? "Koble frå Chromecast" : "Koble til Chromecast"}
+          >
+            <Cast className="h-6 w-6" />
+            {castState.isConnected && !castLoading && (
+              <span className="absolute top-2 right-2 h-2 w-2 bg-primary rounded-full" />
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Subtitle search dialog - triggered from menu or long-press */}
+      <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] z-[2147483647]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Subtitles className="h-5 w-5" />
+              {player.searchSubtitles || "Search subtitles"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => searchSubtitles("nor")}
+                disabled={searchingSubtitles}
+              >
+                🇳🇴 Norsk
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => searchSubtitles("eng")}
+                disabled={searchingSubtitles}
+              >
+                🇬🇧 English
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => searchSubtitles("swe")}
+                disabled={searchingSubtitles}
+              >
+                🇸🇪 Svenska
+              </Button>
+            </div>
+
+            <ScrollArea className="h-[50vh] sm:h-[400px] rounded-md border p-2 sm:p-4">
+              {searchingSubtitles ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <span className="ml-2">{player.searching || "Searching..."}</span>
+                </div>
+              ) : remoteSubtitles.length > 0 ? (
+                <div className="space-y-2">
+                  {remoteSubtitles.map((sub) => (
+                    <div
+                      key={sub.Id}
+                      className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors gap-2"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-xs sm:text-sm truncate">{sub.Name}</p>
+                        <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
+                          <span>{sub.Language}</span>
+                          <span>•</span>
+                          <span>{sub.Provider}</span>
+                          {sub.Format && (
+                            <>
+                              <span className="hidden sm:inline">•</span>
+                              <span className="hidden sm:inline">{sub.Format}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => downloadSubtitle(sub.Id, sub.Name)}
+                        disabled={downloadingSubtitle === sub.Id}
+                        className="h-9 w-9 flex-shrink-0"
+                      >
+                        {downloadingSubtitle === sub.Id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
+                  <Subtitles className="h-12 w-12 mb-2 opacity-50" />
+                  <p className="text-sm">{player.selectLanguageToSearch || "Select a language to search"}</p>
+                </div>
               )}
-            </Button>
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Skip Intro/Credits button - centered at bottom */}
+      {showSkipButton && currentSegment && (
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 pointer-events-auto animate-fade-in z-50">
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              skipSegment();
+            }}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 h-12 font-semibold shadow-2xl text-base gap-2 border border-white/20"
+          >
+            <FastForward className="h-5 w-5" />
+            {getSkipButtonLabel()}
+          </Button>
+        </div>
+      )}
+
+      {/* Bottom-left: Auto mark watched - only when controls visible */}
+      {showControls && isEpisode && (
+        <div className="absolute bottom-4 left-3 pointer-events-auto z-50">
+          <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+            <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
+              {player.autoMarkWatched || "Auto-mark"}
+            </Label>
+            <Switch
+              id="auto-mark-mobile"
+              checked={autoMarkWatched}
+              onCheckedChange={setAutoMarkWatched}
+              className="data-[state=checked]:bg-green-600 scale-90"
+            />
           </div>
         </div>
+      )}
 
-        {/* Subtitle search dialog - triggered from menu or long-press */}
-        <Dialog open={subtitleSearchOpen} onOpenChange={setSubtitleSearchOpen}>
-          <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] z-[2147483647]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Subtitles className="h-5 w-5" />
-                {player.searchSubtitles || 'Search subtitles'}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => searchSubtitles('nor')}
-                  disabled={searchingSubtitles}
-                >
-                  🇳🇴 Norsk
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => searchSubtitles('eng')}
-                  disabled={searchingSubtitles}
-                >
-                  🇬🇧 English
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => searchSubtitles('swe')}
-                  disabled={searchingSubtitles}
-                >
-                  🇸🇪 Svenska
-                </Button>
+      {/* Bottom-right: Next episode button - only show when NOT showing preview */}
+      {isEpisode && nextEpisode && !showNextEpisodePreview && (
+        <div className="absolute bottom-4 right-3 pointer-events-auto z-50">
+          <Button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              playNextEpisode();
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              playNextEpisode();
+            }}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-2xl border border-white/20 gap-2 cursor-pointer touch-manipulation"
+          >
+            <SkipForward className="h-4 w-4" />
+            <span className="hidden sm:inline">{player.nextEpisode || "Next episode"}</span>
+            <span className="sm:hidden">{player.next || "Next"}</span>
+          </Button>
+        </div>
+      )}
+
+      {/* Cast Controls */}
+      {castState.isConnected && castState.mediaInfo && (
+        <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-6 space-y-4 pointer-events-auto safe-area-bottom">
+          <div className="bg-background/90 backdrop-blur-md rounded-lg p-3 sm:p-4 space-y-3 border border-border shadow-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground truncate">
+                  Caster til {castState.deviceName || "Chromecast"}
+                </p>
+                <p className="text-sm font-semibold truncate">
+                  {castState.mediaInfo.title || item?.Name || "Avspilling"}
+                </p>
               </div>
-              
-              <ScrollArea className="h-[50vh] sm:h-[400px] rounded-md border p-2 sm:p-4">
-                {searchingSubtitles ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <span className="ml-2">{player.searching || 'Searching...'}</span>
-                  </div>
-                ) : remoteSubtitles.length > 0 ? (
-                  <div className="space-y-2">
-                    {remoteSubtitles.map((sub) => (
-                      <div
-                        key={sub.Id}
-                        className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-secondary/50 hover:bg-secondary/80 transition-colors gap-2"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-xs sm:text-sm truncate">{sub.Name}</p>
-                          <div className="flex items-center gap-1 sm:gap-2 text-[10px] sm:text-xs text-muted-foreground flex-wrap">
-                            <span>{sub.Language}</span>
-                            <span>•</span>
-                            <span>{sub.Provider}</span>
-                            {sub.Format && (
-                              <>
-                                <span className="hidden sm:inline">•</span>
-                                <span className="hidden sm:inline">{sub.Format}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          onClick={() => downloadSubtitle(sub.Id, sub.Name)}
-                          disabled={downloadingSubtitle === sub.Id}
-                          className="h-9 w-9 flex-shrink-0"
-                        >
-                          {downloadingSubtitle === sub.Id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Download className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-center p-4">
-                    <Subtitles className="h-12 w-12 mb-2 opacity-50" />
-                    <p className="text-sm">{player.selectLanguageToSearch || 'Select a language to search'}</p>
-                  </div>
-                )}
-              </ScrollArea>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  endSession();
+                }}
+                className="gap-2"
+              >
+                <Square className="h-4 w-4" />
+                Stopp
+              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
 
-        {/* Skip Intro/Credits button - centered at bottom */}
-        {showSkipButton && currentSegment && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 pointer-events-auto animate-fade-in z-50">
-            <Button
-              onClick={(e) => { e.stopPropagation(); skipSegment(); }}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-3 h-12 font-semibold shadow-2xl text-base gap-2 border border-white/20"
-            >
-              <FastForward className="h-5 w-5" />
-              {getSkipButtonLabel()}
-            </Button>
-          </div>
-        )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  playOrPause();
+                }}
+                className="h-12 w-12"
+              >
+                {castState.mediaInfo.isPaused ? <Play className="h-6 w-6" /> : <Pause className="h-6 w-6" />}
+              </Button>
 
-        {/* Bottom-left: Auto mark watched - only when controls visible */}
-        {showControls && isEpisode && (
-          <div className="absolute bottom-4 left-3 pointer-events-auto z-50">
-            <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
-              <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-                {player.autoMarkWatched || 'Auto-mark'}
-              </Label>
-              <Switch
-                id="auto-mark-mobile"
-                checked={autoMarkWatched}
-                onCheckedChange={setAutoMarkWatched}
-                className="data-[state=checked]:bg-green-600 scale-90"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Bottom-right: Next episode button - only show when NOT showing preview */}
-        {isEpisode && nextEpisode && !showNextEpisodePreview && (
-          <div className="absolute bottom-4 right-3 pointer-events-auto z-50">
-            <Button
-              onClick={(e) => { 
-                e.preventDefault();
-                e.stopPropagation(); 
-                playNextEpisode(); 
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                playNextEpisode();
-              }}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-2xl border border-white/20 gap-2 cursor-pointer touch-manipulation"
-            >
-              <SkipForward className="h-4 w-4" />
-              <span className="hidden sm:inline">{player.nextEpisode || 'Next episode'}</span>
-              <span className="sm:hidden">{player.next || 'Next'}</span>
-            </Button>
-          </div>
-        )}
-
-        {/* Cast Controls */}
-        {castState.isConnected && castState.mediaInfo && (
-          <div className="absolute bottom-0 left-0 right-0 p-3 sm:p-6 space-y-4 pointer-events-auto safe-area-bottom">
-            <div className="bg-black/80 backdrop-blur-md rounded-lg p-3 sm:p-4 space-y-3">
-              <div className="flex items-center justify-between text-white">
-                <span className="text-xs sm:text-sm">{player.castingTo || 'Casting to'} {castState.deviceName}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => endSession()}
-                  className="text-white hover:bg-white/20 h-9"
-                >
-                  <Square className="h-4 w-4 sm:mr-2" />
-                  <span className="hidden sm:inline">{player.stop || 'Stop'}</span>
-                </Button>
-              </div>
-
-              {/* Progress bar */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs text-white/70">
-                  <span>{formatTime(castState.mediaInfo.currentTime)}</span>
-                  <span>{formatTime(castState.mediaInfo.duration)}</span>
-                </div>
-              </div>
-
-              {/* Play/Pause button */}
-              <div className="flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  onClick={playOrPause}
-                  className="text-white hover:bg-white/20 w-14 h-14 sm:w-16 sm:h-16"
-                >
-                  {castState.mediaInfo.isPaused ? (
-                    <Play className="h-6 w-6 sm:h-8 sm:w-8" />
-                  ) : (
-                    <Pause className="h-6 w-6 sm:h-8 sm:w-8" />
-                  )}
-                </Button>
+              <div className="flex-1 text-xs text-muted-foreground font-mono">
+                {formatTime(Math.floor(castState.mediaInfo.currentTime))} / {formatTime(Math.floor(castState.mediaInfo.duration))}
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Next Episode Preview - Compact top-right toast */}
       {showNextEpisodePreview && (() => {
