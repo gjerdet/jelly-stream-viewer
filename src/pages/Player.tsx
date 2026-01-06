@@ -18,8 +18,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -125,10 +123,7 @@ const Player = () => {
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [autoMarkWatched, setAutoMarkWatched] = useState(() => {
-    const saved = localStorage.getItem('autoMarkWatched');
-    return saved === 'true';
-  });
+  const [nextEpisodeDismissed, setNextEpisodeDismissed] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
   const [searchingSubtitles, setSearchingSubtitles] = useState(false);
   const [remoteSubtitles, setRemoteSubtitles] = useState<RemoteSubtitle[]>([]);
@@ -589,7 +584,7 @@ const Player = () => {
     }
   }, [subtitles]);
 
-  // Fetch media segments (intro, credits, etc.) from Jellyfin
+  // Fetch media segments (intro, credits, etc.) from Jellyfin via proxy
   useEffect(() => {
     const fetchSegments = async () => {
       if (!serverUrl || !id) return;
@@ -599,41 +594,39 @@ const Player = () => {
       
       if (!accessToken) return;
 
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
-
       try {
+        // Use Supabase proxy to avoid mixed content issues (HTTPS to HTTP)
         // Try Jellyfin 10.9+ MediaSegments API
-        const segmentsUrl = `${normalizedUrl.replace(/\/$/, '')}/MediaSegments/${id}?api_key=${accessToken}`;
-        const response = await fetch(segmentsUrl);
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data?.Items && data.Items.length > 0) {
-            console.log('Media segments found:', data.Items);
-            setMediaSegments(data.Items);
-            return;
+        const { data: segmentsData, error: segmentsError } = await supabase.functions.invoke('jellyfin-proxy', {
+          body: {
+            endpoint: `/MediaSegments/${id}`,
+            method: 'GET',
           }
+        });
+        
+        if (!segmentsError && segmentsData?.Items && segmentsData.Items.length > 0) {
+          console.log('Media segments found:', segmentsData.Items);
+          setMediaSegments(segmentsData.Items);
+          return;
         }
 
         // Fallback: Try intro-skipper plugin format
-        const introSkipperUrl = `${normalizedUrl.replace(/\/$/, '')}/Episode/${id}/IntroTimestamps?api_key=${accessToken}`;
-        const introResponse = await fetch(introSkipperUrl);
-        
-        if (introResponse.ok) {
-          const introData = await introResponse.json();
-          if (introData?.Valid && introData?.IntroStart !== undefined) {
-            console.log('Intro timestamps found:', introData);
-            // Convert to MediaSegment format
-            const introSegment: MediaSegment = {
-              Type: 'Intro',
-              StartTicks: introData.IntroStart * 10000000,
-              EndTicks: introData.IntroEnd * 10000000,
-            };
-            setMediaSegments([introSegment]);
+        const { data: introData, error: introError } = await supabase.functions.invoke('jellyfin-proxy', {
+          body: {
+            endpoint: `/Episode/${id}/IntroTimestamps`,
+            method: 'GET',
           }
+        });
+        
+        if (!introError && introData?.Valid && introData?.IntroStart !== undefined) {
+          console.log('Intro timestamps found:', introData);
+          // Convert to MediaSegment format
+          const introSegment: MediaSegment = {
+            Type: 'Intro',
+            StartTicks: introData.IntroStart * 10000000,
+            EndTicks: introData.IntroEnd * 10000000,
+          };
+          setMediaSegments([introSegment]);
         }
       } catch (error) {
         console.log('Could not fetch media segments:', error);
@@ -706,14 +699,14 @@ const Player = () => {
     }
   }, [id, streamUrl]);
 
-  // Save auto-mark setting to localStorage
+  // Reset nextEpisodeDismissed when episode changes
   useEffect(() => {
-    localStorage.setItem('autoMarkWatched', autoMarkWatched.toString());
-  }, [autoMarkWatched]);
+    setNextEpisodeDismissed(false);
+  }, [id]);
 
   const handleVideoEnded = async () => {
-    // Mark as watched if auto-mark is enabled
-    if (autoMarkWatched && item && userId && serverUrl) {
+    // Always mark as watched when video ends
+    if (item && userId && serverUrl) {
       try {
         const jellyfinSession = localStorage.getItem('jellyfin_session');
         const accessToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
@@ -1224,7 +1217,7 @@ const Player = () => {
         ref={videoRef}
         key={streamUrl}
         src={streamUrl}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain relative z-10"
         controls
         autoPlay
         playsInline
@@ -1694,43 +1687,39 @@ const Player = () => {
         </div>
       )}
 
-      {/* Bottom-left: Auto mark watched - only when controls visible */}
-      {showControls && isEpisode && (
-        <div className="absolute bottom-4 left-3 pointer-events-auto z-50">
-          <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
-            <Label htmlFor="auto-mark-mobile" className="text-white text-xs whitespace-nowrap cursor-pointer">
-              {player.autoMarkWatched || "Auto-mark"}
-            </Label>
-            <Switch
-              id="auto-mark-mobile"
-              checked={autoMarkWatched}
-              onCheckedChange={setAutoMarkWatched}
-              className="data-[state=checked]:bg-green-600 scale-90"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Bottom-right: Next episode button - only show when NOT showing preview */}
-      {isEpisode && nextEpisode && !showNextEpisodePreview && (
+      {/* Bottom-right: Next episode button - only show when NOT showing preview and not dismissed */}
+      {isEpisode && nextEpisode && !showNextEpisodePreview && !nextEpisodeDismissed && (
         <div className="absolute bottom-4 right-3 pointer-events-auto z-50">
-          <Button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              playNextEpisode();
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              playNextEpisode();
-            }}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-2xl border border-white/20 gap-2 cursor-pointer touch-manipulation"
-          >
-            <SkipForward className="h-4 w-4" />
-            <span className="hidden sm:inline">{player.nextEpisode || "Next episode"}</span>
-            <span className="sm:hidden">{player.next || "Next"}</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                playNextEpisode();
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                playNextEpisode();
+              }}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 h-10 font-semibold shadow-2xl border border-white/20 gap-2 cursor-pointer touch-manipulation"
+            >
+              <SkipForward className="h-4 w-4" />
+              <span className="hidden sm:inline">{player.nextEpisode || "Next episode"}</span>
+              <span className="sm:hidden">{player.next || "Next"}</span>
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                setNextEpisodeDismissed(true);
+              }}
+              className="h-10 w-10 text-white/60 hover:text-white hover:bg-white/10 bg-black/50 backdrop-blur-sm border border-white/20"
+            >
+              ✕
+            </Button>
+          </div>
         </div>
       )}
 
@@ -1838,6 +1827,7 @@ const Player = () => {
                   variant="ghost"
                   onClick={() => {
                     setShowNextEpisodePreview(false);
+                    setNextEpisodeDismissed(true);
                     setCountdown(null);
                     if (countdownInterval.current) {
                       clearInterval(countdownInterval.current);
