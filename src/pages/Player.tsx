@@ -1687,9 +1687,9 @@ const Player = () => {
         </div>
       )}
 
-      {/* Bottom-right: Next episode button - only show when NOT showing preview and not dismissed */}
-      {isEpisode && nextEpisode && !showNextEpisodePreview && !nextEpisodeDismissed && (
-        <div className="absolute bottom-4 right-3 pointer-events-auto z-50">
+      {/* Bottom-right: Next episode button - only show when controls are visible, NOT showing preview, and not dismissed */}
+      {showControls && isEpisode && nextEpisode && !showNextEpisodePreview && !nextEpisodeDismissed && (
+        <div className="absolute bottom-24 right-3 pointer-events-auto z-50">
           <div className="flex items-center gap-2">
             <Button
               onClick={(e) => {
