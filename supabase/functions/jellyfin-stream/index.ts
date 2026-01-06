@@ -149,7 +149,8 @@ serve(async (req) => {
     }
 
     // Get video info and check codec (with SSL bypass)
-    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}&Fields=MediaStreams`;
+    // NOTE: We also fetch MediaSources to get the correct MediaSourceId for reliable transcoding.
+    const infoUrl = `${jellyfinServerUrl}/Users/${userId}/Items/${videoId}?api_key=${apiKey}&Fields=MediaStreams,MediaSources`;
     const infoResponse = await fetch(infoUrl, {
       client: httpClient,
     });
@@ -169,6 +170,9 @@ serve(async (req) => {
     const audioBitrate = audioStream?.BitRate;
     const videoBitrate = videoStream?.BitRate;
     const container = itemInfo.Container?.toLowerCase();
+
+    // Jellyfin expects MediaSourceId (can differ from the item id, especially for movies)
+    const mediaSourceId: string = itemInfo?.MediaSources?.[0]?.Id ?? videoId;
     
     console.log(`Video codec: ${videoCodec}, container: ${container}`);
 
@@ -199,26 +203,26 @@ serve(async (req) => {
     
     // Transcode if codec is NOT browser-compatible OR if user requested specific quality
     if (needsTranscode || forceTranscode) {
-      // Use progressive streaming with proper seeking support
+      // Progressive MP4 output is broadly supported in browsers (TS often isn't)
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
-        + `&MediaSourceId=${videoId}`
+        + `&MediaSourceId=${mediaSourceId}`
         + `&VideoCodec=h264`
         + `&AudioCodec=aac`
         + `&VideoBitrate=${targetBitrate}`
         + `&AudioBitrate=192000`
         + `&MaxAudioChannels=2`
-        + `&TranscodingContainer=ts`
+        + `&TranscodingContainer=mp4`
         + `&TranscodingProtocol=http`
         + `&BreakOnNonKeyFrames=true`
         + `&api_key=${apiKey}`;
-      console.log(`Transcoding to H264 at ${targetBitrate / 1000000} Mbps (original codec: ${videoCodec})`);
+      console.log(`Transcoding to H264/MP4 at ${targetBitrate / 1000000} Mbps (original codec: ${videoCodec})`);
     } else {
       // Direct stream for compatible codecs
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
         + `UserId=${userId}`
         + `&Static=true`
-        + `&MediaSourceId=${videoId}`
+        + `&MediaSourceId=${mediaSourceId}`
         + `&api_key=${apiKey}`;
       console.log(`Direct streaming (codec: ${videoCodec})`);
     }
