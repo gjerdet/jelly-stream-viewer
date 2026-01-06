@@ -114,17 +114,33 @@ serve(async (req) => {
 
     console.log(`Connecting to Jellyfin server: ${jellyfinServerUrl}`);
 
-    // Prefer the Jellyfin user linked to the current app user
-    const { data: profile } = await supabaseAdmin
-      .from('profiles')
-      .select('jellyfin_user_id')
-      .eq('id', user.id)
-      .maybeSingle();
+    // Determine which Jellyfin user to use for this app user.
+    // Prefer auth user metadata (set during jellyfin-authenticate), then profiles table, then legacy fallback.
+    const metaJellyfinUserId = (user.user_metadata as Record<string, unknown> | null)?.jellyfin_user_id;
 
-    let userId: string | null = profile?.jellyfin_user_id ?? null;
+    let userId: string | null =
+      typeof metaJellyfinUserId === 'string' && metaJellyfinUserId.length > 0
+        ? metaJellyfinUserId
+        : null;
 
-    // Fallback: legacy behavior (first Jellyfin user) if profile not linked yet
+    let userIdSource: 'user_metadata' | 'profiles' | 'fallback_first_user' = userId
+      ? 'user_metadata'
+      : 'profiles';
+
     if (!userId) {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('jellyfin_user_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      userId = profile?.jellyfin_user_id ?? null;
+    }
+
+    // Fallback: legacy behavior (first Jellyfin user) if user is not linked yet
+    if (!userId) {
+      userIdSource = 'fallback_first_user';
+
       const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`, {
         client: httpClient,
       });
@@ -147,6 +163,8 @@ serve(async (req) => {
         headers: corsHeaders,
       });
     }
+
+    console.log(`Using Jellyfin user (${userIdSource}): ${userId.slice(0, 8)}...`);
 
     // Get video info and check codec (with SSL bypass)
     // NOTE: We also fetch MediaSources to get the correct MediaSourceId for reliable transcoding.
