@@ -91,23 +91,34 @@ serve(async (req) => {
       console.log('Normal auth failed, trying API key lookup for new users...');
       
       // Fetch all users via admin API
-      const usersResponse = await fetch(`${serverUrl}/Users`, {
+      const usersUrl = `${serverUrl}/Users`;
+      console.log('Fetching users from:', usersUrl);
+      
+      const usersResponse = await fetch(usersUrl, {
         headers: {
           'X-Emby-Token': jellyfinApiKey,
           'Accept': 'application/json',
         },
       });
 
+      console.log('Users API response status:', usersResponse.status);
+
       if (usersResponse.ok) {
         const allUsers = await usersResponse.json();
+        console.log('Found', allUsers.length, 'users in Jellyfin');
+        
         const matchedUser = allUsers.find((u: any) => 
           u.Name.toLowerCase() === username.trim().toLowerCase()
         );
 
         if (matchedUser) {
+          console.log('Found matching user:', matchedUser.Name, 'ID:', matchedUser.Id);
+          
           // Verify password by attempting to authenticate the user
           // Use admin API to check if credentials are valid
           const authByIdUrl = `${serverUrl}/Users/${matchedUser.Id}/Authenticate`;
+          console.log('Authenticating user by ID:', authByIdUrl);
+          
           const authByIdResponse = await fetch(authByIdUrl, {
             method: 'POST',
             headers: {
@@ -120,6 +131,8 @@ serve(async (req) => {
             }),
           });
 
+          console.log('Auth by ID response status:', authByIdResponse.status);
+
           if (authByIdResponse.ok) {
             const authResult = await authByIdResponse.json();
             jellyfinData = {
@@ -130,9 +143,15 @@ serve(async (req) => {
             usedApiKeyAuth = true;
             console.log('API key authentication successful for new user:', matchedUser.Name);
           } else {
-            console.log('Password verification failed for user:', matchedUser.Name);
+            const authError = await authByIdResponse.text();
+            console.log('Password verification failed for user:', matchedUser.Name, 'Error:', authError);
           }
+        } else {
+          console.log('No matching user found for username:', username.trim());
         }
+      } else {
+        const usersError = await usersResponse.text();
+        console.log('Failed to fetch users list:', usersResponse.status, usersError);
       }
 
       if (!jellyfinData) {
