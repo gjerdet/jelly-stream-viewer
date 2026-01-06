@@ -30,6 +30,7 @@ serve(async (req) => {
     const url = new URL(req.url);
     const videoId = url.searchParams.get('id');
     const token = url.searchParams.get('token');
+    const infoOnly = url.searchParams.get('info') === 'true';
     
     if (!videoId || !token) {
       return new Response('Missing required parameters', { 
@@ -128,9 +129,33 @@ serve(async (req) => {
 
     const itemInfo = await infoResponse.json();
     const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
+    const audioStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Audio');
     const videoCodec = videoStream?.Codec?.toLowerCase();
+    const audioBitrate = audioStream?.BitRate;
+    const videoBitrate = videoStream?.BitRate;
+    const container = itemInfo.Container?.toLowerCase();
     
-    console.log(`Video codec: ${videoCodec}`);
+    console.log(`Video codec: ${videoCodec}, container: ${container}`);
+
+    // If info-only request, return stream metadata
+    if (infoOnly) {
+      const isTranscoding = videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec);
+      const bitrate = videoBitrate ? `${Math.round(videoBitrate / 1000000)} Mbps` : null;
+      
+      return new Response(JSON.stringify({
+        videoCodec: videoCodec?.toUpperCase() || 'Unknown',
+        audioCodec: audioStream?.Codec?.toUpperCase() || 'Unknown',
+        container: container?.toUpperCase() || 'Unknown',
+        bitrate,
+        isTranscoding,
+        resolution: videoStream?.Width && videoStream?.Height 
+          ? `${videoStream.Width}x${videoStream.Height}` 
+          : null,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     let streamUrl;
     // Only transcode if codec is NOT browser-compatible

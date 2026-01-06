@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -140,6 +140,16 @@ const Player = () => {
   const [currentSegment, setCurrentSegment] = useState<MediaSegment | null>(null);
   const [showSkipButton, setShowSkipButton] = useState(false);
   
+  // Streaming status and error state
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [streamStatus, setStreamStatus] = useState<{
+    isTranscoding: boolean;
+    codec: string | null;
+    bitrate: string | null;
+    container: string | null;
+  }>({ isTranscoding: false, codec: null, bitrate: null, container: null });
+  const [showStreamStatus, setShowStreamStatus] = useState(false);
+  
   const hideControlsTimer = useRef<NodeJS.Timeout>();
   const countdownInterval = useRef<NodeJS.Timeout>();
 
@@ -250,12 +260,15 @@ const Player = () => {
     const setupStream = async () => {
       if (!id) return;
       
+      setStreamError(null);
+      
       // Get Supabase session token for authentication
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseToken = session?.access_token;
       
       if (!supabaseToken) {
         console.error('No Supabase session token found');
+        setStreamError('Ikke innlogget. Vennligst logg inn på nytt.');
         return;
       }
       
@@ -269,8 +282,38 @@ const Player = () => {
 
     setupStream();
   }, [id]);
+
+  // Fetch stream status (codec info) from edge function
+  useEffect(() => {
+    const fetchStreamStatus = async () => {
+      if (!id) return;
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseToken = session?.access_token;
+      if (!supabaseToken) return;
+      
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
+        const response = await fetch(`${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}&info=true`);
+        
+        if (response.ok) {
+          const info = await response.json();
+          setStreamStatus({
+            isTranscoding: info.isTranscoding || false,
+            codec: info.videoCodec || null,
+            bitrate: info.bitrate || null,
+            container: info.container || null,
+          });
+        }
+      } catch (error) {
+        console.log('Could not fetch stream status:', error);
+      }
+    };
+    
+    fetchStreamStatus();
+  }, [id]);
   
-  // Handle video errors
+  // Handle video errors with user-friendly messages
   const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
     console.error('Video error:', {
@@ -279,6 +322,43 @@ const Player = () => {
       networkState: video.networkState,
       readyState: video.readyState,
     });
+    
+    // Set user-friendly error message
+    let errorMessage = 'Kunne ikke spille av video.';
+    
+    if (video.error?.code === MediaError.MEDIA_ERR_NETWORK) {
+      errorMessage = 'Nettverksfeil. Sjekk internettforbindelsen din.';
+    } else if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+      errorMessage = 'Videoformatet støttes ikke. Prøv en annen nettleser.';
+    } else if (video.error?.code === MediaError.MEDIA_ERR_DECODE) {
+      errorMessage = 'Kunne ikke dekode video. Prøv å laste siden på nytt.';
+    } else if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+      errorMessage = 'Kunne ikke koble til Jellyfin-serveren.';
+    }
+    
+    setStreamError(errorMessage);
+  };
+
+  // Retry streaming
+  const retryStream = async () => {
+    setStreamError(null);
+    setStreamUrl('');
+    
+    // Small delay before retrying
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    const supabaseToken = session?.access_token;
+    
+    if (!supabaseToken) {
+      setStreamError('Ikke innlogget. Vennligst logg inn på nytt.');
+      return;
+    }
+    
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
+    const streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+    setStreamUrl(streamingUrl);
+    toast.info('Prøver på nytt...');
   };
 
   // Fetch item details with media streams
@@ -803,9 +883,10 @@ const Player = () => {
     return () => clearInterval(interval);
   }, [watchHistoryId]);
 
-  if (!serverUrl || !userId || !id || !streamUrl) {
+  if (!serverUrl || !userId || !id || (!streamUrl && !streamError)) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <Loader2 className="h-8 w-8 animate-spin mr-3" />
         Laster...
       </div>
     );
@@ -963,6 +1044,91 @@ const Player = () => {
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
+
+      {/* Stream Error Overlay */}
+      {streamError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/90 z-50">
+          <div className="bg-background/95 backdrop-blur-xl rounded-2xl p-6 sm:p-8 max-w-md mx-4 text-center border border-border shadow-2xl">
+            <div className="w-16 h-16 mx-auto mb-4 bg-destructive/20 rounded-full flex items-center justify-center">
+              <AlertCircle className="h-8 w-8 text-destructive" />
+            </div>
+            <h2 className="text-xl font-bold text-foreground mb-2">Avspillingsfeil</h2>
+            <p className="text-muted-foreground mb-6">{streamError}</p>
+            
+            <div className="space-y-3">
+              <Button
+                onClick={retryStream}
+                className="w-full gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Prøv på nytt
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(-1)}
+                className="w-full"
+              >
+                Gå tilbake
+              </Button>
+            </div>
+            
+            <div className="mt-6 pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Tips:</span> Sjekk at Jellyfin-serveren kjører og er tilgjengelig. 
+                Prøv å oppdatere siden eller bruk en annen nettleser.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stream Status Indicator */}
+      {showControls && streamStatus.codec && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-auto z-40">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowStreamStatus(!showStreamStatus); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  streamStatus.isTranscoding 
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                    : 'bg-green-500/20 text-green-300 border border-green-500/30'
+                }`}
+              >
+                <Info className="h-3 w-3" />
+                {streamStatus.isTranscoding ? 'Transkoding' : 'Direktestrøm'}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="bg-background/95 backdrop-blur-xl border-border">
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Video:</span>
+                  <span className="font-mono">{streamStatus.codec || 'Ukjent'}</span>
+                </div>
+                {streamStatus.container && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Format:</span>
+                    <span className="font-mono">{streamStatus.container}</span>
+                  </div>
+                )}
+                {streamStatus.bitrate && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Bitrate:</span>
+                    <span className="font-mono">{streamStatus.bitrate}</span>
+                  </div>
+                )}
+                <div className="pt-1 border-t border-border mt-1">
+                  <span className={streamStatus.isTranscoding ? 'text-amber-400' : 'text-green-400'}>
+                    {streamStatus.isTranscoding 
+                      ? '⚡ Transkodes til H.264 for nettleserkompatibilitet' 
+                      : '✓ Spilles direkte uten transkoding'}
+                  </span>
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
 
       {/* Custom overlay controls */}
       <div 
