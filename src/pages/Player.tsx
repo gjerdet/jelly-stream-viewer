@@ -154,6 +154,14 @@ const Player = () => {
   // Buffering state
   const [isBuffering, setIsBuffering] = useState(false);
   
+  // Network stats
+  const [networkStats, setNetworkStats] = useState<{
+    downloadSpeed: number | null; // bytes per second
+    bufferedSeconds: number;
+    totalBytes: number;
+  }>({ downloadSpeed: null, bufferedSeconds: 0, totalBytes: 0 });
+  const lastBytesRef = useRef<{ bytes: number; time: number } | null>(null);
+  
   // Quality selection
   type QualityOption = 'auto' | '1080p' | '720p' | '480p' | '360p';
   const [selectedQuality, setSelectedQuality] = useState<QualityOption>(() => {
@@ -622,6 +630,13 @@ const Player = () => {
 
     const currentTimeTicks = video.currentTime * 10000000; // Convert to ticks
     
+    // Update buffer stats
+    if (video.buffered.length > 0) {
+      const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+      const bufferedSeconds = bufferedEnd - video.currentTime;
+      setNetworkStats(prev => ({ ...prev, bufferedSeconds: Math.max(0, bufferedSeconds) }));
+    }
+    
     // Check for segment skip button (intro/credits)
     if (mediaSegments.length > 0) {
       const activeSegment = mediaSegments.find(
@@ -648,6 +663,44 @@ const Player = () => {
         }
       }
     }
+  };
+
+  // Track download speed using progress events
+  const handleProgress = () => {
+    const video = videoRef.current;
+    if (!video || !video.buffered.length) return;
+    
+    // Estimate total bytes downloaded (rough approximation)
+    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+    const duration = video.duration || 1;
+    const estimatedBytesPerSecond = 1000000; // Assume ~1MB/s baseline
+    const estimatedTotalBytes = Math.floor((bufferedEnd / duration) * duration * estimatedBytesPerSecond);
+    
+    const now = Date.now();
+    
+    if (lastBytesRef.current) {
+      const timeDiff = (now - lastBytesRef.current.time) / 1000;
+      const bytesDiff = estimatedTotalBytes - lastBytesRef.current.bytes;
+      
+      if (timeDiff > 0.5 && bytesDiff > 0) {
+        const speed = bytesDiff / timeDiff;
+        setNetworkStats(prev => ({ 
+          ...prev, 
+          downloadSpeed: speed,
+          totalBytes: estimatedTotalBytes 
+        }));
+        lastBytesRef.current = { bytes: estimatedTotalBytes, time: now };
+      }
+    } else {
+      lastBytesRef.current = { bytes: estimatedTotalBytes, time: now };
+    }
+  };
+
+  // Format bytes to human readable
+  const formatBytes = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B/s`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
   };
 
   // Skip current segment (intro/credits)
@@ -1076,16 +1129,20 @@ const Player = () => {
         onWaiting={() => setIsBuffering(true)}
         onPlaying={() => setIsBuffering(false)}
         onCanPlay={() => setIsBuffering(false)}
+        onProgress={handleProgress}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
 
-      {/* Buffering Indicator */}
+      {/* Buffering Indicator with network stats */}
       {isBuffering && !streamError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
           <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm rounded-2xl p-6">
             <Loader2 className="h-12 w-12 text-white animate-spin" />
             <span className="text-white text-sm font-medium">Laster...</span>
+            {networkStats.downloadSpeed && (
+              <span className="text-white/70 text-xs">{formatBytes(networkStats.downloadSpeed)}</span>
+            )}
           </div>
         </div>
       )}
@@ -1144,7 +1201,7 @@ const Player = () => {
                 {streamStatus.isTranscoding ? 'Transkoding' : 'Direktestrøm'}
               </button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="bg-background/95 backdrop-blur-xl border-border">
+            <TooltipContent side="top" className="bg-background/95 backdrop-blur-xl border-border max-w-xs">
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">Video:</span>
@@ -1156,12 +1213,32 @@ const Player = () => {
                     <span className="font-mono">{streamStatus.container}</span>
                   </div>
                 )}
+                {streamStatus.resolution && (
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Oppløsning:</span>
+                    <span className="font-mono">{streamStatus.resolution}</span>
+                  </div>
+                )}
                 {streamStatus.bitrate && (
                   <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground">Bitrate:</span>
+                    <span className="text-muted-foreground">Kildebitrate:</span>
                     <span className="font-mono">{streamStatus.bitrate}</span>
                   </div>
                 )}
+                <div className="pt-1 border-t border-border mt-1 space-y-1">
+                  {networkStats.downloadSpeed && (
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Nedlasting:</span>
+                      <span className="font-mono text-blue-400">{formatBytes(networkStats.downloadSpeed)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Buffer:</span>
+                    <span className={`font-mono ${networkStats.bufferedSeconds > 10 ? 'text-green-400' : networkStats.bufferedSeconds > 3 ? 'text-yellow-400' : 'text-red-400'}`}>
+                      {networkStats.bufferedSeconds.toFixed(1)}s
+                    </span>
+                  </div>
+                </div>
                 <div className="pt-1 border-t border-border mt-1">
                   <span className={streamStatus.isTranscoding ? 'text-amber-400' : 'text-green-400'}>
                     {streamStatus.isTranscoding 

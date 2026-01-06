@@ -250,6 +250,45 @@ const Detail = () => {
 
   // Handle play - either cast or navigate to player
   const handlePlayClick = async () => {
+    // For series, we need to find an episode to play
+    if (item?.Type === 'Series') {
+      // If we have episodes loaded, find the first unwatched or continue from where left off
+      if (episodesData?.Items && episodesData.Items.length > 0) {
+        // Find first episode with progress (continue watching)
+        const continueEpisode = episodesData.Items.find(ep => 
+          ep.UserData?.PlaybackPositionTicks && ep.UserData.PlaybackPositionTicks > 0
+        );
+        
+        // Find first unwatched episode
+        const firstUnwatched = episodesData.Items.find(ep => !ep.UserData?.Played);
+        
+        // Use continue episode, then first unwatched, then first episode
+        const episodeToPlay = continueEpisode || firstUnwatched || episodesData.Items[0];
+        
+        if (castState.isConnected) {
+          const streamUrl = `${castServerUrl}/Videos/${episodeToPlay.Id}/stream?Static=true&api_key=${castApiKey}`;
+          const imageUrl = episodeToPlay.ImageTags?.Primary && castServerUrl
+            ? `${castServerUrl.replace(/\/$/, '')}/Items/${episodeToPlay.Id}/Images/Primary?maxHeight=600`
+            : undefined;
+          
+          await loadMedia(streamUrl, {
+            title: episodeToPlay.Name,
+            subtitle: `${item.Name} - Episode ${episodeToPlay.IndexNumber}`,
+            imageUrl,
+          });
+          toast.success(`Spiller av "${episodeToPlay.Name}" på ${castState.deviceName}`);
+        } else {
+          navigate(`/player/${episodeToPlay.Id}`);
+        }
+        return;
+      }
+      
+      // No episodes loaded yet - show toast and don't navigate
+      toast.info('Velg en episode å spille av');
+      return;
+    }
+    
+    // For movies and other content
     if (castState.isConnected && item) {
       // Build stream URL for casting
       const streamUrl = `${castServerUrl}/Videos/${id}/stream?Static=true&api_key=${castApiKey}`;
