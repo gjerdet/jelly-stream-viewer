@@ -34,6 +34,7 @@ serve(async (req) => {
     const requestedBitrate = url.searchParams.get('bitrate'); // Manual quality selection
     const requestedAudioIndex = url.searchParams.get('audioIndex'); // Manual audio track selection
     const useHls = url.searchParams.get('hls') === 'true'; // Request HLS format
+    const startPosition = url.searchParams.get('startPosition'); // Seek position in seconds
     
     if (!videoId || !token) {
       return new Response('Missing required parameters', { 
@@ -364,6 +365,29 @@ serve(async (req) => {
 
           if (typeof urlPath === 'string' && urlPath.length > 0) {
             playbackInfoTranscodingUrl = urlPath.startsWith('http') ? urlPath : `${jellyfinServerUrl}${urlPath}`;
+            
+            // IMPORTANT: Jellyfin PlaybackInfo might not always include AudioStreamIndex correctly
+            // We need to ensure it's in the URL if user selected a specific audio track
+            if (hasManualAudioSelection && typeof effectiveAudioIndex === 'number') {
+              const urlObj = new URL(playbackInfoTranscodingUrl);
+              // Only add if not already present or different
+              const existingAudioIndex = urlObj.searchParams.get('AudioStreamIndex');
+              if (existingAudioIndex !== effectiveAudioIndex.toString()) {
+                urlObj.searchParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
+                playbackInfoTranscodingUrl = urlObj.toString();
+                console.log(`Forced AudioStreamIndex=${effectiveAudioIndex} in TranscodingUrl`);
+              }
+            }
+            
+            // Add StartTimeTicks for seeking if startPosition is provided
+            if (startPosition && parseFloat(startPosition) > 0) {
+              const urlObj = new URL(playbackInfoTranscodingUrl);
+              const startTicks = Math.floor(parseFloat(startPosition) * 10000000); // Convert seconds to ticks
+              urlObj.searchParams.set('StartTimeTicks', startTicks.toString());
+              playbackInfoTranscodingUrl = urlObj.toString();
+              console.log(`Added StartTimeTicks=${startTicks} for seek position ${startPosition}s`);
+            }
+            
             console.log(`PlaybackInfo provided TranscodingUrl: ${playbackInfoTranscodingUrl.substring(0, 100)}...`);
           }
         } else {
@@ -376,7 +400,7 @@ serve(async (req) => {
       if (playbackInfoTranscodingUrl) {
         streamUrl = playbackInfoTranscodingUrl;
         console.log(
-          `Transcoding via PlaybackInfo at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls})`
+          `Transcoding via PlaybackInfo at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls}, startPosition: ${startPosition || '0'})`
         );
       } else {
         // Fallback: Build transcode URL manually (legacy behavior)
@@ -397,6 +421,13 @@ serve(async (req) => {
         if (typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)) {
           transcodeParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
         }
+        
+        // Add StartTimeTicks for seeking if startPosition is provided
+        if (startPosition && parseFloat(startPosition) > 0) {
+          const startTicks = Math.floor(parseFloat(startPosition) * 10000000);
+          transcodeParams.set('StartTimeTicks', startTicks.toString());
+          console.log(`Added StartTimeTicks=${startTicks} for seek position ${startPosition}s`);
+        }
 
         if (useHls) {
           transcodeParams.set('TranscodingContainer', 'ts');
@@ -412,7 +443,7 @@ serve(async (req) => {
         }
         
         console.log(
-          `Transcoding (manual URL) to H264/AAC at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls})`
+          `Transcoding (manual URL) to H264/AAC at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls}, startPosition: ${startPosition || '0'})`
         );
       }
     } else {
