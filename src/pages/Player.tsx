@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -160,6 +160,8 @@ const Player = () => {
   const [showStreamStatus, setShowStreamStatus] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [fallbackAttempted, setFallbackAttempted] = useState(false);
+  const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
   // Buffering state
   const [isBuffering, setIsBuffering] = useState(false);
@@ -410,50 +412,115 @@ const Player = () => {
     probeStream();
   }, [showDiagnostics, id, selectedQuality]);
   
-  // Handle video errors with user-friendly messages
-  const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+  // Handle video errors with user-friendly messages and fallback
+  const handleVideoError = async (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = e.currentTarget;
+    const errorCode = video.error?.code;
+    const errorMessage = video.error?.message ?? '';
+
     console.error('Video error:', {
-      errorCode: video.error?.code,
-      errorMessage: video.error?.message,
+      errorCode,
+      errorMessage,
       networkState: video.networkState,
       readyState: video.readyState,
+      fallbackAttempted,
     });
-    
-    // Set user-friendly error message
-    let errorMessage = 'Kunne ikke spille av video.';
-    
-    if (video.error?.code === MediaError.MEDIA_ERR_NETWORK) {
-      errorMessage = 'Nettverksfeil. Sjekk internettforbindelsen din.';
-    } else if (video.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
-      errorMessage = 'Videoformatet støttes ikke. Prøv en annen nettleser.';
-    } else if (video.error?.code === MediaError.MEDIA_ERR_DECODE) {
-      errorMessage = 'Kunne ikke dekode video. Prøv å laste siden på nytt.';
-    } else if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
-      errorMessage = 'Kunne ikke koble til Jellyfin-serveren.';
+
+    // Attempt fallback on DEMUXER_ERROR or unsupported format BEFORE showing error
+    const isDemuxerError = errorMessage.includes('DEMUXER_ERROR') || errorMessage.includes('FFmpegDemuxer');
+    const isFormatError = errorCode === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+
+    if ((isDemuxerError || isFormatError) && !fallbackAttempted) {
+      console.log('Attempting fallback with lower bitrate transcoding...');
+      setFallbackAttempted(true);
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const supabaseToken = session?.access_token;
+
+      if (supabaseToken && id) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
+        // Use a lower fallback bitrate (4 Mbps) to encourage a fresh transcode
+        const fallbackBitrateValue = 4000000;
+        setFallbackBitrate(fallbackBitrateValue);
+
+        const fallbackUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}&bitrate=${fallbackBitrateValue}`;
+        console.log('Fallback stream URL:', fallbackUrl);
+        toast.info('Transkoding feilet, prøver lavere kvalitet...');
+        setStreamUrl(fallbackUrl);
+        return; // don't show error yet
+      }
     }
-    
-    setStreamError(errorMessage);
+
+    // Otherwise, show error to user
+    let userMessage = 'Kunne ikke spille av video.';
+
+    if (errorCode === MediaError.MEDIA_ERR_NETWORK) {
+      userMessage = 'Nettverksfeil. Sjekk internettforbindelsen din.';
+    } else if (isDemuxerError || isFormatError) {
+      userMessage = 'Videoformatet støttes ikke. Prøv en annen nettleser eller kvalitetsinnstilling.';
+    } else if (errorCode === MediaError.MEDIA_ERR_DECODE) {
+      userMessage = 'Kunne ikke dekode video. Prøv å laste siden på nytt.';
+    } else if (video.networkState === HTMLMediaElement.NETWORK_NO_SOURCE) {
+      userMessage = 'Kunne ikke koble til Jellyfin-serveren.';
+    }
+
+    setStreamError(userMessage);
+  };
+
+  // Copy diagnostics to clipboard
+  const copyDiagnosticsToClipboard = async () => {
+    const report = [
+      `== Diagnoserapport ==`,
+      `HTTP (info): ${streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}`,
+      `HTTP (stream): ${streamProbeStatus === -1 ? 'Nettverksfeil' : streamProbeStatus ?? '–'}`,
+      `Content-Type: ${streamProbeContentType || '–'}`,
+      `Bruker-id-kilde: ${streamStatus.userIdSource || '–'}`,
+      `Video-codec: ${streamStatus.codec || '–'}`,
+      `Container: ${streamStatus.container || '–'}`,
+      `Oppløsning: ${streamStatus.resolution || '–'}`,
+      `Bitrate: ${streamStatus.bitrate || '–'}`,
+      `Transkoding: ${streamStatus.isTranscoding ? 'Ja' : 'Nei'}`,
+      fallbackAttempted ? `Fallback prøvd: Ja (${fallbackBitrate ? fallbackBitrate / 1000000 : '?'} Mbps)` : '',
+      streamError ? `Feil: ${streamError}` : '',
+      `Tidspunkt: ${new Date().toISOString()}`,
+    ].filter(Boolean).join('\n');
+
+    try {
+      await navigator.clipboard.writeText(report);
+      toast.success('Diagnoserapport kopiert!');
+    } catch (err) {
+      console.error('Clipboard copy failed', err);
+      toast.error('Kunne ikke kopiere');
+    }
   };
 
   // Retry streaming
   const retryStream = async () => {
     setStreamError(null);
     setStreamUrl('');
-    
+    setFallbackAttempted(false);
+    setFallbackBitrate(null);
+
     // Small delay before retrying
     await new Promise(resolve => setTimeout(resolve, 500));
-    
+
     const { data: { session } } = await supabase.auth.getSession();
     const supabaseToken = session?.access_token;
-    
+
     if (!supabaseToken) {
       setStreamError('Ikke innlogget. Vennligst logg inn på nytt.');
       return;
     }
-    
+
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
-    const streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+    let streamingUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}`;
+
+    // Respect quality selection
+    if (selectedQuality !== 'auto') {
+      const qualityConfig = qualityOptions.find(q => q.value === selectedQuality);
+      if (qualityConfig) streamingUrl += `&bitrate=${qualityConfig.bitrate}`;
+    }
+
     setStreamUrl(streamingUrl);
     toast.info('Prøver på nytt...');
   };
@@ -1269,21 +1336,10 @@ const Player = () => {
         onClose={() => setShowStatsPanel(false)}
       />
 
-      {/* Diagnostics Panel toggle + display */}
-      {showControls && (
-        <div className="absolute bottom-20 right-3 pointer-events-auto z-40">
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
-            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-black/60 text-white border border-white/20 hover:bg-black/80"
-          >
-            <Settings className="h-3 w-3" />
-            Diagnose
-          </button>
-        </div>
-      )}
+      {/* Diagnostics Panel (always visible when open, independent of showControls for fullscreen) */}
 
       {showDiagnostics && (
-        <div className="absolute top-20 right-3 w-64 bg-black/90 backdrop-blur-md rounded-lg p-3 text-xs text-white border border-white/20 pointer-events-auto z-50 space-y-2">
+        <div className="absolute top-20 right-3 w-72 bg-black/90 backdrop-blur-md rounded-lg p-3 text-xs text-white border border-white/20 pointer-events-auto z-50 space-y-2">
           <div className="flex items-center justify-between">
             <span className="font-semibold">Feildiagnostikk</span>
             <button onClick={() => setShowDiagnostics(false)} className="text-white/60 hover:text-white">✕</button>
@@ -1298,12 +1354,24 @@ const Player = () => {
             <p><span className="text-white/50">Oppløsning:</span> {streamStatus.resolution || '–'}</p>
             <p><span className="text-white/50">Bitrate:</span> {streamStatus.bitrate || '–'}</p>
             <p><span className="text-white/50">Transkoding:</span> {streamStatus.isTranscoding ? 'Ja' : 'Nei'}</p>
+            {fallbackAttempted && (
+              <p className="text-amber-400"><span className="text-white/50">Fallback:</span> Ja ({fallbackBitrate ? fallbackBitrate / 1000000 : '?'} Mbps)</p>
+            )}
           </div>
           {streamError && (
             <div className="mt-2 pt-2 border-t border-white/10 text-red-400">
               <p><span className="text-white/50">Feil:</span> {streamError}</p>
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); copyDiagnosticsToClipboard(); }}
+            className="w-full mt-2 gap-1 text-xs border-white/20 hover:bg-white/10"
+          >
+            <Copy className="h-3 w-3" />
+            Kopier rapport
+          </Button>
         </div>
       )}
 
@@ -1452,6 +1520,20 @@ const Player = () => {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Separator */}
+            <div className="w-px h-8 bg-white/20" />
+
+            {/* Diagnose button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
+              className={`text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg ${showDiagnostics ? 'bg-white/20' : ''}`}
+              title="Feildiagnostikk"
+            >
+              <Settings className="h-6 w-6" />
+            </Button>
 
             {/* Cast */}
             <Button
