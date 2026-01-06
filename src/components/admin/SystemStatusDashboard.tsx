@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { SyncStatusWidget } from "./SyncStatusWidget";
 import {
   Activity,
   RefreshCw,
@@ -478,6 +479,9 @@ export const SystemStatusDashboard = () => {
           ))}
         </div>
       )}
+
+      {/* Sync Status */}
+      <SyncStatusWidget />
 
       {/* System Info */}
       {systemInfo && (
