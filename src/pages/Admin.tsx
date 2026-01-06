@@ -30,6 +30,7 @@ import { RadarrDashboard } from "@/components/admin/RadarrDashboard";
 import { SonarrDashboard } from "@/components/admin/SonarrDashboard";
 import { UserAccessManagement } from "@/components/admin/UserAccessManagement";
 import { DuplicateMediaManager } from "@/components/admin/DuplicateMediaManager";
+import { DuplicateReportsManager } from "@/components/admin/DuplicateReportsManager";
 import { BufferingDiagnostics } from "@/components/admin/BufferingDiagnostics";
 import { DownloadsPendingManager } from "@/components/admin/DownloadsPendingManager";
 import { NasAgentSettings } from "@/components/admin/NasAgentSettings";
@@ -2738,6 +2739,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </TabsContent>
 
               <TabsContent value="duplicates" className="space-y-6 mt-0">
+                <DuplicateReportsManager />
                 <DownloadsPendingManager />
                 <BufferingDiagnostics />
                 <DuplicateMediaManager />
