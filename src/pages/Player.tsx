@@ -1606,13 +1606,17 @@ const Player = () => {
                 toast.info('Tester lydspor...');
                 try {
                   const audioIdx = selectedAudioTrack || '0';
-                  const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?itemId=${item.Id}&info=true&audioIndex=${audioIdx}`;
-                  const res = await fetch(testUrl, {
-                    headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
-                  });
+                  const session = await supabase.auth.getSession();
+                  const token = session.data.session?.access_token;
+                  if (!token) {
+                    toast.error('Ikke innlogget');
+                    return;
+                  }
+                  const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?id=${item.Id}&token=${token}&info=true&audioIndex=${audioIdx}`;
+                  const res = await fetch(testUrl);
                   const data = await res.json();
                   const audioInfo = data.selectedAudio || {};
-                  const msg = `Index: ${audioInfo.index ?? audioIdx}\nSpråk: ${audioInfo.language || '–'}\nCodec: ${audioInfo.codec || '–'}\nKanaler: ${audioInfo.channels || '–'}\nTittel: ${audioInfo.title || '–'}\nTranskoding: ${data.requiresTranscoding ? 'Ja' : 'Nei'}`;
+                  const msg = `Index: ${audioInfo.index ?? audioIdx}\nSpråk: ${audioInfo.language || '–'}\nCodec: ${audioInfo.codec || '–'}\nKanaler: ${audioInfo.channels || '–'}\nTittel: ${audioInfo.title || '–'}\nTranskoding: ${data.isTranscoding ? 'Ja' : 'Nei'}`;
                   toast.success(msg, { duration: 8000 });
                   console.log('Audio track test result:', data);
                 } catch (err) {

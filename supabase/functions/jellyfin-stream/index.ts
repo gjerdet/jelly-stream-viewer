@@ -241,7 +241,7 @@ serve(async (req) => {
     if (infoOnly) {
       const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
       const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
-      const isTranscoding = needsVideoTranscode || needsAudioTranscode;
+      const isTranscoding = needsVideoTranscode || needsAudioTranscode || hasManualAudioSelection;
       const bitrate = videoBitrate ? `${Math.round(videoBitrate / 1000000)} Mbps` : null;
 
       return new Response(
@@ -253,6 +253,14 @@ serve(async (req) => {
           isTranscoding,
           resolution: videoStream?.Width && videoStream?.Height ? `${videoStream.Width}x${videoStream.Height}` : null,
           userIdSource,
+          // Include detailed selected audio info for diagnostics
+          selectedAudio: {
+            index: effectiveAudioIndex,
+            language: selectedAudioStream?.Language || null,
+            codec: selectedAudioStream?.Codec || null,
+            channels: selectedAudioChannels,
+            title: selectedAudioStream?.DisplayTitle || null,
+          },
         }),
         {
           status: 200,
