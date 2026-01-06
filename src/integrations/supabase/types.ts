@@ -368,6 +368,69 @@ export type Database = {
         }
         Relationships: []
       }
+      radarr_movies: {
+        Row: {
+          added_at: string | null
+          audio_codec: string | null
+          created_at: string | null
+          file_path: string | null
+          file_size_bytes: number | null
+          has_file: boolean | null
+          id: string
+          monitored: boolean | null
+          quality_profile: string | null
+          radarr_id: number
+          resolution: string | null
+          status: string | null
+          synced_at: string | null
+          title: string
+          tmdb_id: number | null
+          updated_at: string | null
+          video_codec: string | null
+          year: number | null
+        }
+        Insert: {
+          added_at?: string | null
+          audio_codec?: string | null
+          created_at?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          has_file?: boolean | null
+          id?: string
+          monitored?: boolean | null
+          quality_profile?: string | null
+          radarr_id: number
+          resolution?: string | null
+          status?: string | null
+          synced_at?: string | null
+          title: string
+          tmdb_id?: number | null
+          updated_at?: string | null
+          video_codec?: string | null
+          year?: number | null
+        }
+        Update: {
+          added_at?: string | null
+          audio_codec?: string | null
+          created_at?: string | null
+          file_path?: string | null
+          file_size_bytes?: number | null
+          has_file?: boolean | null
+          id?: string
+          monitored?: boolean | null
+          quality_profile?: string | null
+          radarr_id?: number
+          resolution?: string | null
+          status?: string | null
+          synced_at?: string | null
+          title?: string
+          tmdb_id?: number | null
+          updated_at?: string | null
+          video_codec?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
       role_permissions: {
         Row: {
           created_at: string | null
@@ -476,6 +539,96 @@ export type Database = {
           setting_value?: string
           updated_at?: string | null
           updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sonarr_series: {
+        Row: {
+          added_at: string | null
+          created_at: string | null
+          episode_count: number | null
+          episode_file_count: number | null
+          id: string
+          monitored: boolean | null
+          quality_profile: string | null
+          size_on_disk_bytes: number | null
+          sonarr_id: number
+          status: string | null
+          synced_at: string | null
+          title: string
+          tvdb_id: number | null
+          updated_at: string | null
+          year: number | null
+        }
+        Insert: {
+          added_at?: string | null
+          created_at?: string | null
+          episode_count?: number | null
+          episode_file_count?: number | null
+          id?: string
+          monitored?: boolean | null
+          quality_profile?: string | null
+          size_on_disk_bytes?: number | null
+          sonarr_id: number
+          status?: string | null
+          synced_at?: string | null
+          title: string
+          tvdb_id?: number | null
+          updated_at?: string | null
+          year?: number | null
+        }
+        Update: {
+          added_at?: string | null
+          created_at?: string | null
+          episode_count?: number | null
+          episode_file_count?: number | null
+          id?: string
+          monitored?: boolean | null
+          quality_profile?: string | null
+          size_on_disk_bytes?: number | null
+          sonarr_id?: number
+          status?: string | null
+          synced_at?: string | null
+          title?: string
+          tvdb_id?: number | null
+          updated_at?: string | null
+          year?: number | null
+        }
+        Relationships: []
+      }
+      sync_schedule: {
+        Row: {
+          created_at: string | null
+          cron_expression: string
+          enabled: boolean | null
+          id: string
+          last_run_at: string | null
+          last_run_details: Json | null
+          last_run_status: string | null
+          sync_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          cron_expression?: string
+          enabled?: boolean | null
+          id?: string
+          last_run_at?: string | null
+          last_run_details?: Json | null
+          last_run_status?: string | null
+          sync_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          cron_expression?: string
+          enabled?: boolean | null
+          id?: string
+          last_run_at?: string | null
+          last_run_details?: Json | null
+          last_run_status?: string | null
+          sync_type?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
