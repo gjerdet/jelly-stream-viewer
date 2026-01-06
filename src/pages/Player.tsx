@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX, List } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -1668,14 +1668,15 @@ const Player = () => {
                 <SheetTrigger asChild>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
                     }}
-                    className="text-white hover:bg-white/20 h-12 w-12 touch-manipulation rounded-lg"
+                    className="text-white hover:bg-white/20 h-12 px-3 touch-manipulation rounded-lg gap-1.5"
                     title="Velg episode"
                   >
-                    <ChevronLeft className="h-6 w-6" />
+                    <List className="h-5 w-5" />
+                    <span className="hidden sm:inline text-sm">Episoder</span>
                   </Button>
                 </SheetTrigger>
               )}
