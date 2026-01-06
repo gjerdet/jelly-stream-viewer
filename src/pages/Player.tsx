@@ -124,6 +124,9 @@ const Player = () => {
   const [streamUrl, setStreamUrl] = useState<string>("");
   // Track the last manually set audio to avoid race conditions
   const audioTrackUserSelectedRef = useRef<string | null>(null);
+  // Used to preserve playback position when swapping streams (e.g. audio track)
+  const pendingSeekSecondsRef = useRef<number | null>(null);
+  const resumeAfterStreamSwapRef = useRef<boolean>(true);
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -358,6 +361,18 @@ const Player = () => {
 
     if (lastAutoplayUrlRef.current === streamUrl) return;
     lastAutoplayUrlRef.current = streamUrl;
+
+    try {
+      // Force a reload so changes like audio track actually take effect.
+      video.pause();
+      video.src = streamUrl;
+      video.load();
+    } catch (e) {
+      console.log('Failed to reload video source:', e);
+    }
+
+    // If we are about to restore a seek position (audio swap), resume after metadata+seek.
+    if (pendingSeekSecondsRef.current !== null) return;
 
     const p = video.play();
     if (p && typeof (p as any).catch === 'function') {
@@ -1428,6 +1443,28 @@ const Player = () => {
           // Ensure audio is not muted
           video.muted = false;
           video.volume = 1.0;
+
+          // Restore position after stream swap (e.g. audio track change)
+          const pending = pendingSeekSecondsRef.current;
+          if (pending !== null && Number.isFinite(pending)) {
+            const target = Math.max(0, Math.min(pending, Math.max(0, video.duration - 0.25)));
+            pendingSeekSecondsRef.current = null;
+
+            try {
+              video.currentTime = target;
+            } catch (err) {
+              console.log('Failed to restore playback position after stream swap:', err);
+            }
+
+            if (resumeAfterStreamSwapRef.current) {
+              const p = video.play();
+              if (p && typeof (p as any).catch === 'function') {
+                (p as Promise<void>).catch(() => {
+                  toast.info('Trykk på videoen for å starte avspilling');
+                });
+              }
+            }
+          }
         }}
         onError={handleVideoError}
         onEnded={handleVideoEnded}
@@ -1801,6 +1838,13 @@ const Player = () => {
               value={selectedAudioTrack}
               onValueChange={(value) => {
                 console.log("User selected audio track:", value);
+
+                const video = videoRef.current;
+                if (video) {
+                  pendingSeekSecondsRef.current = video.currentTime || 0;
+                  resumeAfterStreamSwapRef.current = !video.paused;
+                }
+
                 audioTrackUserSelectedRef.current = value;
                 setSelectedAudioTrack(value);
 
