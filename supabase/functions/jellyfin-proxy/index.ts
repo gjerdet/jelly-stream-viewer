@@ -51,10 +51,9 @@ serve(async (req) => {
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('Missing backend configuration for jellyfin-proxy');
       return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
@@ -75,21 +74,23 @@ serve(async (req) => {
       });
     }
 
-    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: {
-        headers: {
-          Authorization: authHeaderRaw,
-        },
-      },
-      auth: {
-        persistSession: false,
-      },
-    });
+    // Extract the token from "Bearer <token>"
+    const tokenMatch = authHeaderRaw.match(/^bearer\s+(.+)$/i);
+    const accessToken = tokenMatch?.[1]?.trim();
 
+    if (!accessToken) {
+      console.warn('jellyfin-proxy unauthorized: malformed bearer token');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Use getUser with the token directly (service role validates the JWT)
     const {
       data: { user },
       error: userError,
-    } = await supabaseAuth.auth.getUser();
+    } = await supabaseAdmin.auth.getUser(accessToken);
 
     if (userError || !user) {
       console.warn('jellyfin-proxy unauthorized: invalid user token', userError?.message);
