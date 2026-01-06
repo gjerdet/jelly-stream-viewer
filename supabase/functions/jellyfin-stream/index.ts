@@ -52,8 +52,9 @@ serve(async (req) => {
     // Validate token and get user
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       console.error('Missing backend configuration for jellyfin-stream');
       return new Response('Service temporarily unavailable', {
         status: 503,
@@ -61,10 +62,17 @@ serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Validate the user JWT (token query param) using anon key + Authorization header
+    const supabaseAuth = createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      }
+    );
 
-    // Use getUser with the token directly (service role validates the JWT)
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
 
     if (authError || !user) {
       console.error('Authentication failed:', authError?.message);
@@ -73,6 +81,12 @@ serve(async (req) => {
         headers: corsHeaders,
       });
     }
+
+    const supabaseAdmin = createClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
 
     // Get Jellyfin server settings using service role key
     const { data: serverSettings } = await supabaseAdmin
