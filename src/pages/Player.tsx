@@ -142,6 +142,12 @@ const Player = () => {
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number>(0);
   const progressBarRef = useRef<HTMLDivElement>(null);
+  
+  // Double-tap to seek state
+  const [doubleTapSide, setDoubleTapSide] = useState<'left' | 'right' | null>(null);
+  const lastTapRef = useRef<{ time: number; x: number } | null>(null);
+  const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
   const [currentSegment, setCurrentSegment] = useState<MediaSegment | null>(null);
@@ -832,6 +838,48 @@ const Player = () => {
     video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
   };
 
+  // Handle double-tap to seek on mobile
+  const handleDoubleTap = (e: React.TouchEvent<HTMLDivElement>) => {
+    const touch = e.touches[0] || e.changedTouches[0];
+    if (!touch) return;
+    
+    const now = Date.now();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const isLeftSide = x < rect.width / 2;
+    
+    if (lastTapRef.current && now - lastTapRef.current.time < 300) {
+      // Double tap detected
+      const wasLeftSide = lastTapRef.current.x < rect.width / 2;
+      if (isLeftSide === wasLeftSide) {
+        // Same side - trigger seek
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (isLeftSide) {
+          skip(-10);
+          setDoubleTapSide('left');
+        } else {
+          skip(10);
+          setDoubleTapSide('right');
+        }
+        
+        // Clear visual feedback after animation
+        if (doubleTapTimeoutRef.current) {
+          clearTimeout(doubleTapTimeoutRef.current);
+        }
+        doubleTapTimeoutRef.current = setTimeout(() => {
+          setDoubleTapSide(null);
+        }, 500);
+        
+        lastTapRef.current = null;
+        return;
+      }
+    }
+    
+    lastTapRef.current = { time: now, x };
+  };
+
   // Track download speed using progress events
   const handleProgress = () => {
     const video = videoRef.current;
@@ -1260,9 +1308,31 @@ const Player = () => {
           onMouseMove={handleMouseMove}
           onPointerMove={handleMouseMove}
           onPointerDown={handleMouseMove}
-          onTouchStart={handleMouseMove}
+          onTouchStart={(e) => {
+            handleMouseMove();
+            handleDoubleTap(e);
+          }}
           onMouseLeave={() => setShowControls(false)}
         >
+          {/* Double-tap visual feedback - Left side */}
+          {doubleTapSide === 'left' && (
+            <div className="absolute left-0 top-0 bottom-0 w-1/3 flex items-center justify-center pointer-events-none z-40 animate-fade-in">
+              <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+                <SkipBack className="h-10 w-10 text-white" />
+              </div>
+              <span className="absolute bottom-1/3 text-white text-sm font-medium">-10s</span>
+            </div>
+          )}
+          
+          {/* Double-tap visual feedback - Right side */}
+          {doubleTapSide === 'right' && (
+            <div className="absolute right-0 top-0 bottom-0 w-1/3 flex items-center justify-center pointer-events-none z-40 animate-fade-in">
+              <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+                <SkipForward className="h-10 w-10 text-white" />
+              </div>
+              <span className="absolute bottom-1/3 text-white text-sm font-medium">+10s</span>
+            </div>
+          )}
           <video
         ref={videoRef}
         key={streamUrl}
