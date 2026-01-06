@@ -44,6 +44,57 @@ export type Database = {
         }
         Relationships: []
       }
+      duplicate_reports: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_series_name: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id: string
+          jellyfin_item_name: string
+          jellyfin_item_type: string
+          jellyfin_series_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          jellyfin_item_id?: string
+          jellyfin_item_name?: string
+          jellyfin_item_type?: string
+          jellyfin_series_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jellyseerr_requests: {
         Row: {
           approved_at: string | null

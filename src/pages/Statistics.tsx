@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Clock, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { Clock, ChevronDown, ChevronRight, RefreshCw, Users } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ const Statistics = () => {
   const { t } = useLanguage();
   const statistics = t.statistics as any;
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30');
+  const [selectedUserId, setSelectedUserId] = useState<string>('all');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const syncHistory = useMutation({
@@ -262,9 +263,9 @@ const Statistics = () => {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-3xl font-bold">{statistics.title}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => syncHistory.mutate()}
             disabled={syncHistory.isPending}
@@ -274,6 +275,23 @@ const Statistics = () => {
             <RefreshCw className={`h-4 w-4 mr-2 ${syncHistory.isPending ? 'animate-spin' : ''}`} />
             {statistics.syncFromJellyfin}
           </Button>
+          
+          {/* User filter */}
+          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+            <SelectTrigger className="w-48">
+              <Users className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Alle brukere" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle brukere</SelectItem>
+              {userStats?.map((stat) => (
+                <SelectItem key={stat.userId} value={stat.userId}>
+                  {stat.username}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          
           <Select value={timeFilter} onValueChange={(value: TimeFilter) => setTimeFilter(value)}>
             <SelectTrigger className="w-48">
               <SelectValue />
@@ -300,7 +318,7 @@ const Statistics = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {userStats?.map((stat) => (
+              {(selectedUserId === 'all' ? userStats : userStats?.filter(s => s.userId === selectedUserId))?.map((stat) => (
                 <Collapsible 
                   key={stat.userId}
                   open={expandedUsers.has(stat.userId)}
