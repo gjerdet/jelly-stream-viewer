@@ -143,15 +143,18 @@ const Player = () => {
   
   // Streaming status and error state
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [streamHttpStatus, setStreamHttpStatus] = useState<number | null>(null);
   const [streamStatus, setStreamStatus] = useState<{
     isTranscoding: boolean;
     codec: string | null;
     bitrate: string | null;
     container: string | null;
     resolution: string | null;
-  }>({ isTranscoding: false, codec: null, bitrate: null, container: null, resolution: null });
+    userIdSource: string | null;
+  }>({ isTranscoding: false, codec: null, bitrate: null, container: null, resolution: null, userIdSource: null });
   const [showStreamStatus, setShowStreamStatus] = useState(false);
   const [showStatsPanel, setShowStatsPanel] = useState(false);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   
   // Buffering state
   const [isBuffering, setIsBuffering] = useState(false);
@@ -337,6 +340,8 @@ const Player = () => {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
         const response = await fetch(`${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}&info=true`);
         
+        setStreamHttpStatus(response.status);
+        
         if (response.ok) {
           const info = await response.json();
           setStreamStatus({
@@ -345,10 +350,12 @@ const Player = () => {
             bitrate: info.bitrate || null,
             container: info.container || null,
             resolution: info.resolution || null,
+            userIdSource: info.userIdSource || null,
           });
         }
       } catch (error) {
         console.log('Could not fetch stream status:', error);
+        setStreamHttpStatus(-1); // indicates network error
       }
     };
     
@@ -1213,6 +1220,42 @@ const Player = () => {
         isOpen={showStatsPanel}
         onClose={() => setShowStatsPanel(false)}
       />
+
+      {/* Diagnostics Panel toggle + display */}
+      {showControls && (
+        <div className="absolute bottom-20 right-3 pointer-events-auto z-40">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowDiagnostics(!showDiagnostics); }}
+            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-black/60 text-white border border-white/20 hover:bg-black/80"
+          >
+            <Settings className="h-3 w-3" />
+            Diagnose
+          </button>
+        </div>
+      )}
+
+      {showDiagnostics && (
+        <div className="absolute top-20 right-3 w-64 bg-black/90 backdrop-blur-md rounded-lg p-3 text-xs text-white border border-white/20 pointer-events-auto z-50 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold">Feildiagnostikk</span>
+            <button onClick={() => setShowDiagnostics(false)} className="text-white/60 hover:text-white">✕</button>
+          </div>
+          <div className="space-y-1 text-white/80">
+            <p><span className="text-white/50">HTTP status:</span> {streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}</p>
+            <p><span className="text-white/50">Bruker-id-kilde:</span> {streamStatus.userIdSource || '–'}</p>
+            <p><span className="text-white/50">Video-codec:</span> {streamStatus.codec || '–'}</p>
+            <p><span className="text-white/50">Container:</span> {streamStatus.container || '–'}</p>
+            <p><span className="text-white/50">Oppløsning:</span> {streamStatus.resolution || '–'}</p>
+            <p><span className="text-white/50">Bitrate:</span> {streamStatus.bitrate || '–'}</p>
+            <p><span className="text-white/50">Transkoding:</span> {streamStatus.isTranscoding ? 'Ja' : 'Nei'}</p>
+          </div>
+          {streamError && (
+            <div className="mt-2 pt-2 border-t border-white/10 text-red-400">
+              <p><span className="text-white/50">Feil:</span> {streamError}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Custom overlay controls */}
       <div 

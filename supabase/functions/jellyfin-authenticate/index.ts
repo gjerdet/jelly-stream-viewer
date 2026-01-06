@@ -164,6 +164,17 @@ serve(async (req) => {
       }
 
       supabaseSession = signInResult.data.session;
+
+      // Ensure profile row has current jellyfin_user_id + jellyfin_username (in case of legacy data)
+      if (supabaseSession) {
+        await supabaseAdmin
+          .from('profiles')
+          .update({
+            jellyfin_user_id: jellyfinData.User.Id,
+            jellyfin_username: jellyfinData.User.Name,
+          })
+          .eq('id', profileByJellyfinId.id);
+      }
     } else {
       // No existing profile for this Jellyfin user – create account
       console.log('No profile found for jellyfin_user_id, creating new user');
@@ -187,9 +198,21 @@ serve(async (req) => {
           password: userPassword,
         });
         supabaseSession = signInResult.data.session;
+
+        // Sync profile if sign-in succeeded
+        if (signInResult.data.user) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({
+              jellyfin_user_id: jellyfinData.User.Id,
+              jellyfin_username: jellyfinData.User.Name,
+            })
+            .eq('id', signInResult.data.user.id);
+        }
       } else {
         supabaseSession = signUpResult.data.session;
         console.log('New user created successfully');
+        // handle_new_user trigger already inserts profile from user_metadata
       }
     }
 
