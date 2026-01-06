@@ -33,6 +33,7 @@ serve(async (req) => {
     const infoOnly = url.searchParams.get('info') === 'true';
     const requestedBitrate = url.searchParams.get('bitrate'); // Manual quality selection
     const requestedAudioIndex = url.searchParams.get('audioIndex'); // Manual audio track selection
+    const useHls = url.searchParams.get('hls') === 'true'; // Request HLS format
     
     if (!videoId || !token) {
       return new Response('Missing required parameters', { 
@@ -192,14 +193,11 @@ serve(async (req) => {
     // Find audio streams - prefer first default audio, otherwise first audio stream
     const audioStreams = mediaStreams.filter((s: any) => s.Type === 'Audio') || [];
     const defaultAudioStream = audioStreams.find((s: any) => s.IsDefault) || audioStreams[0];
-    const audioStreamIndex = defaultAudioStream?.Index;
 
     // Jellyfin expects MediaSourceId (can differ from the item id, especially for movies)
     const mediaSourceId: string = primarySource?.Id ?? videoId;
 
-    // Determine which audio stream index to use (manual selection wins)
-    // IMPORTANT: Jellyfin's AudioStreamIndex parameter often refers to the *audio-stream position* (0..n-1),
-    // while Item.MediaStreams Index can be a global index including video/subtitle streams.
+    // Parse requested audio index - use global MediaStreams Index directly
     const requestedAudioIndexValue =
       requestedAudioIndex && requestedAudioIndex.trim().length > 0
         ? parseInt(requestedAudioIndex, 10)
@@ -208,25 +206,15 @@ serve(async (req) => {
     const hasManualAudioSelection =
       requestedAudioIndexValue !== null && Number.isFinite(requestedAudioIndexValue);
 
+    // Use the requested audio index directly (it's the global MediaStreams Index)
     const effectiveAudioIndex = hasManualAudioSelection
       ? requestedAudioIndexValue!
-      : audioStreamIndex;
+      : defaultAudioStream?.Index ?? null;
 
     const selectedAudioStream =
       typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)
         ? (audioStreams.find((s: any) => s.Index === effectiveAudioIndex) ?? defaultAudioStream)
         : defaultAudioStream;
-
-    const sortedAudioStreams = audioStreams
-      .slice()
-      .sort((a: any, b: any) => (a?.Index ?? 0) - (b?.Index ?? 0));
-
-    const jellyfinAudioStreamIndex = hasManualAudioSelection
-      ? (() => {
-          const pos = sortedAudioStreams.findIndex((s: any) => s.Index === effectiveAudioIndex);
-          return pos >= 0 ? pos : null;
-        })()
-      : null;
 
     const videoCodec = videoStream?.Codec?.toLowerCase();
     const selectedAudioCodec = selectedAudioStream?.Codec?.toLowerCase();
@@ -240,13 +228,12 @@ serve(async (req) => {
         : null;
 
     console.log(
-      `Video codec: ${videoCodec}, audio codec: ${selectedAudioCodec}, container: ${container}, audioStreamIndex: ${audioStreamIndex}`
+      `Video codec: ${videoCodec}, audio codec: ${selectedAudioCodec}, container: ${container}, audioStreamIndex: ${effectiveAudioIndex}`
     );
 
     if (hasManualAudioSelection) {
       console.log('Manual audio selection:', {
         effectiveAudioIndex,
-        jellyfinAudioStreamIndex,
         selectedAudio: {
           index: selectedAudioStream?.Index,
           language: selectedAudioStream?.Language,
@@ -262,7 +249,7 @@ serve(async (req) => {
     if (infoOnly) {
       const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
       const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
-      const isTranscoding = needsVideoTranscode || needsAudioTranscode || hasManualAudioSelection;
+      const isTranscoding = needsVideoTranscode || needsAudioTranscode || hasManualAudioSelection || requestedBitrate !== null;
       const bitrate = videoBitrate ? `${Math.round(videoBitrate / 1000000)} Mbps` : null;
 
       return new Response(
@@ -274,12 +261,10 @@ serve(async (req) => {
           isTranscoding,
           resolution: videoStream?.Width && videoStream?.Height ? `${videoStream.Width}x${videoStream.Height}` : null,
           userIdSource,
+          hlsSupported: true,
           // Include detailed selected audio info for diagnostics
           selectedAudio: {
-            // Global MediaStreams Index (matches what the client shows in the dropdown)
             index: selectedAudioStream?.Index ?? effectiveAudioIndex ?? null,
-            // The index actually sent to Jellyfin's AudioStreamIndex param (0..n-1) when manual selection is used
-            jellyfinAudioStreamIndex,
             language: selectedAudioStream?.Language || null,
             codec: selectedAudioStream?.Codec || null,
             channels: selectedAudioChannels,
@@ -293,8 +278,8 @@ serve(async (req) => {
       );
     }
 
-    let streamUrl;
-    const targetBitrate = requestedBitrate ? parseInt(requestedBitrate) : 8000000;
+    let streamUrl: string;
+    const targetBitrate = requestedBitrate ? parseInt(requestedBitrate, 10) : 8000000;
     const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
     const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
     const needsTranscode = needsVideoTranscode || needsAudioTranscode;
@@ -304,34 +289,132 @@ serve(async (req) => {
     if (needsTranscode || forceTranscode) {
       const maxAudioChannels = selectedAudioChannels ?? 2;
 
-      // Build transcode URL with explicit audio stream selection
-      const transcodeParams = new URLSearchParams({
-        UserId: userId,
-        MediaSourceId: mediaSourceId,
-        VideoCodec: 'h264',
-        AudioCodec: 'aac',
-        VideoBitrate: targetBitrate.toString(),
-        TranscodingContainer: 'mp4',
-        TranscodingProtocol: 'http',
-        api_key: apiKey,
-      });
+      // Use Jellyfin's PlaybackInfo API to get the proper TranscodingUrl
+      // This ensures audioIndex and bitrate are respected by the server
+      let playbackInfoTranscodingUrl: string | null = null;
 
-      // Tune audio output to the selected track to prevent Jellyfin from preferring a different track.
-      transcodeParams.set('MaxAudioChannels', maxAudioChannels.toString());
-      transcodeParams.set('TranscodingMaxAudioChannels', maxAudioChannels.toString());
-      transcodeParams.set('AudioBitrate', maxAudioChannels > 2 ? '384000' : '192000');
+      try {
+        const playbackInfoUrl = new URL(`${jellyfinServerUrl}/Items/${videoId}/PlaybackInfo`);
+        playbackInfoUrl.searchParams.set('UserId', userId);
+        playbackInfoUrl.searchParams.set('api_key', apiKey);
+        playbackInfoUrl.searchParams.set('MaxStreamingBitrate', targetBitrate.toString());
 
-      // Add audio stream index if available to ensure correct audio track
-      // NOTE: Use jellyfinAudioStreamIndex (audio stream position) for best reliability.
-      if (typeof jellyfinAudioStreamIndex === 'number' && Number.isFinite(jellyfinAudioStreamIndex)) {
-        transcodeParams.set('AudioStreamIndex', jellyfinAudioStreamIndex.toString());
+        // Include audio stream index in the query params for PlaybackInfo
+        if (typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)) {
+          playbackInfoUrl.searchParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
+        }
+
+        const deviceProfile = {
+          MaxStreamingBitrate: targetBitrate,
+          DirectPlayProfiles: [
+            {
+              Container: 'mp4,m4v,mov',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac,mp3,ac3,eac3',
+            },
+          ],
+          TranscodingProfiles: useHls ? [
+            {
+              Container: 'ts',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac',
+              Protocol: 'hls',
+              Context: 'Streaming',
+              TranscodeSeekInfo: 'Auto',
+              MaxAudioChannels: String(maxAudioChannels),
+              MinSegments: 1,
+              SegmentLength: 3,
+              BreakOnNonKeyFrames: false,
+            },
+          ] : [
+            {
+              Container: 'mp4',
+              Type: 'Video',
+              VideoCodec: 'h264',
+              AudioCodec: 'aac',
+              Protocol: 'http',
+              Context: 'Streaming',
+              TranscodeSeekInfo: 'Auto',
+              EstimateContentLength: true,
+              MaxAudioChannels: String(maxAudioChannels),
+            },
+          ],
+          SubtitleProfiles: [
+            { Format: 'vtt', Method: 'External' },
+            { Format: 'srt', Method: 'External' },
+          ],
+        };
+
+        const playbackRes = await fetch(playbackInfoUrl.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `MediaBrowser Token="${apiKey}"`,
+          },
+          body: JSON.stringify({ DeviceProfile: deviceProfile }),
+          client: httpClient,
+        });
+
+        if (playbackRes.ok) {
+          const playbackInfo = await playbackRes.json();
+          const mediaSource = playbackInfo?.MediaSources?.[0] ?? null;
+          const urlPath = mediaSource?.TranscodingUrl ?? null;
+
+          if (typeof urlPath === 'string' && urlPath.length > 0) {
+            playbackInfoTranscodingUrl = urlPath.startsWith('http') ? urlPath : `${jellyfinServerUrl}${urlPath}`;
+            console.log(`PlaybackInfo provided TranscodingUrl: ${playbackInfoTranscodingUrl.substring(0, 100)}...`);
+          }
+        } else {
+          console.warn('PlaybackInfo returned non-OK, falling back to manual transcode URL:', playbackRes.status);
+        }
+      } catch (err) {
+        console.warn('PlaybackInfo failed, falling back to manual transcode URL:', err);
       }
 
-      // Use an explicit .mp4 extension for best browser compatibility (content-type sniffing)
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?${transcodeParams.toString()}`;
-      console.log(
-        `Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${selectedAudioCodec}, audioStreamIndex: ${typeof jellyfinAudioStreamIndex === 'number' ? jellyfinAudioStreamIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''})`
-      );
+      if (playbackInfoTranscodingUrl) {
+        streamUrl = playbackInfoTranscodingUrl;
+        console.log(
+          `Transcoding via PlaybackInfo at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls})`
+        );
+      } else {
+        // Fallback: Build transcode URL manually (legacy behavior)
+        const transcodeParams = new URLSearchParams({
+          UserId: userId,
+          MediaSourceId: mediaSourceId,
+          VideoCodec: 'h264',
+          AudioCodec: 'aac',
+          VideoBitrate: targetBitrate.toString(),
+          api_key: apiKey,
+        });
+
+        transcodeParams.set('MaxAudioChannels', maxAudioChannels.toString());
+        transcodeParams.set('TranscodingMaxAudioChannels', maxAudioChannels.toString());
+        transcodeParams.set('AudioBitrate', maxAudioChannels > 2 ? '384000' : '192000');
+
+        // Use the global audio stream index directly
+        if (typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)) {
+          transcodeParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
+        }
+
+        if (useHls) {
+          transcodeParams.set('TranscodingContainer', 'ts');
+          transcodeParams.set('TranscodingProtocol', 'hls');
+          transcodeParams.set('SegmentContainer', 'ts');
+          transcodeParams.set('MinSegments', '1');
+          transcodeParams.set('BreakOnNonKeyFrames', 'false');
+          streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/master.m3u8?${transcodeParams.toString()}`;
+        } else {
+          transcodeParams.set('TranscodingContainer', 'mp4');
+          transcodeParams.set('TranscodingProtocol', 'http');
+          streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?${transcodeParams.toString()}`;
+        }
+        
+        console.log(
+          `Transcoding (manual URL) to H264/AAC at ${targetBitrate / 1000000} Mbps (audioStreamIndex: ${typeof effectiveAudioIndex === 'number' ? effectiveAudioIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''}, HLS: ${useHls})`
+        );
+      }
     } else {
       // Direct stream for compatible codecs
       streamUrl =
@@ -360,12 +443,15 @@ serve(async (req) => {
     });
 
     const jellyfinContentType = jellyfinResponse.headers.get('content-type') ?? '';
+    const jellyfinAcceptRanges = jellyfinResponse.headers.get('accept-ranges');
+    const jellyfinContentRange = jellyfinResponse.headers.get('content-range');
+    
     console.log('Jellyfin stream response:', {
       status: jellyfinResponse.status,
       contentType: jellyfinContentType,
       contentLength: jellyfinResponse.headers.get('content-length'),
-      contentRange: jellyfinResponse.headers.get('content-range'),
-      acceptRanges: jellyfinResponse.headers.get('accept-ranges'),
+      contentRange: jellyfinContentRange,
+      acceptRanges: jellyfinAcceptRanges,
     });
 
     if (!jellyfinResponse.ok) {
@@ -378,11 +464,14 @@ serve(async (req) => {
 
     // If Jellyfin returns non-video content, don't let the browser try to decode it.
     if (jellyfinContentType && (jellyfinContentType.startsWith('text/') || jellyfinContentType.includes('application/json'))) {
-      console.error('Unexpected stream content-type from Jellyfin:', jellyfinContentType);
-      return new Response('Stream returned unexpected content', {
-        status: 502,
-        headers: corsHeaders,
-      });
+      // Exception: HLS playlists are text-based and valid
+      if (!jellyfinContentType.includes('mpegurl') && !jellyfinContentType.includes('m3u')) {
+        console.error('Unexpected stream content-type from Jellyfin:', jellyfinContentType);
+        return new Response('Stream returned unexpected content', {
+          status: 502,
+          headers: corsHeaders,
+        });
+      }
     }
 
     // Forward the response with CORS headers
@@ -405,10 +494,8 @@ serve(async (req) => {
       }
     }
     
-    // Always set accept-ranges for seeking support
-    if (!responseHeaders.has('accept-ranges')) {
-      responseHeaders.set('accept-ranges', 'bytes');
-    }
+    // IMPORTANT: Do NOT set accept-ranges manually if upstream doesn't support it
+    // This was causing seeking issues - the browser thought byte-range was supported when it wasn't
 
     return new Response(jellyfinResponse.body, {
       status: jellyfinResponse.status,

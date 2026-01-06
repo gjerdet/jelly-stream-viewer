@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import Hls from "hls.js";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
@@ -170,6 +171,16 @@ const Player = () => {
   // Status from probing the actual stream URL (Range request)
   const [streamProbeStatus, setStreamProbeStatus] = useState<number | null>(null);
   const [streamProbeContentType, setStreamProbeContentType] = useState<string | null>(null);
+  const [streamProbeAcceptRanges, setStreamProbeAcceptRanges] = useState<string | null>(null);
+  const [streamProbeContentRange, setStreamProbeContentRange] = useState<string | null>(null);
+  
+  // HLS.js instance ref
+  const hlsRef = useRef<Hls | null>(null);
+  const [useHls, setUseHls] = useState<boolean>(() => {
+    // Default to HLS for better seeking support
+    const saved = localStorage.getItem('useHlsPlayback');
+    return saved !== 'false'; // Default to true
+  });
 
   const [streamStatus, setStreamStatus] = useState<{
     isTranscoding: boolean;
@@ -345,19 +356,24 @@ const Player = () => {
         }
       }
 
-      // Add audio track parameter if selected
+      // Always add audio track parameter to ensure correct audio is selected
       if (selectedAudioTrack) {
         streamingUrl += `&audioIndex=${selectedAudioTrack}`;
       }
       
-      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default');
+      // Add HLS parameter if enabled
+      if (useHls) {
+        streamingUrl += '&hls=true';
+      }
+      
+      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default', 'HLS:', useHls);
       setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls]);
 
-  // Try to start playback automatically when the stream URL changes
+  // HLS.js setup and cleanup
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
@@ -365,25 +381,109 @@ const Player = () => {
     if (lastAutoplayUrlRef.current === streamUrl) return;
     lastAutoplayUrlRef.current = streamUrl;
 
-    try {
-      // Force a reload so changes like audio track actually take effect.
-      video.pause();
+    // Cleanup previous HLS instance
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    const isHlsUrl = streamUrl.includes('hls=true') || streamUrl.includes('.m3u8');
+
+    if (isHlsUrl && Hls.isSupported()) {
+      // Use HLS.js for HLS streams
+      console.log('Setting up HLS.js for stream');
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 90,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        startLevel: -1, // Auto quality
+      });
+
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('HLS manifest parsed, starting playback');
+        
+        // If we are about to restore a seek position (audio swap), resume after metadata+seek.
+        if (pendingSeekSecondsRef.current !== null) return;
+
+        const p = video.play();
+        if (p && typeof (p as any).catch === 'function') {
+          (p as Promise<void>).catch((err: any) => {
+            console.log('Autoplay blocked:', err?.name || err);
+            toast.info('Trykk på videoen for å starte avspilling');
+          });
+        }
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS.js error:', data);
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.log('Fatal network error, trying to recover...');
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.log('Fatal media error, trying to recover...');
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error('Unrecoverable HLS error');
+              setStreamError('Kunne ikke spille av video. Prøv å deaktivere HLS i innstillinger.');
+              break;
+          }
+        }
+      });
+    } else if (isHlsUrl && video.canPlayType('application/vnd.apple.mpegurl')) {
+      // Native HLS support (Safari)
+      console.log('Using native HLS support');
       video.src = streamUrl;
       video.load();
-    } catch (e) {
-      console.log('Failed to reload video source:', e);
+
+      if (pendingSeekSecondsRef.current === null) {
+        const p = video.play();
+        if (p && typeof (p as any).catch === 'function') {
+          (p as Promise<void>).catch((err: any) => {
+            console.log('Autoplay blocked:', err?.name || err);
+            toast.info('Trykk på videoen for å starte avspilling');
+          });
+        }
+      }
+    } else {
+      // Regular MP4 stream
+      console.log('Using direct MP4 streaming');
+      try {
+        video.pause();
+        video.src = streamUrl;
+        video.load();
+      } catch (e) {
+        console.log('Failed to reload video source:', e);
+      }
+
+      // If we are about to restore a seek position (audio swap), resume after metadata+seek.
+      if (pendingSeekSecondsRef.current !== null) return;
+
+      const p = video.play();
+      if (p && typeof (p as any).catch === 'function') {
+        (p as Promise<void>).catch((err: any) => {
+          console.log('Autoplay blocked:', err?.name || err);
+          toast.info('Trykk på videoen for å starte avspilling');
+        });
+      }
     }
 
-    // If we are about to restore a seek position (audio swap), resume after metadata+seek.
-    if (pendingSeekSecondsRef.current !== null) return;
-
-    const p = video.play();
-    if (p && typeof (p as any).catch === 'function') {
-      (p as Promise<void>).catch((err: any) => {
-        console.log('Autoplay blocked:', err?.name || err);
-        toast.info('Trykk på videoen for å starte avspilling');
-      });
-    }
+    // Cleanup on unmount
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
   }, [streamUrl]);
 
   // Save quality preference
@@ -445,6 +545,8 @@ const Player = () => {
 
       setStreamProbeStatus(null);
       setStreamProbeContentType(null);
+      setStreamProbeAcceptRanges(null);
+      setStreamProbeContentRange(null);
 
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseToken = session?.access_token;
@@ -468,6 +570,8 @@ const Player = () => {
 
         setStreamProbeStatus(response.status);
         setStreamProbeContentType(response.headers.get('content-type'));
+        setStreamProbeAcceptRanges(response.headers.get('accept-ranges'));
+        setStreamProbeContentRange(response.headers.get('content-range'));
 
         // Consume the tiny response so the connection closes cleanly
         await response.arrayBuffer().catch(() => null);
@@ -1585,7 +1689,13 @@ const Player = () => {
           <div className="space-y-1 text-white/80">
             <p><span className="text-white/50">HTTP (info):</span> {streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}</p>
             <p><span className="text-white/50">HTTP (stream):</span> {streamProbeStatus === -1 ? 'Nettverksfeil' : streamProbeStatus ?? 'Åpne diagnose for å teste'}</p>
+            <p className={streamProbeStatus === 206 ? 'text-green-400' : streamProbeStatus === 200 ? 'text-amber-400' : ''}>
+              <span className="text-white/50">Seek støtte:</span> {streamProbeStatus === 206 ? '✓ Støttet (206)' : streamProbeStatus === 200 ? '⚠ Ikkje støtta' : '–'}
+            </p>
+            <p><span className="text-white/50">Accept-Ranges:</span> {streamProbeAcceptRanges || '–'}</p>
+            <p><span className="text-white/50">Content-Range:</span> {streamProbeContentRange?.substring(0, 30) || '–'}</p>
             <p><span className="text-white/50">Content-Type:</span> {streamProbeContentType || '–'}</p>
+            <p><span className="text-white/50">HLS modus:</span> {useHls ? 'Ja' : 'Nei'}</p>
             <p><span className="text-white/50">Bruker-id-kilde:</span> {streamStatus.userIdSource || '–'}</p>
             <p><span className="text-white/50">Video-codec:</span> {streamStatus.codec || '–'}</p>
             <p><span className="text-white/50">Container:</span> {streamStatus.container || '–'}</p>
