@@ -120,6 +120,8 @@ const Player = () => {
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   // Audio track selection - initialized from localStorage when item loads
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<string>("");
+  // Flag to prevent setting streamUrl before audio track is initialized
+  const [audioTrackInitialized, setAudioTrackInitialized] = useState(false);
   const [subtitleUrl, setSubtitleUrl] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   // Track the last manually set audio to avoid race conditions
@@ -314,9 +316,10 @@ const Player = () => {
   const { userId } = useJellyfinSession();
 
   // Stream via edge function proxy to avoid Mixed Content / Private Network Access issues
+  // IMPORTANT: Wait for audioTrackInitialized to prevent race condition where stream starts before audio preference is loaded
   useEffect(() => {
     const setupStream = async () => {
-      if (!id) return;
+      if (!id || !audioTrackInitialized) return;
       
       setStreamError(null);
       
@@ -352,7 +355,7 @@ const Player = () => {
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized]);
 
   // Try to start playback automatically when the stream URL changes
   useEffect(() => {
@@ -648,6 +651,7 @@ const Player = () => {
   }, [subtitles]);
 
   // Load saved audio track preference for this media item (or series)
+  // Also marks audio as initialized so stream setup can proceed
   useEffect(() => {
     if (!item?.Id || audioTracks.length === 0) return;
     
@@ -662,16 +666,18 @@ const Player = () => {
         console.log('Restoring saved audio track:', savedAudioIndex);
         setSelectedAudioTrack(savedAudioIndex);
         audioTrackUserSelectedRef.current = savedAudioIndex;
+        setAudioTrackInitialized(true);
         return;
       }
     }
     
     // Default to the first default audio track or first track
     const defaultAudio = audioTracks.find(t => t.IsDefault) || audioTracks[0];
-    if (defaultAudio && !selectedAudioTrack) {
+    if (defaultAudio) {
       console.log('Auto-selecting default audio track:', defaultAudio.Index);
       setSelectedAudioTrack(defaultAudio.Index.toString());
     }
+    setAudioTrackInitialized(true);
   }, [item?.Id, item?.SeriesId, audioTracks]);
 
   // Save audio track preference when user changes it
