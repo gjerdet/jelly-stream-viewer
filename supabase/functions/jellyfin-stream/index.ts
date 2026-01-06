@@ -198,15 +198,35 @@ serve(async (req) => {
     const mediaSourceId: string = primarySource?.Id ?? videoId;
 
     // Determine which audio stream index to use (manual selection wins)
-    const hasManualAudioSelection = requestedAudioIndex !== null;
-    const effectiveAudioIndex = requestedAudioIndex !== null
-      ? parseInt(requestedAudioIndex)
+    // IMPORTANT: Jellyfin's AudioStreamIndex parameter often refers to the *audio-stream position* (0..n-1),
+    // while Item.MediaStreams Index can be a global index including video/subtitle streams.
+    const requestedAudioIndexValue =
+      requestedAudioIndex && requestedAudioIndex.trim().length > 0
+        ? parseInt(requestedAudioIndex, 10)
+        : null;
+
+    const hasManualAudioSelection =
+      requestedAudioIndexValue !== null && Number.isFinite(requestedAudioIndexValue);
+
+    const effectiveAudioIndex = hasManualAudioSelection
+      ? requestedAudioIndexValue!
       : audioStreamIndex;
 
     const selectedAudioStream =
       typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)
         ? (audioStreams.find((s: any) => s.Index === effectiveAudioIndex) ?? defaultAudioStream)
         : defaultAudioStream;
+
+    const sortedAudioStreams = audioStreams
+      .slice()
+      .sort((a: any, b: any) => (a?.Index ?? 0) - (b?.Index ?? 0));
+
+    const jellyfinAudioStreamIndex = hasManualAudioSelection
+      ? (() => {
+          const pos = sortedAudioStreams.findIndex((s: any) => s.Index === effectiveAudioIndex);
+          return pos >= 0 ? pos : null;
+        })()
+      : null;
 
     const videoCodec = videoStream?.Codec?.toLowerCase();
     const selectedAudioCodec = selectedAudioStream?.Codec?.toLowerCase();
@@ -226,6 +246,7 @@ serve(async (req) => {
     if (hasManualAudioSelection) {
       console.log('Manual audio selection:', {
         effectiveAudioIndex,
+        jellyfinAudioStreamIndex,
         selectedAudio: {
           index: selectedAudioStream?.Index,
           language: selectedAudioStream?.Language,
@@ -255,7 +276,10 @@ serve(async (req) => {
           userIdSource,
           // Include detailed selected audio info for diagnostics
           selectedAudio: {
-            index: effectiveAudioIndex,
+            // Global MediaStreams Index (matches what the client shows in the dropdown)
+            index: selectedAudioStream?.Index ?? effectiveAudioIndex ?? null,
+            // The index actually sent to Jellyfin's AudioStreamIndex param (0..n-1) when manual selection is used
+            jellyfinAudioStreamIndex,
             language: selectedAudioStream?.Language || null,
             codec: selectedAudioStream?.Codec || null,
             channels: selectedAudioChannels,
@@ -298,14 +322,15 @@ serve(async (req) => {
       transcodeParams.set('AudioBitrate', maxAudioChannels > 2 ? '384000' : '192000');
 
       // Add audio stream index if available to ensure correct audio track
-      if (typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)) {
-        transcodeParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
+      // NOTE: Use jellyfinAudioStreamIndex (audio stream position) for best reliability.
+      if (typeof jellyfinAudioStreamIndex === 'number' && Number.isFinite(jellyfinAudioStreamIndex)) {
+        transcodeParams.set('AudioStreamIndex', jellyfinAudioStreamIndex.toString());
       }
 
       // Use an explicit .mp4 extension for best browser compatibility (content-type sniffing)
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?${transcodeParams.toString()}`;
       console.log(
-        `Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${selectedAudioCodec}, audioStreamIndex: ${effectiveAudioIndex}${hasManualAudioSelection ? ' [user-selected]' : ''})`
+        `Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${selectedAudioCodec}, audioStreamIndex: ${typeof jellyfinAudioStreamIndex === 'number' ? jellyfinAudioStreamIndex : 'default'}${hasManualAudioSelection ? ' [user-selected]' : ''})`
       );
     } else {
       // Direct stream for compatible codecs

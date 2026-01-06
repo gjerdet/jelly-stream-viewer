@@ -394,18 +394,30 @@ const Player = () => {
   // Fetch stream status (codec info) from edge function
   useEffect(() => {
     const fetchStreamStatus = async () => {
-      if (!id) return;
-      
+      if (!id || !audioTrackInitialized) return;
+
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseToken = session?.access_token;
       if (!supabaseToken) return;
-      
+
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ypjihlfhxqyrpfjfmjdm.supabase.co';
-        const response = await fetch(`${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}&info=true`);
-        
+
+        let infoUrl = `${supabaseUrl}/functions/v1/jellyfin-stream?id=${id}&token=${supabaseToken}&info=true`;
+
+        if (selectedQuality !== 'auto') {
+          const qualityConfig = qualityOptions.find(q => q.value === selectedQuality);
+          if (qualityConfig) infoUrl += `&bitrate=${qualityConfig.bitrate}`;
+        }
+
+        if (selectedAudioTrack) {
+          infoUrl += `&audioIndex=${selectedAudioTrack}`;
+        }
+
+        const response = await fetch(infoUrl);
+
         setStreamHttpStatus(response.status);
-        
+
         if (response.ok) {
           const info = await response.json();
           setStreamStatus({
@@ -422,9 +434,9 @@ const Player = () => {
         setStreamHttpStatus(-1); // indicates network error
       }
     };
-    
+
     fetchStreamStatus();
-  }, [id]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized]);
 
   // Probe the actual stream URL on-demand (when diagnostics is opened)
   useEffect(() => {
@@ -1403,7 +1415,6 @@ const Player = () => {
             handleMouseMove();
             handleDoubleTap(e);
           }}
-          onMouseLeave={() => setShowControls(false)}
         >
           {/* Double-tap visual feedback - Left side */}
           {doubleTapSide === 'left' && (
