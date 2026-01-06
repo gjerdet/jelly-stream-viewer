@@ -183,61 +183,95 @@ serve(async (req) => {
     }
 
     const itemInfo = await infoResponse.json();
-    const videoStream = itemInfo.MediaStreams?.find((s: any) => s.Type === 'Video');
+
+    // Prefer streams from the actual media source (more reliable for stream-index mapping)
+    const primarySource = itemInfo?.MediaSources?.[0] ?? null;
+    const mediaStreams = (primarySource?.MediaStreams ?? itemInfo?.MediaStreams ?? []) as any[];
+
+    const videoStream = mediaStreams.find((s: any) => s.Type === 'Video');
     // Find audio streams - prefer first default audio, otherwise first audio stream
-    const audioStreams = itemInfo.MediaStreams?.filter((s: any) => s.Type === 'Audio') || [];
+    const audioStreams = mediaStreams.filter((s: any) => s.Type === 'Audio') || [];
     const defaultAudioStream = audioStreams.find((s: any) => s.IsDefault) || audioStreams[0];
     const audioStreamIndex = defaultAudioStream?.Index;
-    
-    const videoCodec = videoStream?.Codec?.toLowerCase();
-    const audioCodec = defaultAudioStream?.Codec?.toLowerCase();
-    const audioBitrate = defaultAudioStream?.BitRate;
-    const videoBitrate = videoStream?.BitRate;
-    const container = itemInfo.Container?.toLowerCase();
 
     // Jellyfin expects MediaSourceId (can differ from the item id, especially for movies)
-    const mediaSourceId: string = itemInfo?.MediaSources?.[0]?.Id ?? videoId;
-    
-    console.log(`Video codec: ${videoCodec}, audio codec: ${audioCodec}, container: ${container}, audioStreamIndex: ${audioStreamIndex}`);
+    const mediaSourceId: string = primarySource?.Id ?? videoId;
+
+    // Determine which audio stream index to use (manual selection wins)
+    const hasManualAudioSelection = requestedAudioIndex !== null;
+    const effectiveAudioIndex = requestedAudioIndex !== null
+      ? parseInt(requestedAudioIndex)
+      : audioStreamIndex;
+
+    const selectedAudioStream =
+      typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)
+        ? (audioStreams.find((s: any) => s.Index === effectiveAudioIndex) ?? defaultAudioStream)
+        : defaultAudioStream;
+
+    const videoCodec = videoStream?.Codec?.toLowerCase();
+    const selectedAudioCodec = selectedAudioStream?.Codec?.toLowerCase();
+    const videoBitrate = videoStream?.BitRate;
+    const container = (primarySource?.Container ?? itemInfo.Container)?.toLowerCase();
+
+    const selectedAudioChannelsRaw = selectedAudioStream?.Channels;
+    const selectedAudioChannels =
+      typeof selectedAudioChannelsRaw === 'number' && Number.isFinite(selectedAudioChannelsRaw)
+        ? Math.max(1, selectedAudioChannelsRaw)
+        : null;
+
+    console.log(
+      `Video codec: ${videoCodec}, audio codec: ${selectedAudioCodec}, container: ${container}, audioStreamIndex: ${audioStreamIndex}`
+    );
+
+    if (hasManualAudioSelection) {
+      console.log('Manual audio selection:', {
+        effectiveAudioIndex,
+        selectedAudio: {
+          index: selectedAudioStream?.Index,
+          language: selectedAudioStream?.Language,
+          title: selectedAudioStream?.DisplayTitle,
+          codec: selectedAudioStream?.Codec,
+          channels: selectedAudioChannels,
+        },
+        mediaSourceId,
+      });
+    }
 
     // If info-only request, return stream metadata
     if (infoOnly) {
       const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
-      const needsAudioTranscode = !!(audioCodec && !['aac', 'mp3', 'opus'].includes(audioCodec));
+      const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
       const isTranscoding = needsVideoTranscode || needsAudioTranscode;
       const bitrate = videoBitrate ? `${Math.round(videoBitrate / 1000000)} Mbps` : null;
-      
-      return new Response(JSON.stringify({
-        videoCodec: videoCodec?.toUpperCase() || 'Unknown',
-        audioCodec: defaultAudioStream?.Codec?.toUpperCase() || 'Unknown',
-        container: container?.toUpperCase() || 'Unknown',
-        bitrate,
-        isTranscoding,
-        resolution: videoStream?.Width && videoStream?.Height 
-          ? `${videoStream.Width}x${videoStream.Height}` 
-          : null,
-        userIdSource,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+
+      return new Response(
+        JSON.stringify({
+          videoCodec: videoCodec?.toUpperCase() || 'Unknown',
+          audioCodec: selectedAudioStream?.Codec?.toUpperCase() || 'Unknown',
+          container: container?.toUpperCase() || 'Unknown',
+          bitrate,
+          isTranscoding,
+          resolution: videoStream?.Width && videoStream?.Height ? `${videoStream.Width}x${videoStream.Height}` : null,
+          userIdSource,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     let streamUrl;
     const targetBitrate = requestedBitrate ? parseInt(requestedBitrate) : 8000000;
     const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
-    const needsAudioTranscode = !!(audioCodec && !['aac', 'mp3', 'opus'].includes(audioCodec));
+    const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
     const needsTranscode = needsVideoTranscode || needsAudioTranscode;
-    const hasManualAudioSelection = requestedAudioIndex !== null;
     const forceTranscode = requestedBitrate !== null || hasManualAudioSelection; // Manual quality/audio selection always transcodes
 
-    // Determine which audio stream index to use
-    const effectiveAudioIndex = requestedAudioIndex !== null 
-      ? parseInt(requestedAudioIndex) 
-      : audioStreamIndex;
-    
     // Transcode if codec is NOT browser-compatible OR if user requested specific quality/audio
     if (needsTranscode || forceTranscode) {
+      const maxAudioChannels = selectedAudioChannels ?? 2;
+
       // Build transcode URL with explicit audio stream selection
       const transcodeParams = new URLSearchParams({
         UserId: userId,
@@ -245,28 +279,34 @@ serve(async (req) => {
         VideoCodec: 'h264',
         AudioCodec: 'aac',
         VideoBitrate: targetBitrate.toString(),
-        AudioBitrate: '192000',
-        MaxAudioChannels: '2',
         TranscodingContainer: 'mp4',
         TranscodingProtocol: 'http',
         api_key: apiKey,
       });
-      
+
+      // Tune audio output to the selected track to prevent Jellyfin from preferring a different track.
+      transcodeParams.set('MaxAudioChannels', maxAudioChannels.toString());
+      transcodeParams.set('TranscodingMaxAudioChannels', maxAudioChannels.toString());
+      transcodeParams.set('AudioBitrate', maxAudioChannels > 2 ? '384000' : '192000');
+
       // Add audio stream index if available to ensure correct audio track
-      if (effectiveAudioIndex !== undefined) {
+      if (typeof effectiveAudioIndex === 'number' && Number.isFinite(effectiveAudioIndex)) {
         transcodeParams.set('AudioStreamIndex', effectiveAudioIndex.toString());
       }
-      
+
       // Use an explicit .mp4 extension for best browser compatibility (content-type sniffing)
       streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream.mp4?${transcodeParams.toString()}`;
-      console.log(`Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${audioCodec}, audioStreamIndex: ${effectiveAudioIndex}${hasManualAudioSelection ? ' [user-selected]' : ''})`);
+      console.log(
+        `Transcoding to H264/AAC at ${targetBitrate / 1000000} Mbps (original: ${videoCodec}/${selectedAudioCodec}, audioStreamIndex: ${effectiveAudioIndex}${hasManualAudioSelection ? ' [user-selected]' : ''})`
+      );
     } else {
       // Direct stream for compatible codecs
-      streamUrl = `${jellyfinServerUrl}/Videos/${videoId}/stream?`
-        + `UserId=${userId}`
-        + `&Static=true`
-        + `&MediaSourceId=${mediaSourceId}`
-        + `&api_key=${apiKey}`;
+      streamUrl =
+        `${jellyfinServerUrl}/Videos/${videoId}/stream?` +
+        `UserId=${userId}` +
+        `&Static=true` +
+        `&MediaSourceId=${mediaSourceId}` +
+        `&api_key=${apiKey}`;
       console.log(`Direct streaming (codec: ${videoCodec})`);
     }
 
