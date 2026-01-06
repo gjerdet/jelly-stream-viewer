@@ -118,9 +118,12 @@ const Player = () => {
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
+  // Audio track selection - initialized from localStorage when item loads
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<string>("");
   const [subtitleUrl, setSubtitleUrl] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
+  // Track the last manually set audio to avoid race conditions
+  const audioTrackUserSelectedRef = useRef<string | null>(null);
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -628,6 +631,45 @@ const Player = () => {
       }
     }
   }, [subtitles]);
+
+  // Load saved audio track preference for this media item (or series)
+  useEffect(() => {
+    if (!item?.Id || audioTracks.length === 0) return;
+    
+    // Use series ID for episodes so audio preference persists across episodes
+    const mediaKey = item.SeriesId || item.Id;
+    const savedAudioIndex = localStorage.getItem(`audioTrack_${mediaKey}`);
+    
+    if (savedAudioIndex) {
+      // Verify the saved index exists in available tracks
+      const trackExists = audioTracks.some(t => t.Index.toString() === savedAudioIndex);
+      if (trackExists) {
+        console.log('Restoring saved audio track:', savedAudioIndex);
+        setSelectedAudioTrack(savedAudioIndex);
+        audioTrackUserSelectedRef.current = savedAudioIndex;
+        return;
+      }
+    }
+    
+    // Default to the first default audio track or first track
+    const defaultAudio = audioTracks.find(t => t.IsDefault) || audioTracks[0];
+    if (defaultAudio && !selectedAudioTrack) {
+      console.log('Auto-selecting default audio track:', defaultAudio.Index);
+      setSelectedAudioTrack(defaultAudio.Index.toString());
+    }
+  }, [item?.Id, item?.SeriesId, audioTracks]);
+
+  // Save audio track preference when user changes it
+  useEffect(() => {
+    if (!item?.Id || !selectedAudioTrack) return;
+    
+    // Only save if user explicitly selected (not auto-selected)
+    if (audioTrackUserSelectedRef.current === selectedAudioTrack) {
+      const mediaKey = item.SeriesId || item.Id;
+      localStorage.setItem(`audioTrack_${mediaKey}`, selectedAudioTrack);
+      console.log('Saved audio track preference:', selectedAudioTrack, 'for', mediaKey);
+    }
+  }, [selectedAudioTrack, item?.Id, item?.SeriesId]);
 
   // Fetch media segments (intro, credits, etc.) from Jellyfin via proxy
   useEffect(() => {
@@ -1759,40 +1801,28 @@ const Player = () => {
               value={selectedAudioTrack}
               onValueChange={(value) => {
                 console.log("User selected audio track:", value);
+                audioTrackUserSelectedRef.current = value;
                 setSelectedAudioTrack(value);
 
                 const track = audioTracks.find((a) => a.Index.toString() === value);
                 toast.info(`Lydspor: ${track?.DisplayTitle || track?.Language || 'Valgt'}`);
-
-                // Apply immediately in the same user gesture (helps browsers that block autoplay on async effects)
-                const video = videoRef.current;
-                if (video && streamUrl) {
-                  try {
-                    const u = new URL(streamUrl);
-                    u.searchParams.set('audioIndex', value);
-                    const nextUrl = u.toString();
-
-                    setStreamUrl(nextUrl);
-                    video.src = nextUrl;
-                    video.load();
-
-                    const p = video.play();
-                    if (p && typeof (p as any).catch === 'function') {
-                      (p as Promise<void>).catch(() => {
-                        toast.info('Trykk på videoen for å starte avspilling');
-                      });
-                    }
-                  } catch (e) {
-                    console.log('Failed to apply audioIndex immediately:', e);
-                  }
-                }
               }}
             >
               <SelectTrigger
-                className="w-12 bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-0 justify-center"
+                className="w-auto min-w-[50px] bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-2 justify-center gap-1"
                 onClick={(e) => e.stopPropagation()}
               >
-                <Music className="h-6 w-6" />
+                <Music className="h-5 w-5" />
+                <span className="text-xs font-medium max-w-[80px] truncate hidden sm:inline">
+                  {(() => {
+                    const track = audioTracks.find(t => t.Index.toString() === selectedAudioTrack);
+                    if (!track) return '';
+                    // Show language code or first part of display title
+                    const lang = track.Language?.toUpperCase() || '';
+                    const channels = track.DisplayTitle?.match(/(\d+\.\d+|\d+ ch|stereo|mono)/i)?.[0] || '';
+                    return lang + (channels ? ` ${channels}` : '');
+                  })()}
+                </span>
               </SelectTrigger>
               <SelectContent className="bg-background z-[2147483647]" container={containerElement}>
                 {audioTracks.map((audio) => (
