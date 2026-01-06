@@ -208,6 +208,7 @@ serve(async (req) => {
         resolution: videoStream?.Width && videoStream?.Height 
           ? `${videoStream.Width}x${videoStream.Height}` 
           : null,
+        userIdSource,
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
