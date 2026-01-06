@@ -13,6 +13,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { z } from "zod";
 
 const passwordSchema = z.object({
+  currentPassword: z.string().optional(),
   newPassword: z.string().min(6, "Passord må være minst 6 tegn"),
   confirmPassword: z.string()
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -31,12 +32,14 @@ const Profile = () => {
   const [profileLoading, setProfileLoading] = useState(true);
   
   // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [passwordErrors, setPasswordErrors] = useState<{ newPassword?: string; confirmPassword?: string }>({});
+  const [passwordErrors, setPasswordErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({});
 
   useEffect(() => {
     // Wait for auth to finish loading before redirecting
@@ -102,10 +105,10 @@ const Profile = () => {
     setPasswordErrors({});
     
     try {
-      passwordSchema.parse({ newPassword, confirmPassword });
+      passwordSchema.parse({ currentPassword, newPassword, confirmPassword });
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const fieldErrors: { newPassword?: string; confirmPassword?: string } = {};
+        const fieldErrors: { currentPassword?: string; newPassword?: string; confirmPassword?: string } = {};
         error.errors.forEach((err) => {
           if (err.path[0]) {
             fieldErrors[err.path[0] as keyof typeof fieldErrors] = err.message;
@@ -116,20 +119,42 @@ const Profile = () => {
       }
     }
 
+    // Get Jellyfin session from localStorage
+    const jellyfinSessionStr = localStorage.getItem('jellyfin_session');
+    if (!jellyfinSessionStr) {
+      toast.error(language === 'no' ? "Jellyfin-sesjon mangler. Logg inn på nytt." : "Jellyfin session missing. Please log in again.");
+      return;
+    }
+
+    let jellyfinSession;
+    try {
+      jellyfinSession = JSON.parse(jellyfinSessionStr);
+    } catch {
+      toast.error(language === 'no' ? "Ugyldig Jellyfin-sesjon. Logg inn på nytt." : "Invalid Jellyfin session. Please log in again.");
+      return;
+    }
+
     setPasswordLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
+      const { data, error } = await supabase.functions.invoke('jellyfin-change-password', {
+        body: {
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+          jellyfinUserId: jellyfinSession.UserId,
+          jellyfinToken: jellyfinSession.AccessToken,
+        }
       });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      toast.success(language === 'no' ? "Passord oppdatert!" : "Password updated!");
+      toast.success(language === 'no' ? "Passord oppdatert i Jellyfin!" : "Password updated in Jellyfin!");
+      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating password:", error);
-      toast.error(language === 'no' ? "Kunne ikke oppdatere passord" : "Could not update password");
+      toast.error(error.message || (language === 'no' ? "Kunne ikke oppdatere passord" : "Could not update password"));
     } finally {
       setPasswordLoading(false);
     }
@@ -236,6 +261,35 @@ const Profile = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label htmlFor="current-password">
+              {language === 'no' ? 'Nåværende passord' : 'Current Password'}
+            </Label>
+            <div className="relative">
+              <Input
+                id="current-password"
+                type={showCurrentPassword ? "text" : "password"}
+                placeholder={language === 'no' ? 'Skriv inn nåværende passord' : 'Enter current password'}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="bg-secondary/50 border-border/50 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordErrors?.currentPassword && (
+              <p className="text-xs text-destructive">{passwordErrors.currentPassword}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {language === 'no' ? 'La stå tom hvis ingen passord er satt' : 'Leave empty if no password is set'}
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="new-password">
               {language === 'no' ? 'Nytt passord' : 'New Password'}
             </Label>
@@ -256,7 +310,7 @@ const Profile = () => {
                 {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            {passwordErrors.newPassword && (
+            {passwordErrors?.newPassword && (
               <p className="text-xs text-destructive">{passwordErrors.newPassword}</p>
             )}
           </div>
@@ -282,7 +336,7 @@ const Profile = () => {
                 {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
-            {passwordErrors.confirmPassword && (
+            {passwordErrors?.confirmPassword && (
               <p className="text-xs text-destructive">{passwordErrors.confirmPassword}</p>
             )}
           </div>
