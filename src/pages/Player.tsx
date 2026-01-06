@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX, List } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX, List, Music } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -118,6 +118,7 @@ const Player = () => {
   const [containerElement, setContainerElement] = useState<HTMLDivElement | null>(null);
   const [showControls, setShowControls] = useState(true);
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState<string>("");
   const [subtitleUrl, setSubtitleUrl] = useState<string>("");
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
@@ -334,13 +335,18 @@ const Player = () => {
           streamingUrl += `&bitrate=${qualityConfig.bitrate}`;
         }
       }
+
+      // Add audio track parameter if selected
+      if (selectedAudioTrack) {
+        streamingUrl += `&audioIndex=${selectedAudioTrack}`;
+      }
       
-      console.log('Using edge function proxy for streaming with quality:', selectedQuality);
+      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default');
       setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [id, selectedQuality]);
+  }, [id, selectedQuality, selectedAudioTrack]);
 
   // Try to start playback automatically when the stream URL changes
   useEffect(() => {
@@ -577,6 +583,10 @@ const Player = () => {
 
   const subtitles = useMemo(() => 
     item?.MediaStreams?.filter(stream => stream.Type === "Subtitle") || [], 
+    [item?.MediaStreams]
+  );
+  const audioTracks = useMemo(() => 
+    item?.MediaStreams?.filter(stream => stream.Type === "Audio") || [], 
     [item?.MediaStreams]
   );
   const isEpisode = item?.Type === "Episode";
@@ -1738,6 +1748,33 @@ const Player = () => {
                 {subtitles.map((subtitle) => (
                   <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
                     {subtitle.DisplayTitle || subtitle.Language || `Undertekst ${subtitle.Index}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          {/* Audio track selector */}
+          {audioTracks.length > 1 && (
+            <Select
+              value={selectedAudioTrack}
+              onValueChange={(value) => {
+                console.log("User selected audio track:", value);
+                setSelectedAudioTrack(value);
+                const track = audioTracks.find(a => a.Index.toString() === value);
+                toast.info(`Lydspor: ${track?.DisplayTitle || track?.Language || 'Valgt'}`);
+              }}
+            >
+              <SelectTrigger
+                className="w-12 bg-transparent border-0 text-white h-12 touch-manipulation rounded-lg hover:bg-white/20 px-0 justify-center"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Music className="h-6 w-6" />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-[2147483647]" container={containerElement}>
+                {audioTracks.map((audio) => (
+                  <SelectItem key={audio.Index} value={audio.Index.toString()}>
+                    {audio.DisplayTitle || audio.Language || `Lydspor ${audio.Index}`}
                   </SelectItem>
                 ))}
               </SelectContent>
