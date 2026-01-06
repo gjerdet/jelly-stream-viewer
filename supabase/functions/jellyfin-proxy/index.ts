@@ -52,8 +52,9 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
       console.error('Missing backend configuration for jellyfin-proxy');
       return new Response(JSON.stringify({ error: 'Service configuration error' }), {
         status: 500,
@@ -61,13 +62,11 @@ serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
     // Verify user is authenticated using the caller's JWT
     const authHeaderRaw = req.headers.get('authorization') ?? '';
 
     if (!authHeaderRaw) {
-      console.warn('jellyfin-proxy unauthorized: missing bearer token');
+      console.log('jellyfin-proxy unauthorized: missing bearer token');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -79,26 +78,42 @@ serve(async (req) => {
     const accessToken = tokenMatch?.[1]?.trim();
 
     if (!accessToken) {
-      console.warn('jellyfin-proxy unauthorized: malformed bearer token');
+      console.log('jellyfin-proxy unauthorized: malformed bearer token');
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Use getUser with the token directly (service role validates the JWT)
+    // Validate the user JWT using anon key + Authorization header (most reliable in edge runtime)
+    const supabaseAuth = createClient(
+      SUPABASE_URL,
+      SUPABASE_ANON_KEY,
+      {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      }
+    );
+
     const {
       data: { user },
       error: userError,
-    } = await supabaseAdmin.auth.getUser(accessToken);
+    } = await supabaseAuth.auth.getUser();
 
     if (userError || !user) {
-      console.warn('jellyfin-proxy unauthorized: invalid user token', userError?.message);
+      console.log('jellyfin-proxy unauthorized: invalid user token', userError?.message);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Service-role client for reading settings / admin checks
+    const supabaseAdmin = createClient(
+      SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } }
+    );
 
     // Parse request body
     const { endpoint, method = 'GET', body }: JellyfinRequest = await req.json();
