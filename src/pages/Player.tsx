@@ -174,13 +174,11 @@ const Player = () => {
   const [streamProbeAcceptRanges, setStreamProbeAcceptRanges] = useState<string | null>(null);
   const [streamProbeContentRange, setStreamProbeContentRange] = useState<string | null>(null);
   
-  // HLS.js instance ref
+  // HLS.js instance ref - DISABLED: HLS requires proxying all segments which is not feasible
+  // Keeping the ref for potential future use
   const hlsRef = useRef<Hls | null>(null);
-  const [useHls, setUseHls] = useState<boolean>(() => {
-    // Default to HLS for better seeking support
-    const saved = localStorage.getItem('useHlsPlayback');
-    return saved !== 'false'; // Default to true
-  });
+  // HLS is disabled - always use MP4 streaming which works reliably
+  const useHls = false;
 
   const [streamStatus, setStreamStatus] = useState<{
     isTranscoding: boolean;
