@@ -4,12 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Clock, ChevronDown, ChevronRight, RefreshCw, Users } from "lucide-react";
+import { Clock, ChevronDown, ChevronRight, RefreshCw, Users, TrendingUp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -106,6 +106,23 @@ const Statistics = () => {
     enabled: role === 'admin'
   });
 
+  // Fetch all profiles for user selector
+  const { data: allProfiles } = useQuery({
+    queryKey: ['all-profiles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, jellyfin_username, email');
+      
+      if (error) throw error;
+      return data.map(p => ({
+        userId: p.id,
+        username: p.jellyfin_username || p.email || 'Ukjent'
+      }));
+    },
+    enabled: role === 'admin'
+  });
+
   // Fetch user watch stats with watch time
   const { data: userStats, isLoading: isLoadingUserStats } = useQuery({
     queryKey: ['user-watch-stats', timeFilter],
@@ -176,6 +193,53 @@ const Statistics = () => {
         episodes: stats.episodes,
         watchHistory: stats.watchHistory
       })).sort((a, b) => parseFloat(b.totalHours) - parseFloat(a.totalHours));
+    },
+    enabled: role === 'admin'
+  });
+
+  // Fetch watch activity over time
+  const { data: activityData, isLoading: isLoadingActivity } = useQuery({
+    queryKey: ['watch-activity', timeFilter, selectedUserId],
+    queryFn: async () => {
+      const dateFilter = getDateFilter(timeFilter);
+      let query = supabase
+        .from('watch_history')
+        .select('user_id, watched_at, jellyfin_item_type');
+      
+      if (dateFilter) {
+        query = query.gte('watched_at', dateFilter);
+      }
+      
+      if (selectedUserId !== 'all') {
+        query = query.eq('user_id', selectedUserId);
+      }
+      
+      const { data, error } = await query.order('watched_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group by date
+      const activityByDate: Record<string, { date: string; movies: number; episodes: number; total: number }> = {};
+      
+      data.forEach(item => {
+        const date = new Date(item.watched_at).toLocaleDateString('nb-NO', { 
+          month: 'short', 
+          day: 'numeric' 
+        });
+        
+        if (!activityByDate[date]) {
+          activityByDate[date] = { date, movies: 0, episodes: 0, total: 0 };
+        }
+        
+        if (item.jellyfin_item_type === 'Movie') {
+          activityByDate[date].movies++;
+        } else if (item.jellyfin_item_type === 'Episode') {
+          activityByDate[date].episodes++;
+        }
+        activityByDate[date].total++;
+      });
+
+      return Object.values(activityByDate);
     },
     enabled: role === 'admin'
   });
@@ -284,9 +348,9 @@ const Statistics = () => {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle brukere</SelectItem>
-              {userStats?.map((stat) => (
-                <SelectItem key={stat.userId} value={stat.userId}>
-                  {stat.username}
+              {allProfiles?.map((profile) => (
+                <SelectItem key={profile.userId} value={profile.userId}>
+                  {profile.username}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -399,6 +463,66 @@ const Statistics = () => {
                 </Collapsible>
               ))}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Watch Activity Over Time */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Seaktivitet over tid
+            </CardTitle>
+            <CardDescription>
+              {selectedUserId === 'all' ? 'Antall titler sett per dag for alle brukere' : `Antall titler sett per dag for ${allProfiles?.find(p => p.userId === selectedUserId)?.username || 'valgt bruker'}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingActivity ? (
+              <Skeleton className="h-[250px] w-full" />
+            ) : activityData && activityData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={activityData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="date" 
+                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--popover))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))' }}
+                  />
+                  <Legend />
+                  <Area 
+                    type="monotone" 
+                    dataKey="episodes" 
+                    name="Episoder" 
+                    stackId="1"
+                    stroke="hsl(var(--primary))" 
+                    fill="hsl(var(--primary))" 
+                    fillOpacity={0.6}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="movies" 
+                    name="Filmer" 
+                    stackId="1"
+                    stroke="hsl(var(--accent))" 
+                    fill="hsl(var(--accent))" 
+                    fillOpacity={0.6}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-muted-foreground text-center py-8">
+                Ingen aktivitetsdata for valgt periode
+              </p>
+            )}
           </CardContent>
         </Card>
 
