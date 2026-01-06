@@ -50,29 +50,49 @@ serve(async (req) => {
     }
 
     // Validate token and get user
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
-
-    if (authError || !user) {
-      console.error('Authentication failed');
-      return new Response('Unauthorized', { 
-        status: 401,
-        headers: corsHeaders 
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('Missing backend configuration for jellyfin-stream');
+      return new Response('Service temporarily unavailable', {
+        status: 503,
+        headers: corsHeaders,
       });
     }
 
+    const supabaseAuth = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+      auth: {
+        persistSession: false,
+      },
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Authentication failed');
+      return new Response('Unauthorized', {
+        status: 401,
+        headers: corsHeaders,
+      });
+    }
+
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
     // Get Jellyfin server settings using service role key
-    const { data: serverSettings } = await supabaseClient
+    const { data: serverSettings } = await supabaseAdmin
       .from('server_settings')
       .select('setting_value')
       .eq('setting_key', 'jellyfin_server_url')
       .single();
 
-    const { data: apiKeySettings } = await supabaseClient
+    const { data: apiKeySettings } = await supabaseAdmin
       .from('server_settings')
       .select('setting_value')
       .eq('setting_key', 'jellyfin_api_key')
@@ -80,9 +100,9 @@ serve(async (req) => {
 
     if (!serverSettings || !apiKeySettings) {
       console.error('Server configuration not found');
-      return new Response('Service temporarily unavailable', { 
+      return new Response('Service temporarily unavailable', {
         status: 503,
-        headers: corsHeaders 
+        headers: corsHeaders,
       });
     }
 
@@ -91,26 +111,37 @@ serve(async (req) => {
 
     console.log(`Connecting to Jellyfin server: ${jellyfinServerUrl}`);
 
-    // Get user ID from Jellyfin (with SSL bypass)
-    const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`, {
-      client: httpClient,
-    });
-    if (!usersResponse.ok) {
-      console.error('Failed to fetch Jellyfin users:', usersResponse.status);
-      return new Response('Service temporarily unavailable', { 
-        status: 503,
-        headers: corsHeaders 
+    // Prefer the Jellyfin user linked to the current app user
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('jellyfin_user_id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    let userId: string | null = profile?.jellyfin_user_id ?? null;
+
+    // Fallback: legacy behavior (first Jellyfin user) if profile not linked yet
+    if (!userId) {
+      const usersResponse = await fetch(`${jellyfinServerUrl}/Users?api_key=${apiKey}`, {
+        client: httpClient,
       });
+      if (!usersResponse.ok) {
+        console.error('Failed to fetch Jellyfin users:', usersResponse.status);
+        return new Response('Service temporarily unavailable', {
+          status: 503,
+          headers: corsHeaders,
+        });
+      }
+
+      const users = await usersResponse.json();
+      userId = users?.[0]?.Id ?? null;
     }
-    
-    const users = await usersResponse.json();
-    const userId = users[0]?.Id;
 
     if (!userId) {
       console.error('Jellyfin user not found');
-      return new Response('Service configuration error', { 
+      return new Response('Service configuration error', {
         status: 500,
-        headers: corsHeaders 
+        headers: corsHeaders,
       });
     }
 
