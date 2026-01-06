@@ -1363,7 +1363,6 @@ const Player = () => {
           )}
           <video
         ref={videoRef}
-        key={streamUrl}
         src={streamUrl}
         className="w-full h-full object-contain relative z-10"
         autoPlay
@@ -1761,8 +1760,32 @@ const Player = () => {
               onValueChange={(value) => {
                 console.log("User selected audio track:", value);
                 setSelectedAudioTrack(value);
-                const track = audioTracks.find(a => a.Index.toString() === value);
+
+                const track = audioTracks.find((a) => a.Index.toString() === value);
                 toast.info(`Lydspor: ${track?.DisplayTitle || track?.Language || 'Valgt'}`);
+
+                // Apply immediately in the same user gesture (helps browsers that block autoplay on async effects)
+                const video = videoRef.current;
+                if (video && streamUrl) {
+                  try {
+                    const u = new URL(streamUrl);
+                    u.searchParams.set('audioIndex', value);
+                    const nextUrl = u.toString();
+
+                    setStreamUrl(nextUrl);
+                    video.src = nextUrl;
+                    video.load();
+
+                    const p = video.play();
+                    if (p && typeof (p as any).catch === 'function') {
+                      (p as Promise<void>).catch(() => {
+                        toast.info('Trykk på videoen for å starte avspilling');
+                      });
+                    }
+                  } catch (e) {
+                    console.log('Failed to apply audioIndex immediately:', e);
+                  }
+                }
               }}
             >
               <SelectTrigger
