@@ -1584,15 +1584,48 @@ const Player = () => {
               <p><span className="text-white/50">Feil:</span> {streamError}</p>
             </div>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); copyDiagnosticsToClipboard(); }}
-            className="w-full mt-2 gap-1 text-xs border-white/20 hover:bg-white/10"
-          >
-            <Copy className="h-3 w-3" />
-            Kopier rapport
-          </Button>
+          <div className="flex gap-2 mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); copyDiagnosticsToClipboard(); }}
+              className="flex-1 gap-1 text-xs border-white/20 hover:bg-white/10"
+            >
+              <Copy className="h-3 w-3" />
+              Kopier
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (!item?.Id) {
+                  toast.error('Mangler media-info');
+                  return;
+                }
+                toast.info('Tester lydspor...');
+                try {
+                  const audioIdx = selectedAudioTrack || '0';
+                  const testUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/jellyfin-stream?itemId=${item.Id}&info=true&audioIndex=${audioIdx}`;
+                  const res = await fetch(testUrl, {
+                    headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
+                  });
+                  const data = await res.json();
+                  const audioInfo = data.selectedAudio || {};
+                  const msg = `Index: ${audioInfo.index ?? audioIdx}\nSpråk: ${audioInfo.language || '–'}\nCodec: ${audioInfo.codec || '–'}\nKanaler: ${audioInfo.channels || '–'}\nTittel: ${audioInfo.title || '–'}\nTranskoding: ${data.requiresTranscoding ? 'Ja' : 'Nei'}`;
+                  toast.success(msg, { duration: 8000 });
+                  console.log('Audio track test result:', data);
+                } catch (err) {
+                  console.error('Audio track test failed:', err);
+                  toast.error('Feil ved testing av lydspor');
+                }
+              }}
+              className="flex-1 gap-1 text-xs border-white/20 hover:bg-white/10"
+            >
+              <Music className="h-3 w-3" />
+              Test lyd
+            </Button>
+          </div>
         </div>
       )}
 
