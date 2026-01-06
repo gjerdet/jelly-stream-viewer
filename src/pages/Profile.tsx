@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { User, Mail, Save, ArrowLeft, LogOut, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Save, ArrowLeft, LogOut, Lock, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -204,23 +204,6 @@ const Profile = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email" className="flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              {language === 'no' ? 'E-post' : 'Email'}
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              disabled
-              className="bg-secondary/30 border-border/50"
-            />
-            <p className="text-xs text-muted-foreground">
-              {language === 'no' ? 'E-post kan ikke endres' : 'Email cannot be changed'}
-            </p>
-          </div>
-
           <div className="space-y-2">
             <Label htmlFor="username" className="flex items-center gap-2">
               <User className="h-4 w-4" />
