@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Clock, ChevronDown, ChevronRight, RefreshCw, Users, TrendingUp } from "lucide-react";
+import { Clock, ChevronDown, ChevronRight, RefreshCw, Users, TrendingUp, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ const Statistics = () => {
   const statistics = t.statistics as any;
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('30');
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  const [compareUserIds, setCompareUserIds] = useState<string[]>([]);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   const syncHistory = useMutation({
@@ -197,7 +199,7 @@ const Statistics = () => {
     enabled: role === 'admin'
   });
 
-  // Fetch watch activity over time
+  // Fetch watch activity over time (for single user view)
   const { data: activityData, isLoading: isLoadingActivity } = useQuery({
     queryKey: ['watch-activity', timeFilter, selectedUserId],
     queryFn: async () => {
@@ -241,8 +243,71 @@ const Statistics = () => {
 
       return Object.values(activityByDate);
     },
-    enabled: role === 'admin'
+    enabled: role === 'admin' && compareUserIds.length === 0
   });
+
+  // Fetch comparison activity data for multiple users
+  const { data: comparisonData, isLoading: isLoadingComparison } = useQuery({
+    queryKey: ['watch-activity-comparison', timeFilter, compareUserIds],
+    queryFn: async () => {
+      const dateFilter = getDateFilter(timeFilter);
+      let query = supabase
+        .from('watch_history')
+        .select('user_id, watched_at, jellyfin_item_type')
+        .in('user_id', compareUserIds);
+      
+      if (dateFilter) {
+        query = query.gte('watched_at', dateFilter);
+      }
+      
+      const { data, error } = await query.order('watched_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group by date and user
+      const activityByDate: Record<string, Record<string, number>> = {};
+      
+      data.forEach(item => {
+        const date = new Date(item.watched_at).toLocaleDateString('nb-NO', { 
+          month: 'short', 
+          day: 'numeric' 
+        });
+        
+        if (!activityByDate[date]) {
+          activityByDate[date] = { date } as any;
+        }
+        
+        const userId = item.user_id;
+        activityByDate[date][userId] = (activityByDate[date][userId] || 0) + 1;
+      });
+
+      return Object.values(activityByDate);
+    },
+    enabled: role === 'admin' && compareUserIds.length > 0
+  });
+
+  // Generate colors for comparison users
+  const userColors = [
+    'hsl(var(--primary))',
+    'hsl(var(--accent))',
+    'hsl(220, 70%, 50%)',
+    'hsl(280, 70%, 50%)',
+    'hsl(340, 70%, 50%)',
+    'hsl(160, 70%, 50%)',
+  ];
+
+  const toggleCompareUser = (userId: string) => {
+    setCompareUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      }
+      if (prev.length >= 6) {
+        toast.error('Maks 6 brukere kan sammenlignes samtidig');
+        return prev;
+      }
+      return [...prev, userId];
+    });
+  };
 
   // Fetch content type distribution
   const { data: contentTypes, isLoading: isLoadingContentTypes } = useQuery({
@@ -466,62 +531,127 @@ const Statistics = () => {
           </CardContent>
         </Card>
 
-        {/* Watch Activity Over Time */}
+        {/* Watch Activity Comparison */}
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
               Seaktivitet over tid
             </CardTitle>
-            <CardDescription>
-              {selectedUserId === 'all' ? 'Antall titler sett per dag for alle brukere' : `Antall titler sett per dag for ${allProfiles?.find(p => p.userId === selectedUserId)?.username || 'valgt bruker'}`}
+            <CardDescription className="space-y-2">
+              <span className="block">Sammenlign seaktivitet mellom brukere</span>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {allProfiles?.map((profile) => {
+                  const isSelected = compareUserIds.includes(profile.userId);
+                  const colorIndex = compareUserIds.indexOf(profile.userId);
+                  return (
+                    <Badge 
+                      key={profile.userId}
+                      variant={isSelected ? "default" : "outline"}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                      style={isSelected ? { backgroundColor: userColors[colorIndex] } : {}}
+                      onClick={() => toggleCompareUser(profile.userId)}
+                    >
+                      {profile.username}
+                      {isSelected && <X className="h-3 w-3 ml-1" />}
+                    </Badge>
+                  );
+                })}
+              </div>
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoadingActivity ? (
-              <Skeleton className="h-[250px] w-full" />
-            ) : activityData && activityData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                  />
-                  <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--popover))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Legend />
-                  <Area 
-                    type="monotone" 
-                    dataKey="episodes" 
-                    name="Episoder" 
-                    stackId="1"
-                    stroke="hsl(var(--primary))" 
-                    fill="hsl(var(--primary))" 
-                    fillOpacity={0.6}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="movies" 
-                    name="Filmer" 
-                    stackId="1"
-                    stroke="hsl(var(--accent))" 
-                    fill="hsl(var(--accent))" 
-                    fillOpacity={0.6}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            {compareUserIds.length === 0 ? (
+              // Show regular activity chart when no comparison selected
+              isLoadingActivity ? (
+                <Skeleton className="h-[250px] w-full" />
+              ) : activityData && activityData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={activityData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Legend />
+                    <Area 
+                      type="monotone" 
+                      dataKey="episodes" 
+                      name="Episoder" 
+                      stackId="1"
+                      stroke="hsl(var(--primary))" 
+                      fill="hsl(var(--primary))" 
+                      fillOpacity={0.6}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="movies" 
+                      name="Filmer" 
+                      stackId="1"
+                      stroke="hsl(var(--accent))" 
+                      fill="hsl(var(--accent))" 
+                      fillOpacity={0.6}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Velg brukere over for å sammenligne seaktivitet
+                </p>
+              )
             ) : (
-              <p className="text-muted-foreground text-center py-8">
-                Ingen aktivitetsdata for valgt periode
-              </p>
+              // Show comparison chart
+              isLoadingComparison ? (
+                <Skeleton className="h-[250px] w-full" />
+              ) : comparisonData && comparisonData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={comparisonData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--popover))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                    />
+                    <Legend />
+                    {compareUserIds.map((userId, index) => {
+                      const username = allProfiles?.find(p => p.userId === userId)?.username || 'Ukjent';
+                      return (
+                        <Line 
+                          key={userId}
+                          type="monotone" 
+                          dataKey={userId}
+                          name={username}
+                          stroke={userColors[index]}
+                          strokeWidth={2}
+                          dot={{ fill: userColors[index], strokeWidth: 0, r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      );
+                    })}
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="text-muted-foreground text-center py-8">
+                  Ingen aktivitetsdata for valgte brukere i denne perioden
+                </p>
+              )
             )}
           </CardContent>
         </Card>
