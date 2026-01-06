@@ -444,9 +444,17 @@ const Detail = () => {
 
   // Get userId from localStorage session (not /Users endpoint which requires admin)
   const { userId } = useJellyfinSession();
+  
+  // Debug: log session state
+  console.log('[Detail] Session state:', { 
+    userId, 
+    user: user?.id, 
+    id,
+    jellyfinSessionRaw: localStorage.getItem('jellyfin_session')?.substring(0, 100) 
+  });
 
   // Fetch item details with media streams and backdrop images
-  const { data: item, isLoading: itemLoading } = useJellyfinApi<JellyfinItemDetail>(
+  const { data: item, isLoading: itemLoading, error: itemError } = useJellyfinApi<JellyfinItemDetail>(
     ["item-detail", id || ""],
     {
       endpoint: id && userId 
@@ -455,6 +463,9 @@ const Detail = () => {
     },
     !!user && !!userId && !!id
   );
+  
+  // Debug: log API state
+  console.log('[Detail] Item fetch state:', { itemLoading, hasItem: !!item, error: itemError?.message });
 
   // Fetch seasons if this is a series
   const { data: seasonsData } = useJellyfinApi<SeasonsResponse>(
