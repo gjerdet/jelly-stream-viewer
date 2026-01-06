@@ -8,7 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy } from "lucide-react";
+import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -130,6 +130,13 @@ const Player = () => {
   const [downloadingSubtitle, setDownloadingSubtitle] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
+  
+  // Custom player controls state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
   
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
@@ -745,6 +752,10 @@ const Player = () => {
     const video = videoRef.current;
     if (!video) return;
 
+    // Update custom player state
+    setCurrentTime(video.currentTime);
+    setDuration(video.duration || 0);
+
     const currentTimeTicks = video.currentTime * 10000000; // Convert to ticks
     
     // Update buffer stats
@@ -780,6 +791,41 @@ const Player = () => {
         }
       }
     }
+  };
+
+  // Toggle play/pause
+  const togglePlayPause = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.paused) {
+      video.play();
+    } else {
+      video.pause();
+    }
+  };
+
+  // Seek to position
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const time = parseFloat(e.target.value);
+    video.currentTime = time;
+    setCurrentTime(time);
+  };
+
+  // Toggle mute
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.muted = !video.muted;
+    setIsMuted(video.muted);
+  };
+
+  // Skip forward/backward
+  const skip = (seconds: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
   };
 
   // Track download speed using progress events
@@ -1218,11 +1264,11 @@ const Player = () => {
         key={streamUrl}
         src={streamUrl}
         className="w-full h-full object-contain relative z-10"
-        controls
         autoPlay
         playsInline
         preload="metadata"
         crossOrigin="anonymous"
+        controlsList="nodownload"
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
           // Log audio tracks for debugging
@@ -1244,9 +1290,11 @@ const Player = () => {
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => setIsBuffering(false)}
+        onPlaying={() => { setIsBuffering(false); setIsPlaying(true); }}
+        onPause={() => setIsPlaying(false)}
         onCanPlay={() => setIsBuffering(false)}
         onProgress={handleProgress}
+        onClick={togglePlayPause}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
@@ -1374,6 +1422,81 @@ const Player = () => {
           showControls ? "opacity-100" : "opacity-0"
         }`}
       />
+
+      {/* Bottom control bar - play/pause, progress, volume */}
+      <div
+        className={`absolute bottom-0 left-0 right-0 p-3 sm:p-4 safe-area-bottom transition-opacity duration-300 z-30 ${
+          showControls ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* Skip back */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); skip(-10); }}
+            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg hidden sm:flex"
+          >
+            <SkipBack className="h-5 w-5" />
+          </Button>
+
+          {/* Play/Pause */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); togglePlayPause(); }}
+            className="text-white hover:bg-white/20 h-12 w-12 sm:h-14 sm:w-14 touch-manipulation rounded-lg bg-white/10"
+          >
+            {isPlaying ? <Pause className="h-6 w-6 sm:h-7 sm:w-7" /> : <Play className="h-6 w-6 sm:h-7 sm:w-7" />}
+          </Button>
+
+          {/* Skip forward */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); skip(10); }}
+            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg hidden sm:flex"
+          >
+            <SkipForward className="h-5 w-5" />
+          </Button>
+
+          {/* Current time */}
+          <span className="text-white text-xs sm:text-sm font-mono min-w-[45px] sm:min-w-[55px]">
+            {formatTime(Math.floor(currentTime))}
+          </span>
+
+          {/* Progress bar */}
+          <div className="flex-1 relative">
+            <input
+              type="range"
+              min={0}
+              max={duration || 1}
+              value={currentTime}
+              onChange={handleSeek}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full h-2 bg-white/30 rounded-full appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
+              style={{
+                background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.3) ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.3) 100%)`
+              }}
+            />
+          </div>
+
+          {/* Duration */}
+          <span className="text-white text-xs sm:text-sm font-mono min-w-[45px] sm:min-w-[55px] text-right">
+            {formatTime(Math.floor(duration))}
+          </span>
+
+          {/* Volume */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg hidden sm:flex"
+          >
+            {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </Button>
+        </div>
+      </div>
 
       {/* Top bar - Back button + title (kept outside pointer-events-none parents for fullscreen reliability) */}
       <div
