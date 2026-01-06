@@ -1506,7 +1506,7 @@ const Player = () => {
               >
                 <Subtitles className="h-6 w-6" />
               </SelectTrigger>
-              <SelectContent className="bg-background z-[2147483647]">
+              <SelectContent className="bg-background z-[2147483647]" container={containerElement}>
                 <SelectItem value="none">Ingen</SelectItem>
                 {subtitles.map((subtitle) => (
                   <SelectItem key={subtitle.Index} value={subtitle.Index.toString()}>
@@ -1532,7 +1532,7 @@ const Player = () => {
             >
               <span className="text-xs font-medium">{selectedQuality === "auto" ? "Auto" : selectedQuality}</span>
             </SelectTrigger>
-            <SelectContent className="bg-background z-[2147483647]">
+            <SelectContent className="bg-background z-[2147483647]" container={containerElement}>
               {qualityOptions.map((quality) => (
                 <SelectItem key={quality.value} value={quality.value}>
                   {quality.label}
