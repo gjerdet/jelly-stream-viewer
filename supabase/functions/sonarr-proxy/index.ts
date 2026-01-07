@@ -115,24 +115,77 @@ serve(async (req) => {
         // Toggle monitoring for a specific season
         endpoint = `/api/v3/series/${params?.seriesId}`;
         method = 'PUT';
-        const seasonSeriesResponse = await fetch(`${baseUrl}/api/v3/series/${params?.seriesId}`, {
-          headers: { 'X-Api-Key': SONARR_API_KEY }
-        });
-        const seasonSeriesData = await seasonSeriesResponse.json();
-        
-        // Find and update the specific season
-        const seasonNumber = params?.seasonNumber;
-        const seasonMonitored = params?.monitored;
-        if (seasonSeriesData.seasons && typeof seasonNumber === 'number') {
-          seasonSeriesData.seasons = seasonSeriesData.seasons.map((season: { seasonNumber: number; monitored: boolean }) => {
-            if (season.seasonNumber === seasonNumber) {
-              return { ...season, monitored: seasonMonitored };
-            }
-            return season;
+        try {
+          const seasonSeriesResponse = await fetch(`${baseUrl}/api/v3/series/${params?.seriesId}`, {
+            headers: { 'X-Api-Key': SONARR_API_KEY }
           });
+          if (!seasonSeriesResponse.ok) {
+            const errText = await seasonSeriesResponse.text();
+            console.error(`Failed to fetch series ${params?.seriesId}:`, errText);
+            return new Response(
+              JSON.stringify({ error: `Failed to fetch series: ${seasonSeriesResponse.status}` }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          const seasonSeriesData = await seasonSeriesResponse.json();
+          
+          // Find and update the specific season
+          const seasonNumber = params?.seasonNumber;
+          const seasonMonitored = params?.monitored;
+          console.log(`Toggling season ${seasonNumber} monitoring to ${seasonMonitored} for series ${params?.seriesId}`);
+          
+          if (seasonSeriesData.seasons && typeof seasonNumber === 'number') {
+            seasonSeriesData.seasons = seasonSeriesData.seasons.map((season: { seasonNumber: number; monitored: boolean }) => {
+              if (season.seasonNumber === seasonNumber) {
+                return { ...season, monitored: seasonMonitored };
+              }
+              return season;
+            });
+          }
+          body = JSON.stringify(seasonSeriesData);
+        } catch (fetchError) {
+          console.error('Error in toggleSeasonMonitored:', fetchError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to toggle season monitoring' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-        body = JSON.stringify(seasonSeriesData);
-        console.log(`Toggling season ${seasonNumber} monitoring to ${seasonMonitored} for series ${params?.seriesId}`);
+        break;
+      
+      case 'toggleAllSeasonsMonitored':
+        // Toggle monitoring for ALL seasons in a series
+        endpoint = `/api/v3/series/${params?.seriesId}`;
+        method = 'PUT';
+        try {
+          const allSeasonsResponse = await fetch(`${baseUrl}/api/v3/series/${params?.seriesId}`, {
+            headers: { 'X-Api-Key': SONARR_API_KEY }
+          });
+          if (!allSeasonsResponse.ok) {
+            const errText = await allSeasonsResponse.text();
+            console.error(`Failed to fetch series ${params?.seriesId}:`, errText);
+            return new Response(
+              JSON.stringify({ error: `Failed to fetch series: ${allSeasonsResponse.status}` }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+          const allSeasonsData = await allSeasonsResponse.json();
+          const allMonitored = params?.monitored;
+          console.log(`Setting ALL seasons monitoring to ${allMonitored} for series ${params?.seriesId}`);
+          
+          if (allSeasonsData.seasons) {
+            allSeasonsData.seasons = allSeasonsData.seasons.map((season: { seasonNumber: number; monitored: boolean }) => ({
+              ...season,
+              monitored: allMonitored
+            }));
+          }
+          body = JSON.stringify(allSeasonsData);
+        } catch (fetchError) {
+          console.error('Error in toggleAllSeasonsMonitored:', fetchError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to toggle all seasons monitoring' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
         break;
       
       case 'qualityProfiles':
