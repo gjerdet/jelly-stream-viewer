@@ -15,9 +15,24 @@ serve(async (req) => {
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.log('Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Mangler autorisasjon' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Parse request body first
+    const requestBody = await req.json();
+    const { jellyfinUserId, newPassword } = requestBody;
+
+    console.log('Received reset password request for jellyfinUserId:', jellyfinUserId);
+
+    if (!jellyfinUserId || !newPassword) {
+      console.log('Missing required fields');
+      return new Response(
+        JSON.stringify({ error: 'Jellyfin bruker-ID og nytt passord er påkrevd' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -31,11 +46,14 @@ serve(async (req) => {
     // Verify user is authenticated
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
+      console.log('User authentication failed:', userError);
       return new Response(
         JSON.stringify({ error: 'Ikke autentisert' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Authenticated user:', user.id);
 
     // Check if user is admin using service role
     const supabaseAdmin = createClient(
@@ -43,25 +61,19 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { data: roleData } = await supabaseAdmin
+    const { data: roleData, error: roleError } = await supabaseAdmin
       .from('user_roles')
       .select('role')
       .eq('user_id', user.id)
       .single();
 
+    console.log('User role:', roleData?.role, 'Error:', roleError);
+
     if (roleData?.role !== 'admin') {
+      console.log('User is not admin');
       return new Response(
         JSON.stringify({ error: 'Kun administratorer kan resette passord' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { jellyfinUserId, newPassword } = await req.json();
-
-    if (!jellyfinUserId || !newPassword) {
-      return new Response(
-        JSON.stringify({ error: 'Jellyfin bruker-ID og nytt passord er påkrevd' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

@@ -64,7 +64,8 @@ export const SonarrDashboard = () => {
   const { data: historyData, isLoading: historyLoading } = useQuery({
     queryKey: ['sonarr-history'],
     queryFn: async () => {
-      const result = await getHistory(1, 100, 'downloadFolderImported');
+      // Sonarr v3 API uses numeric eventType: 1=grabbed, 3=downloadFolderImported
+      const result = await getHistory(1, 100);
       if (result.error) throw result.error;
       return result.data;
     },
