@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import Hls from "hls.js";
 import { useAuth } from "@/hooks/useAuth";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
@@ -174,9 +173,6 @@ const Player = () => {
   const [streamProbeAcceptRanges, setStreamProbeAcceptRanges] = useState<string | null>(null);
   const [streamProbeContentRange, setStreamProbeContentRange] = useState<string | null>(null);
   
-  // HLS.js instance ref - DISABLED: HLS requires proxying all segments which is not feasible
-  // Keeping the ref for potential future use
-  const hlsRef = useRef<Hls | null>(null);
   // HLS is disabled - always use MP4 streaming which works reliably
   const useHls = false;
 
@@ -200,6 +196,9 @@ const Player = () => {
   
   // Buffering state
   const [isBuffering, setIsBuffering] = useState(false);
+  
+  // Seeking state (for showing loading spinner when reloading stream for seek)
+  const [isSeekingReload, setIsSeekingReload] = useState(false);
   
   // Network stats
   const [networkStats, setNetworkStats] = useState<{
@@ -380,7 +379,7 @@ const Player = () => {
     setupStream();
   }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition]);
 
-  // HLS.js setup and cleanup
+  // Start playback when stream URL changes
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
@@ -388,109 +387,26 @@ const Player = () => {
     if (lastAutoplayUrlRef.current === streamUrl) return;
     lastAutoplayUrlRef.current = streamUrl;
 
-    // Cleanup previous HLS instance
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    const isHlsUrl = streamUrl.includes('hls=true') || streamUrl.includes('.m3u8');
-
-    if (isHlsUrl && Hls.isSupported()) {
-      // Use HLS.js for HLS streams
-      console.log('Setting up HLS.js for stream');
-      const hls = new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 90,
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-        startLevel: -1, // Auto quality
-      });
-
-      hlsRef.current = hls;
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('HLS manifest parsed, starting playback');
-        
-        // If we are about to restore a seek position (audio swap), resume after metadata+seek.
-        if (pendingSeekSecondsRef.current !== null) return;
-
-        const p = video.play();
-        if (p && typeof (p as any).catch === 'function') {
-          (p as Promise<void>).catch((err: any) => {
-            console.log('Autoplay blocked:', err?.name || err);
-            toast.info('Trykk på videoen for å starte avspilling');
-          });
-        }
-      });
-
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('HLS.js error:', data);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              console.log('Fatal network error, trying to recover...');
-              hls.startLoad();
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              console.log('Fatal media error, trying to recover...');
-              hls.recoverMediaError();
-              break;
-            default:
-              console.error('Unrecoverable HLS error');
-              setStreamError('Kunne ikke spille av video. Prøv å deaktivere HLS i innstillinger.');
-              break;
-          }
-        }
-      });
-    } else if (isHlsUrl && video.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native HLS support (Safari)
-      console.log('Using native HLS support');
+    // Regular MP4 stream
+    console.log('Using direct MP4 streaming');
+    try {
+      video.pause();
       video.src = streamUrl;
       video.load();
-
-      if (pendingSeekSecondsRef.current === null) {
-        const p = video.play();
-        if (p && typeof (p as any).catch === 'function') {
-          (p as Promise<void>).catch((err: any) => {
-            console.log('Autoplay blocked:', err?.name || err);
-            toast.info('Trykk på videoen for å starte avspilling');
-          });
-        }
-      }
-    } else {
-      // Regular MP4 stream
-      console.log('Using direct MP4 streaming');
-      try {
-        video.pause();
-        video.src = streamUrl;
-        video.load();
-      } catch (e) {
-        console.log('Failed to reload video source:', e);
-      }
-
-      // If we are about to restore a seek position (audio swap), resume after metadata+seek.
-      if (pendingSeekSecondsRef.current !== null) return;
-
-      const p = video.play();
-      if (p && typeof (p as any).catch === 'function') {
-        (p as Promise<void>).catch((err: any) => {
-          console.log('Autoplay blocked:', err?.name || err);
-          toast.info('Trykk på videoen for å starte avspilling');
-        });
-      }
+    } catch (e) {
+      console.log('Failed to reload video source:', e);
     }
 
-    // Cleanup on unmount
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
-      }
-    };
+    // If we are about to restore a seek position (audio swap), resume after metadata+seek.
+    if (pendingSeekSecondsRef.current !== null) return;
+
+    const p = video.play();
+    if (p && typeof (p as any).catch === 'function') {
+      (p as Promise<void>).catch((err: any) => {
+        console.log('Autoplay blocked:', err?.name || err);
+        toast.info('Trykk på videoen for å starte avspilling');
+      });
+    }
   }, [streamUrl]);
 
   // Save quality preference
@@ -1055,6 +971,8 @@ const Player = () => {
     if (streamStatus.isTranscoding) {
       console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s`);
       isSeekingViaReloadRef.current = true;
+      setIsSeekingReload(true);
+      toast.loading('Spoler...', { id: 'seeking-toast', duration: 10000 });
       setStreamStartPosition(newTime);
     } else {
       // Direct stream supports seeking
@@ -1072,6 +990,8 @@ const Player = () => {
     if (streamStatus.isTranscoding) {
       console.log(`Slider seek via reload: ${video.currentTime.toFixed(1)}s -> ${clampedTime.toFixed(1)}s`);
       isSeekingViaReloadRef.current = true;
+      setIsSeekingReload(true);
+      toast.loading('Spoler...', { id: 'seeking-toast', duration: 10000 });
       setStreamStartPosition(clampedTime);
     } else {
       video.currentTime = clampedTime;
@@ -1625,22 +1545,39 @@ const Player = () => {
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
         onWaiting={() => setIsBuffering(true)}
-        onPlaying={() => { setIsBuffering(false); setIsPlaying(true); }}
+        onPlaying={() => { 
+          setIsBuffering(false); 
+          setIsPlaying(true); 
+          // Dismiss seeking toast when playback starts
+          if (isSeekingReload) {
+            setIsSeekingReload(false);
+            toast.dismiss('seeking-toast');
+          }
+        }}
         onPause={() => setIsPlaying(false)}
-        onCanPlay={() => setIsBuffering(false)}
+        onCanPlay={() => {
+          setIsBuffering(false);
+          // Also dismiss seeking toast on canplay in case playing doesn't fire immediately
+          if (isSeekingReload) {
+            setIsSeekingReload(false);
+            toast.dismiss('seeking-toast');
+          }
+        }}
         onProgress={handleProgress}
         onClick={togglePlayPause}
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
 
-      {/* Buffering Indicator with network stats */}
-      {isBuffering && !streamError && (
+      {/* Buffering/Seeking Indicator with network stats */}
+      {(isBuffering || isSeekingReload) && !streamError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
           <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm rounded-2xl p-6">
             <Loader2 className="h-12 w-12 text-white animate-spin" />
-            <span className="text-white text-sm font-medium">Laster...</span>
-            {networkStats.downloadSpeed && (
+            <span className="text-white text-sm font-medium">
+              {isSeekingReload ? 'Spoler...' : 'Laster...'}
+            </span>
+            {networkStats.downloadSpeed && !isSeekingReload && (
               <span className="text-white/70 text-xs">{formatBytes(networkStats.downloadSpeed)}</span>
             )}
           </div>
