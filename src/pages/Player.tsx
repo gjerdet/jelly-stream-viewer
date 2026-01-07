@@ -921,7 +921,8 @@ const Player = () => {
     }
 
     // Show next episode preview when 30 seconds remaining (only for episodes)
-    if (isEpisode) {
+    // Don't show if already dismissed by user
+    if (isEpisode && !nextEpisodeDismissed) {
       const timeRemaining = video.duration - video.currentTime;
       if (timeRemaining <= 30 && timeRemaining > 0 && !showNextEpisodePreview) {
         const nextEpisode = getNextEpisode();
@@ -1126,25 +1127,33 @@ const Player = () => {
     }
   };
 
-  // Countdown effect
+  // Countdown effect - only start interval once when countdown begins
   useEffect(() => {
-    if (countdown !== null && countdown > 0) {
-      countdownInterval.current = setInterval(() => {
-        setCountdown(prev => {
-          if (prev === null || prev <= 1) {
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => {
-        if (countdownInterval.current) {
-          clearInterval(countdownInterval.current);
-        }
-      };
+    if (countdown === null || countdown <= 0) return;
+    
+    // Clear any existing interval
+    if (countdownInterval.current) {
+      clearInterval(countdownInterval.current);
     }
-  }, [countdown]);
+    
+    countdownInterval.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          // When countdown reaches 0, auto-play next episode and hide overlay
+          clearInterval(countdownInterval.current!);
+          playNextEpisode();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (countdownInterval.current) {
+        clearInterval(countdownInterval.current);
+      }
+    };
+  }, [showNextEpisodePreview]); // Only re-run when overlay appears, not on every countdown tick
 
   // Cleanup countdown on unmount
   useEffect(() => {
