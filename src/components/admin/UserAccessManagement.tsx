@@ -2,7 +2,17 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, Shield, Loader2, RefreshCw, Settings2, UserCog } from "lucide-react";
+import { Users, Shield, Loader2, RefreshCw, Settings2, UserCog, KeyRound } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { nb, enUS } from "date-fns/locale";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,24 +32,26 @@ interface UserWithRole {
   id: string;
   email: string;
   jellyfin_username: string | null;
+  jellyfin_user_id: string | null;
   created_at: string | null;
   role: 'admin' | 'user' | null;
 }
-
 export const UserAccessManagement = () => {
   const { language } = useLanguage();
   const locale = language === 'no' ? nb : enUS;
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; name: string; jellyfinUserId: string | null } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
 
   // Fetch all users with their roles
   const { data: users, isLoading, refetch } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
-      // Get profiles
+      // Get profiles with jellyfin_user_id
       const { data: profilesRaw, error: profileError } = await supabase
         .from("profiles")
-        .select("id, email, jellyfin_username, created_at")
+        .select("id, email, jellyfin_username, jellyfin_user_id, created_at")
         .order("created_at", { ascending: false });
 
       if (profileError) throw profileError;
@@ -71,8 +83,34 @@ export const UserAccessManagement = () => {
 
       return uniqueProfiles.map((profile) => ({
         ...profile,
+        jellyfin_user_id: profile.jellyfin_user_id ?? null,
         role: roleByUserId.get(profile.id) ?? null,
-      }));
+      })) as UserWithRole[];
+    },
+  });
+
+  // Mutation to reset user password
+  const resetPassword = useMutation({
+    mutationFn: async ({ jellyfinUserId, newPassword }: { jellyfinUserId: string; newPassword: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Ikke innlogget");
+
+      const response = await supabase.functions.invoke('jellyfin-admin-reset-password', {
+        body: { jellyfinUserId, newPassword }
+      });
+
+      if (response.error) throw new Error(response.error.message);
+      if (response.data?.error) throw new Error(response.data.error);
+
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success("Passord resatt");
+      setResetPasswordUser(null);
+      setNewPassword("");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Kunne ikke resette passord");
     },
   });
 
@@ -209,6 +247,22 @@ export const UserAccessManagement = () => {
                         </SelectContent>
                       </Select>
 
+                      {/* Reset password button */}
+                      {user.jellyfin_user_id && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setResetPasswordUser({
+                            id: user.id,
+                            name: user.jellyfin_username || user.email,
+                            jellyfinUserId: user.jellyfin_user_id
+                          })}
+                        >
+                          <KeyRound className="h-4 w-4 mr-1" />
+                          Reset passord
+                        </Button>
+                      )}
+
                       {/* Permissions button */}
                       <Button
                         variant="outline"
@@ -246,6 +300,66 @@ export const UserAccessManagement = () => {
           userName={selectedUser.name}
         />
       )}
+
+      {/* Reset password dialog */}
+      <Dialog open={!!resetPasswordUser} onOpenChange={(open) => {
+        if (!open) {
+          setResetPasswordUser(null);
+          setNewPassword("");
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset passord</DialogTitle>
+            <DialogDescription>
+              Sett nytt passord for {resetPasswordUser?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Nytt passord</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Skriv inn nytt passord"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setResetPasswordUser(null);
+                setNewPassword("");
+              }}
+            >
+              Avbryt
+            </Button>
+            <Button
+              onClick={() => {
+                if (resetPasswordUser?.jellyfinUserId && newPassword) {
+                  resetPassword.mutate({
+                    jellyfinUserId: resetPasswordUser.jellyfinUserId,
+                    newPassword
+                  });
+                }
+              }}
+              disabled={!newPassword || resetPassword.isPending}
+            >
+              {resetPassword.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Resetter...
+                </>
+              ) : (
+                "Reset passord"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
