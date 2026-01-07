@@ -6,13 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, Download, Tv, HardDrive, Calendar, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { AlertCircle, Download, Tv, HardDrive, Calendar, ChevronDown, ChevronRight, Search, ToggleLeft, ToggleRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Button } from "@/components/ui/button";
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -33,7 +34,7 @@ const formatDate = (dateString: string) => {
 };
 
 export const SonarrDashboard = () => {
-  const { getHealth, getSeries, getHistory, getQueue, toggleMonitored, toggleSeasonMonitored } = useSonarrApi();
+  const { getHealth, getSeries, getHistory, getQueue, toggleMonitored, toggleSeasonMonitored, toggleAllSeasonsMonitored } = useSonarrApi();
   const [selectedTab, setSelectedTab] = useState("downloads");
   const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
   const [seriesSearch, setSeriesSearch] = useState("");
@@ -106,8 +107,25 @@ export const SonarrDashboard = () => {
       queryClient.invalidateQueries({ queryKey: ['sonarr-series'] });
       toast.success('Sesong-overvåking oppdatert');
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Toggle season error:', error);
       toast.error('Kunne ikke oppdatere sesong-overvåking');
+    },
+  });
+
+  const toggleAllSeasonsMutation = useMutation({
+    mutationFn: async ({ seriesId, monitored }: { seriesId: number; monitored: boolean }) => {
+      const result = await toggleAllSeasonsMonitored(seriesId, monitored);
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sonarr-series'] });
+      toast.success('Alle sesongar oppdatert');
+    },
+    onError: (error) => {
+      console.error('Toggle all seasons error:', error);
+      toast.error('Kunne ikke oppdatere alle sesongar');
     },
   });
 
@@ -385,7 +403,31 @@ export const SonarrDashboard = () => {
                             <CollapsibleContent>
                               {seasons.length > 0 && (
                                 <div className="border-t bg-muted/30 p-3">
-                                  <p className="text-sm font-medium text-muted-foreground mb-2">Sesongar</p>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-sm font-medium text-muted-foreground">Sesongar</p>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => toggleAllSeasonsMutation.mutate({ seriesId: series.id, monitored: false })}
+                                        disabled={toggleAllSeasonsMutation.isPending}
+                                        className="h-7 text-xs"
+                                      >
+                                        <ToggleLeft className="h-3 w-3 mr-1" />
+                                        Slå av alle
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => toggleAllSeasonsMutation.mutate({ seriesId: series.id, monitored: true })}
+                                        disabled={toggleAllSeasonsMutation.isPending}
+                                        className="h-7 text-xs"
+                                      >
+                                        <ToggleRight className="h-3 w-3 mr-1" />
+                                        Slå på alle
+                                      </Button>
+                                    </div>
+                                  </div>
                                   <div className="space-y-2">
                                     {seasons.map((season: SonarrSeason) => (
                                       <div key={season.seasonNumber} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50">

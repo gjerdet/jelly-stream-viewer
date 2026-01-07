@@ -125,6 +125,9 @@ export const useSonarrApi = () => {
   const toggleSeasonMonitored = useCallback((seriesId: number, seasonNumber: number, monitored: boolean) => 
     sonarrRequest<SonarrSeries>('toggleSeasonMonitored', { seriesId, seasonNumber, monitored }), [sonarrRequest]);
   
+  const toggleAllSeasonsMonitored = useCallback((seriesId: number, monitored: boolean) => 
+    sonarrRequest<SonarrSeries>('toggleAllSeasonsMonitored', { seriesId, monitored }), [sonarrRequest]);
+  
   const getQualityProfiles = useCallback(() => 
     sonarrRequest<Array<{ id: number; name: string }>>('qualityProfiles'), [sonarrRequest]);
 
@@ -140,6 +143,7 @@ export const useSonarrApi = () => {
     getQueue,
     toggleMonitored,
     toggleSeasonMonitored,
+    toggleAllSeasonsMonitored,
     getQualityProfiles,
     getCalendar,
   };
