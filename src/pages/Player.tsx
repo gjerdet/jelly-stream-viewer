@@ -1844,8 +1844,15 @@ const Player = () => {
               const rect = progressBarRef.current.getBoundingClientRect();
               const x = e.clientX - rect.left;
               const percentage = Math.max(0, Math.min(1, x / rect.width));
+              
+              // Always update hover time for tooltip
               setHoverTime(percentage * duration);
               setHoverPosition(x);
+              
+              // Update drag value while dragging
+              if (isDraggingSlider) {
+                setSliderDragValue(percentage * duration);
+              }
             }}
             onMouseLeave={() => setHoverTime(null)}
             onMouseDown={(e) => {
@@ -1859,7 +1866,7 @@ const Player = () => {
               if (streamStatus.isTranscoding) {
                 setIsDraggingSlider(true);
                 setSliderDragValue(newTime);
-                setCurrentTime(newTime);
+                // Don't update currentTime - it comes from video.currentTime
               } else {
                 handleSeekToPosition(newTime);
               }
@@ -1882,7 +1889,17 @@ const Player = () => {
               if (streamStatus.isTranscoding) {
                 setIsDraggingSlider(true);
                 setSliderDragValue(newTime);
-                setCurrentTime(newTime);
+                // Don't update currentTime - it comes from video.currentTime
+              }
+            }}
+            onTouchMove={(e) => {
+              // Update drag value while dragging
+              if (isDraggingSlider && progressBarRef.current && duration) {
+                const touch = e.touches[0];
+                const rect = progressBarRef.current.getBoundingClientRect();
+                const x = touch.clientX - rect.left;
+                const percentage = Math.max(0, Math.min(1, x / rect.width));
+                setSliderDragValue(percentage * duration);
               }
             }}
             onTouchEnd={(e) => {
