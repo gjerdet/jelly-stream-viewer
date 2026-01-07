@@ -199,6 +199,11 @@ const Player = () => {
   
   // Seeking state (for showing loading spinner when reloading stream for seek)
   const [isSeekingReload, setIsSeekingReload] = useState(false);
+  const [seekTargetTime, setSeekTargetTime] = useState<number | null>(null);
+  
+  // Slider dragging state for stable seeking (only seek on release for transcoded streams)
+  const [isDraggingSlider, setIsDraggingSlider] = useState(false);
+  const [sliderDragValue, setSliderDragValue] = useState<number>(0);
   
   // Network stats
   const [networkStats, setNetworkStats] = useState<{
@@ -945,10 +950,35 @@ const Player = () => {
     }
   };
 
-  // Seek to position (slider input)
+  // Seek to position (slider input) - for direct streams, seek immediately
+  // For transcoded streams, we update the visual but wait for release
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
-    handleSeekToPosition(time);
+    
+    if (streamStatus.isTranscoding) {
+      // Just update the visual position while dragging
+      setSliderDragValue(time);
+      setCurrentTime(time); // Update display
+    } else {
+      // Direct stream - seek immediately
+      handleSeekToPosition(time);
+    }
+  };
+  
+  // Handle slider drag start
+  const handleSliderDragStart = () => {
+    if (streamStatus.isTranscoding) {
+      setIsDraggingSlider(true);
+      setSliderDragValue(currentTime);
+    }
+  };
+  
+  // Handle slider drag end - execute the actual seek for transcoded streams
+  const handleSliderDragEnd = () => {
+    if (streamStatus.isTranscoding && isDraggingSlider) {
+      setIsDraggingSlider(false);
+      handleSeekToPosition(sliderDragValue);
+    }
   };
 
   // Toggle mute
@@ -965,6 +995,12 @@ const Player = () => {
     const video = videoRef.current;
     if (!video || !Number.isFinite(video.duration)) return;
     
+    // Rate-limit: don't start a new seek if one is already in progress
+    if (isSeekingReload) {
+      console.log('Seek already in progress, ignoring');
+      return;
+    }
+    
     const newTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
     
     // For transcoded streams, we need to reload with a new start position
@@ -973,7 +1009,7 @@ const Player = () => {
       console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s`);
       isSeekingViaReloadRef.current = true;
       setIsSeekingReload(true);
-      toast.loading('Spoler...', { id: 'seeking-toast', duration: 10000 });
+      setSeekTargetTime(newTime);
       setStreamStartPosition(newTime);
     } else {
       // Direct stream supports seeking
@@ -986,13 +1022,19 @@ const Player = () => {
     const video = videoRef.current;
     if (!video || !Number.isFinite(video.duration)) return;
     
+    // Rate-limit: don't start a new seek if one is already in progress
+    if (isSeekingReload) {
+      console.log('Seek already in progress, ignoring');
+      return;
+    }
+    
     const clampedTime = Math.max(0, Math.min(video.duration, newTime));
     
     if (streamStatus.isTranscoding) {
       console.log(`Slider seek via reload: ${video.currentTime.toFixed(1)}s -> ${clampedTime.toFixed(1)}s`);
       isSeekingViaReloadRef.current = true;
       setIsSeekingReload(true);
-      toast.loading('Spoler...', { id: 'seeking-toast', duration: 10000 });
+      setSeekTargetTime(clampedTime);
       setStreamStartPosition(clampedTime);
     } else {
       video.currentTime = clampedTime;
@@ -1557,19 +1599,19 @@ const Player = () => {
         onPlaying={() => { 
           setIsBuffering(false); 
           setIsPlaying(true); 
-          // Dismiss seeking toast when playback starts
+          // Dismiss seeking state when playback starts
           if (isSeekingReload) {
             setIsSeekingReload(false);
-            toast.dismiss('seeking-toast');
+            setSeekTargetTime(null);
           }
         }}
         onPause={() => setIsPlaying(false)}
         onCanPlay={() => {
           setIsBuffering(false);
-          // Also dismiss seeking toast on canplay in case playing doesn't fire immediately
+          // Also dismiss seeking state on canplay in case playing doesn't fire immediately
           if (isSeekingReload) {
             setIsSeekingReload(false);
-            toast.dismiss('seeking-toast');
+            setSeekTargetTime(null);
           }
         }}
         onProgress={handleProgress}
@@ -1578,16 +1620,20 @@ const Player = () => {
         Din nettleser støtter ikke videoavspilling.
       </video>
 
-      {/* Buffering/Seeking Indicator with network stats */}
+      {/* Buffering/Seeking Indicator with seek target time */}
       {(isBuffering || isSeekingReload) && !streamError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
           <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm rounded-2xl p-6">
             <Loader2 className="h-12 w-12 text-white animate-spin" />
             <span className="text-white text-sm font-medium">
-              {isSeekingReload ? 'Spoler...' : 'Laster...'}
+              {isSeekingReload && seekTargetTime !== null 
+                ? `Lastar frå ${formatTime(Math.floor(seekTargetTime))}...` 
+                : isSeekingReload 
+                  ? 'Spoler...' 
+                  : 'Laster...'}
             </span>
             {networkStats.downloadSpeed && !isSeekingReload && (
-              <span className="text-white/70 text-xs">{formatBytes(networkStats.downloadSpeed)}</span>
+              <span className="text-white/70 text-xs">{formatBytes(networkStats.downloadSpeed)}/s</span>
             )}
           </div>
         </div>
@@ -1816,12 +1862,16 @@ const Player = () => {
               type="range"
               min={0}
               max={duration || 1}
-              value={currentTime}
+              value={isDraggingSlider ? sliderDragValue : currentTime}
               onChange={handleSeek}
+              onMouseDown={(e) => { e.stopPropagation(); handleSliderDragStart(); }}
+              onMouseUp={(e) => { e.stopPropagation(); handleSliderDragEnd(); }}
+              onTouchStart={(e) => { handleSliderDragStart(); }}
+              onTouchEnd={(e) => { handleSliderDragEnd(); }}
               onClick={(e) => e.stopPropagation()}
               className="w-full h-2 bg-white/30 rounded-full appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
               style={{
-                background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.3) ${(currentTime / (duration || 1)) * 100}%, rgba(255,255,255,0.3) 100%)`
+                background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%, rgba(255,255,255,0.3) ${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%, rgba(255,255,255,0.3) 100%)`
               }}
             />
           </div>
