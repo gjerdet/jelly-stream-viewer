@@ -1835,10 +1835,10 @@ const Player = () => {
             {formatTime(Math.floor(currentTime))}
           </span>
 
-          {/* Progress bar */}
+          {/* Progress bar with buffer indicator */}
           <div 
             ref={progressBarRef}
-            className="flex-1 relative group"
+            className="flex-1 relative group h-6 flex items-center cursor-pointer"
             onMouseMove={(e) => {
               if (!progressBarRef.current || !duration) return;
               const rect = progressBarRef.current.getBoundingClientRect();
@@ -1848,6 +1848,49 @@ const Player = () => {
               setHoverPosition(x);
             }}
             onMouseLeave={() => setHoverTime(null)}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (!progressBarRef.current || !duration) return;
+              const rect = progressBarRef.current.getBoundingClientRect();
+              const x = e.clientX - rect.left;
+              const percentage = Math.max(0, Math.min(1, x / rect.width));
+              const newTime = percentage * duration;
+              
+              if (streamStatus.isTranscoding) {
+                setIsDraggingSlider(true);
+                setSliderDragValue(newTime);
+                setCurrentTime(newTime);
+              } else {
+                handleSeekToPosition(newTime);
+              }
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation();
+              if (streamStatus.isTranscoding && isDraggingSlider) {
+                setIsDraggingSlider(false);
+                handleSeekToPosition(sliderDragValue);
+              }
+            }}
+            onTouchStart={(e) => {
+              if (!progressBarRef.current || !duration) return;
+              const touch = e.touches[0];
+              const rect = progressBarRef.current.getBoundingClientRect();
+              const x = touch.clientX - rect.left;
+              const percentage = Math.max(0, Math.min(1, x / rect.width));
+              const newTime = percentage * duration;
+              
+              if (streamStatus.isTranscoding) {
+                setIsDraggingSlider(true);
+                setSliderDragValue(newTime);
+                setCurrentTime(newTime);
+              }
+            }}
+            onTouchEnd={(e) => {
+              if (streamStatus.isTranscoding && isDraggingSlider) {
+                setIsDraggingSlider(false);
+                handleSeekToPosition(sliderDragValue);
+              }
+            }}
           >
             {/* Hover time preview tooltip */}
             {hoverTime !== null && (
@@ -1858,20 +1901,31 @@ const Player = () => {
                 {formatTime(Math.floor(hoverTime))}
               </div>
             )}
-            <input
-              type="range"
-              min={0}
-              max={duration || 1}
-              value={isDraggingSlider ? sliderDragValue : currentTime}
-              onChange={handleSeek}
-              onMouseDown={(e) => { e.stopPropagation(); handleSliderDragStart(); }}
-              onMouseUp={(e) => { e.stopPropagation(); handleSliderDragEnd(); }}
-              onTouchStart={(e) => { handleSliderDragStart(); }}
-              onTouchEnd={(e) => { handleSliderDragEnd(); }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full h-2 bg-white/30 rounded-full appearance-none cursor-pointer accent-primary [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-primary [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0"
-              style={{
-                background: `linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) ${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%, rgba(255,255,255,0.3) ${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%, rgba(255,255,255,0.3) 100%)`
+            
+            {/* Progress bar track */}
+            <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden relative">
+              {/* Buffered area (lighter zone) */}
+              <div 
+                className="absolute top-0 left-0 h-full bg-white/40 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${Math.min(100, ((currentTime + networkStats.bufferedSeconds) / (duration || 1)) * 100)}%` 
+                }}
+              />
+              
+              {/* Played area (primary color) */}
+              <div 
+                className="absolute top-0 left-0 h-full bg-primary rounded-full"
+                style={{ 
+                  width: `${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%` 
+                }}
+              />
+            </div>
+            
+            {/* Thumb/handle */}
+            <div 
+              className="absolute w-4 h-4 bg-primary rounded-full shadow-lg transform -translate-x-1/2 pointer-events-none group-hover:scale-125 transition-transform"
+              style={{ 
+                left: `${((isDraggingSlider ? sliderDragValue : currentTime) / (duration || 1)) * 100}%` 
               }}
             />
           </div>
