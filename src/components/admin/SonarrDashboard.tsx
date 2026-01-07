@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, Download, Tv, HardDrive, Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertCircle, Download, Tv, HardDrive, Calendar, ChevronDown, ChevronRight, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ export const SonarrDashboard = () => {
   const { getHealth, getSeries, getHistory, getQueue, toggleMonitored, toggleSeasonMonitored } = useSonarrApi();
   const [selectedTab, setSelectedTab] = useState("downloads");
   const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
+  const [seriesSearch, setSeriesSearch] = useState("");
   const queryClient = useQueryClient();
 
   const { data: healthData, error: healthError, isLoading: healthLoading } = useQuery({
@@ -328,16 +330,30 @@ export const SonarrDashboard = () => {
               <CardTitle>Serieovervåking</CardTitle>
               <CardDescription>Administrer hvilke serier og sesongar som overvåkes. Klikk på ei serie for å vise sesongar.</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+              {/* Search field */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Søk etter serie..."
+                  value={seriesSearch}
+                  onChange={(e) => setSeriesSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              
               {seriesLoading ? (
                 <p className="text-muted-foreground">Laster...</p>
               ) : seriesData?.length ? (
                 <div className="space-y-2">
                   {seriesData
+                    .filter((s) => s.title.toLowerCase().includes(seriesSearch.toLowerCase()))
                     .sort((a, b) => a.title.localeCompare(b.title))
                     .map((series: SonarrSeries) => {
                       const isExpanded = expandedSeries.has(series.id);
                       const seasons = series.seasons?.filter(s => s.seasonNumber > 0).sort((a, b) => a.seasonNumber - b.seasonNumber) || [];
+                      const totalEps = series.episodeCount ?? seasons.reduce((acc, s) => acc + (s.statistics?.totalEpisodeCount || 0), 0);
+                      const fileEps = series.episodeFileCount ?? seasons.reduce((acc, s) => acc + (s.statistics?.episodeFileCount || 0), 0);
                       
                       return (
                         <Collapsible key={series.id} open={isExpanded} onOpenChange={() => toggleExpandSeries(series.id)}>
@@ -352,11 +368,11 @@ export const SonarrDashboard = () => {
                                 <span className="font-medium">{series.title}</span>
                                 <span className="text-sm text-muted-foreground">({series.year})</span>
                                 <Badge variant="outline" className="ml-2">
-                                  {series.episodeFileCount} / {series.episodeCount} ep
+                                  {fileEps} / {totalEps} ep
                                 </Badge>
                               </CollapsibleTrigger>
                               <div className="flex items-center gap-4">
-                                <span className="text-sm text-muted-foreground">{formatBytes(series.sizeOnDisk)}</span>
+                                <span className="text-sm text-muted-foreground">{formatBytes(series.sizeOnDisk || 0)}</span>
                                 <Switch
                                   checked={series.monitored}
                                   onCheckedChange={(checked) => 
