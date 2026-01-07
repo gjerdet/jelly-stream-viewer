@@ -1,16 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSonarrApi, SonarrSeries, SonarrHistoryRecord, SonarrQueueItem } from "@/hooks/useSonarrApi";
+import { useSonarrApi, SonarrSeries, SonarrHistoryRecord, SonarrQueueItem, SonarrSeason } from "@/hooks/useSonarrApi";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { AlertCircle, Download, Tv, HardDrive, Calendar } from "lucide-react";
+import { AlertCircle, Download, Tv, HardDrive, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const formatBytes = (bytes: number) => {
   if (bytes === 0) return '0 B';
@@ -31,8 +32,9 @@ const formatDate = (dateString: string) => {
 };
 
 export const SonarrDashboard = () => {
-  const { getHealth, getSeries, getHistory, getQueue, toggleMonitored } = useSonarrApi();
+  const { getHealth, getSeries, getHistory, getQueue, toggleMonitored, toggleSeasonMonitored } = useSonarrApi();
   const [selectedTab, setSelectedTab] = useState("downloads");
+  const [expandedSeries, setExpandedSeries] = useState<Set<number>>(new Set());
   const queryClient = useQueryClient();
 
   const { data: healthData, error: healthError, isLoading: healthLoading } = useQuery({
@@ -91,6 +93,33 @@ export const SonarrDashboard = () => {
       toast.error('Kunne ikke oppdatere overvåkingsstatus');
     },
   });
+
+  const toggleSeasonMutation = useMutation({
+    mutationFn: async ({ seriesId, seasonNumber, monitored }: { seriesId: number; seasonNumber: number; monitored: boolean }) => {
+      const result = await toggleSeasonMonitored(seriesId, seasonNumber, monitored);
+      if (result.error) throw result.error;
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sonarr-series'] });
+      toast.success('Sesong-overvåking oppdatert');
+    },
+    onError: () => {
+      toast.error('Kunne ikke oppdatere sesong-overvåking');
+    },
+  });
+
+  const toggleExpandSeries = (seriesId: number) => {
+    setExpandedSeries(prev => {
+      const next = new Set(prev);
+      if (next.has(seriesId)) {
+        next.delete(seriesId);
+      } else {
+        next.add(seriesId);
+      }
+      return next;
+    });
+  };
 
   if (healthError) {
     return (
@@ -297,45 +326,87 @@ export const SonarrDashboard = () => {
           <Card>
             <CardHeader>
               <CardTitle>Serieovervåking</CardTitle>
-              <CardDescription>Administrer hvilke serier som overvåkes</CardDescription>
+              <CardDescription>Administrer hvilke serier og sesongar som overvåkes. Klikk på ei serie for å vise sesongar.</CardDescription>
             </CardHeader>
             <CardContent>
               {seriesLoading ? (
                 <p className="text-muted-foreground">Laster...</p>
               ) : seriesData?.length ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Serie</TableHead>
-                      <TableHead>År</TableHead>
-                      <TableHead>Episoder</TableHead>
-                      <TableHead>Størrelse</TableHead>
-                      <TableHead>Overvåket</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {seriesData
-                      .sort((a, b) => a.title.localeCompare(b.title))
-                      .map((series: SonarrSeries) => (
-                        <TableRow key={series.id}>
-                          <TableCell className="font-medium">{series.title}</TableCell>
-                          <TableCell>{series.year}</TableCell>
-                          <TableCell>
-                            {series.episodeFileCount} / {series.episodeCount}
-                          </TableCell>
-                          <TableCell>{formatBytes(series.sizeOnDisk)}</TableCell>
-                          <TableCell>
-                            <Switch
-                              checked={series.monitored}
-                              onCheckedChange={(checked) => 
-                                toggleMutation.mutate({ seriesId: series.id, monitored: checked })
-                              }
-                            />
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
+                <div className="space-y-2">
+                  {seriesData
+                    .sort((a, b) => a.title.localeCompare(b.title))
+                    .map((series: SonarrSeries) => {
+                      const isExpanded = expandedSeries.has(series.id);
+                      const seasons = series.seasons?.filter(s => s.seasonNumber > 0).sort((a, b) => a.seasonNumber - b.seasonNumber) || [];
+                      
+                      return (
+                        <Collapsible key={series.id} open={isExpanded} onOpenChange={() => toggleExpandSeries(series.id)}>
+                          <div className="border rounded-lg">
+                            <div className="flex items-center justify-between p-3 hover:bg-muted/50">
+                              <CollapsibleTrigger className="flex items-center gap-2 flex-1 text-left">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
+                                <span className="font-medium">{series.title}</span>
+                                <span className="text-sm text-muted-foreground">({series.year})</span>
+                                <Badge variant="outline" className="ml-2">
+                                  {series.episodeFileCount} / {series.episodeCount} ep
+                                </Badge>
+                              </CollapsibleTrigger>
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm text-muted-foreground">{formatBytes(series.sizeOnDisk)}</span>
+                                <Switch
+                                  checked={series.monitored}
+                                  onCheckedChange={(checked) => 
+                                    toggleMutation.mutate({ seriesId: series.id, monitored: checked })
+                                  }
+                                />
+                              </div>
+                            </div>
+                            
+                            <CollapsibleContent>
+                              {seasons.length > 0 && (
+                                <div className="border-t bg-muted/30 p-3">
+                                  <p className="text-sm font-medium text-muted-foreground mb-2">Sesongar</p>
+                                  <div className="space-y-2">
+                                    {seasons.map((season: SonarrSeason) => (
+                                      <div key={season.seasonNumber} className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm">Sesong {season.seasonNumber}</span>
+                                          {season.statistics && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              {season.statistics.episodeFileCount} / {season.statistics.totalEpisodeCount} ep
+                                            </Badge>
+                                          )}
+                                          {season.statistics?.sizeOnDisk ? (
+                                            <span className="text-xs text-muted-foreground">
+                                              {formatBytes(season.statistics.sizeOnDisk)}
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                        <Switch
+                                          checked={season.monitored}
+                                          onCheckedChange={(checked) => 
+                                            toggleSeasonMutation.mutate({ 
+                                              seriesId: series.id, 
+                                              seasonNumber: season.seasonNumber, 
+                                              monitored: checked 
+                                            })
+                                          }
+                                        />
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </CollapsibleContent>
+                          </div>
+                        </Collapsible>
+                      );
+                    })}
+                </div>
               ) : (
                 <p className="text-muted-foreground">Ingen serier funnet</p>
               )}

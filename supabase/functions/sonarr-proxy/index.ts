@@ -111,6 +111,30 @@ serve(async (req) => {
         body = JSON.stringify(seriesData);
         break;
       
+      case 'toggleSeasonMonitored':
+        // Toggle monitoring for a specific season
+        endpoint = `/api/v3/series/${params?.seriesId}`;
+        method = 'PUT';
+        const seasonSeriesResponse = await fetch(`${baseUrl}/api/v3/series/${params?.seriesId}`, {
+          headers: { 'X-Api-Key': SONARR_API_KEY }
+        });
+        const seasonSeriesData = await seasonSeriesResponse.json();
+        
+        // Find and update the specific season
+        const seasonNumber = params?.seasonNumber;
+        const seasonMonitored = params?.monitored;
+        if (seasonSeriesData.seasons && typeof seasonNumber === 'number') {
+          seasonSeriesData.seasons = seasonSeriesData.seasons.map((season: { seasonNumber: number; monitored: boolean }) => {
+            if (season.seasonNumber === seasonNumber) {
+              return { ...season, monitored: seasonMonitored };
+            }
+            return season;
+          });
+        }
+        body = JSON.stringify(seasonSeriesData);
+        console.log(`Toggling season ${seasonNumber} monitoring to ${seasonMonitored} for series ${params?.seriesId}`);
+        break;
+      
       case 'qualityProfiles':
         endpoint = '/api/v3/qualityprofile';
         break;

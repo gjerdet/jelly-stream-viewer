@@ -1,6 +1,18 @@
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
+export interface SonarrSeason {
+  seasonNumber: number;
+  monitored: boolean;
+  statistics?: {
+    episodeFileCount: number;
+    episodeCount: number;
+    totalEpisodeCount: number;
+    sizeOnDisk: number;
+    percentOfEpisodes: number;
+  };
+}
+
 export interface SonarrSeries {
   id: number;
   title: string;
@@ -11,6 +23,7 @@ export interface SonarrSeries {
   episodeFileCount: number;
   sizeOnDisk: number;
   status: string;
+  seasons?: SonarrSeason[];
   images: Array<{
     coverType: string;
     remoteUrl: string;
@@ -109,6 +122,9 @@ export const useSonarrApi = () => {
   const toggleMonitored = useCallback((seriesId: number, monitored?: boolean) => 
     sonarrRequest<SonarrSeries>('toggleMonitored', { seriesId, monitored }), [sonarrRequest]);
   
+  const toggleSeasonMonitored = useCallback((seriesId: number, seasonNumber: number, monitored: boolean) => 
+    sonarrRequest<SonarrSeries>('toggleSeasonMonitored', { seriesId, seasonNumber, monitored }), [sonarrRequest]);
+  
   const getQualityProfiles = useCallback(() => 
     sonarrRequest<Array<{ id: number; name: string }>>('qualityProfiles'), [sonarrRequest]);
 
@@ -123,6 +139,7 @@ export const useSonarrApi = () => {
     getHistory,
     getQueue,
     toggleMonitored,
+    toggleSeasonMonitored,
     getQualityProfiles,
     getCalendar,
   };
