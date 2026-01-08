@@ -134,6 +134,25 @@ serve(async (req) => {
 
     console.log('Admin resetting password for Jellyfin user:', jellyfinUserId);
 
+    // Get user state before reset
+    const userBeforeUrl = `${serverUrl}/Users/${jellyfinUserId}`;
+    const userBeforeResponse = await fetch(userBeforeUrl, {
+      method: 'GET',
+      headers: {
+        'X-Emby-Token': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    let userBefore = null;
+    if (userBeforeResponse.ok) {
+      userBefore = await userBeforeResponse.json();
+      console.log('User state before reset:', {
+        HasPassword: userBefore.HasPassword,
+        HasConfiguredPassword: userBefore.HasConfiguredPassword,
+      });
+    }
+
     // Use Jellyfin admin API to reset password (doesn't require current password)
     const passwordUrl = `${serverUrl}/Users/${jellyfinUserId}/Password`;
     
@@ -165,7 +184,48 @@ serve(async (req) => {
       );
     }
 
-    console.log('Password reset successfully for user:', jellyfinUserId);
+    // Verify the password was actually set by fetching user state after reset
+    const userAfterResponse = await fetch(userBeforeUrl, {
+      method: 'GET',
+      headers: {
+        'X-Emby-Token': apiKey,
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!userAfterResponse.ok) {
+      console.error('Could not verify password reset, fetch failed');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Kunne ikke verifisere at passordet ble satt',
+          warning: 'Reset ble sendt, men verifisering feilet'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userAfter = await userAfterResponse.json();
+    console.log('User state after reset:', {
+      HasPassword: userAfter.HasPassword,
+      HasConfiguredPassword: userAfter.HasConfiguredPassword,
+    });
+
+    // Check if password was actually set
+    if (!userAfter.HasPassword && !userAfter.HasConfiguredPassword) {
+      console.error('Password reset failed: HasPassword is still false after reset');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Passordet ble ikkje satt. Jellyfin godtok ikkje det nye passordet.',
+          hasPasswordBefore: userBefore?.HasPassword ?? null,
+          hasPasswordAfter: userAfter.HasPassword,
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Password reset successfully verified for user:', jellyfinUserId);
 
     return new Response(
       JSON.stringify({ success: true, message: 'Passord resatt' }),
