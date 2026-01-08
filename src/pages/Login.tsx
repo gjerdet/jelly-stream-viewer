@@ -27,83 +27,13 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ username?: string; password?: string }>({});
-  const showDemo = import.meta.env.DEV;
+  // Demo mode removed - always use standard authentication
 
   useEffect(() => {
     if (user) {
       navigate("/browse");
     }
   }, [user, navigate]);
-
-  const handleDemoLogin = async () => {
-    setErrors({});
-    setLoading(true);
-
-    try {
-      const demoPassword = "demo_jellyfin_test_user_2024";
-
-      const getOrCreateDemoEmail = () => {
-        const key = "demo_auth_email";
-        const existing = localStorage.getItem(key);
-        if (existing) return existing;
-
-        const id =
-          typeof crypto !== "undefined" &&
-          "randomUUID" in crypto &&
-          typeof (crypto as Crypto).randomUUID === "function"
-            ? (crypto as Crypto).randomUUID()
-            : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-        const email = `demo+${id}@jellyfin.local`;
-        localStorage.setItem(key, email);
-        return email;
-      };
-
-      const demoEmail = getOrCreateDemoEmail();
-
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-
-      if (signInError && signInError.message.includes("Invalid login credentials")) {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email: demoEmail,
-          password: demoPassword,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: {
-              jellyfin_user_id: "demo-user-id",
-              jellyfin_username: "Demo User",
-            },
-          },
-        });
-
-        if (signUpError) {
-          // Hvis denne enheten har en gammel demo-email liggende, generer en ny automatisk
-          localStorage.removeItem("demo_auth_email");
-          return await handleDemoLogin();
-        }
-
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: demoEmail,
-          password: demoPassword,
-        });
-
-        if (loginError) throw loginError;
-      } else if (signInError) {
-        throw signInError;
-      }
-
-      toast.success("Logget inn i demo-modus!");
-      navigate("/browse");
-    } catch (error) {
-      console.error("Demo login error:", error);
-      toast.error("Demo-innlogging feilet");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,17 +177,6 @@ const Login = () => {
               {loading ? "Logger inn..." : "Logg inn"}
             </Button>
 
-            {showDemo && (
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full"
-                onClick={handleDemoLogin}
-                disabled={loading}
-              >
-                Demo-modus (kun testing)
-              </Button>
-            )}
           </form>
         </CardContent>
       </Card>
