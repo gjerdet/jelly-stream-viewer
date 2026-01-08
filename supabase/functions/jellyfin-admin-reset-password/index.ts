@@ -145,9 +145,8 @@ serve(async (req) => {
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        CurrentPw: '',
+        CurrentPwd: '',
         NewPw: newPassword,
-        ResetPassword: true,
       }),
     });
 
