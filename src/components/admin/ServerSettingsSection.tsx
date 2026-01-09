@@ -11,7 +11,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useServerSettings } from "@/hooks/useServerSettings";
 import { SystemDiagnosticsPanel } from "./SystemDiagnosticsPanel";
 import { ProxyHealthCheck } from "./ProxyHealthCheck";
-import { NasAgentSettings } from "./NasAgentSettings";
 
 interface ServerSettingsSectionProps {
   userRole?: string | null;
@@ -1021,8 +1020,6 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
           )}
         </CardContent>
       </Card>
-
-      <NasAgentSettings />
     </div>
   );
 };
