@@ -36,15 +36,23 @@ interface UserWithRole {
   created_at: string | null;
   role: 'admin' | 'user' | null;
 }
-export const UserAccessManagement = () => {
+interface UserAccessManagementProps {
+  userRole?: string | null;
+}
+
+export const UserAccessManagement = ({ userRole }: UserAccessManagementProps) => {
   const { language } = useLanguage();
   const locale = language === 'no' ? nb : enUS;
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
   const [resetPasswordUser, setResetPasswordUser] = useState<{ id: string; name: string; jellyfinUserId: string | null } | null>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [passwordStatus, setPasswordStatus] = useState<{
+    before?: { hasPassword: boolean; hasConfiguredPassword: boolean };
+    after?: { hasPassword: boolean; hasConfiguredPassword: boolean };
+  } | null>(null);
 
-  // Fetch all users with their roles
+  // Fetch all users with their roles - only when admin
   const { data: users, isLoading, refetch } = useQuery({
     queryKey: ["admin-users-with-roles"],
     queryFn: async () => {
@@ -87,6 +95,7 @@ export const UserAccessManagement = () => {
         role: roleByUserId.get(profile.id) ?? null,
       })) as UserWithRole[];
     },
+    enabled: userRole === 'admin',
   });
 
   // Mutation to reset user password
@@ -104,13 +113,21 @@ export const UserAccessManagement = () => {
 
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Show password status from API response
+      if (data?.hasPasswordBefore !== undefined || data?.hasPasswordAfter !== undefined) {
+        setPasswordStatus({
+          before: { hasPassword: data.hasPasswordBefore, hasConfiguredPassword: data.hasConfiguredPasswordBefore },
+          after: { hasPassword: data.hasPasswordAfter, hasConfiguredPassword: data.hasConfiguredPasswordAfter },
+        });
+      }
       toast.success("Passord resatt");
       setResetPasswordUser(null);
       setNewPassword("");
     },
     onError: (error: Error) => {
       toast.error(error.message || "Kunne ikke resette passord");
+      setPasswordStatus(null);
     },
   });
 
@@ -306,6 +323,7 @@ export const UserAccessManagement = () => {
         if (!open) {
           setResetPasswordUser(null);
           setNewPassword("");
+          setPasswordStatus(null);
         }
       }}>
         <DialogContent>

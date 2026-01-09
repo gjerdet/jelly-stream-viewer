@@ -2735,7 +2735,7 @@ Tips: Hvis du har SSL-sertifikat-problemer med din offentlige URL, bruk http:// 
               </TabsContent>
 
               <TabsContent value="users" className="space-y-6 mt-0">
-                <UserAccessManagement />
+                <UserAccessManagement userRole={userRole} />
                 <UserManagement />
               </TabsContent>
 
