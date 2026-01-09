@@ -31,8 +31,6 @@ import { SyncScheduleManager } from "@/components/admin/SyncScheduleManager";
 import { ServerSettingsSection } from "@/components/admin/ServerSettingsSection";
 import { NewsManagementSection } from "@/components/admin/NewsManagementSection";
 import { SiteSettingsSection } from "@/components/admin/SiteSettingsSection";
-import { MonitoringSection } from "@/components/admin/MonitoringSection";
-import { QBittorrentSection } from "@/components/admin/QBittorrentSection";
 import { AppServicesHealth } from "@/components/admin/AppServicesHealth";
 import { SystemStatusDashboard } from "@/components/admin/SystemStatusDashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,9 +121,7 @@ const Admin = () => {
     { value: "servers", label: admin.servers || "Servers", icon: Server },
     { value: "database", label: admin.database || "Database", icon: Database },
     { value: "site", label: language === 'no' ? 'Side' : 'Site', icon: Settings },
-    { value: "monitoring", label: language === 'no' ? 'Status' : 'Status', icon: Activity },
     { value: "sync", label: language === 'no' ? 'Synkronisering' : 'Sync', icon: RefreshCw },
-    { value: "qbittorrent", label: "qBittorrent", icon: Download },
     { value: "users", label: admin.users || "Users", icon: Settings },
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
     
@@ -358,16 +354,8 @@ const Admin = () => {
                 <SiteSettingsSection />
               </TabsContent>
 
-              <TabsContent value="monitoring" className="space-y-6 mt-0">
-                <MonitoringSection userRole={userRole} />
-              </TabsContent>
-
               <TabsContent value="sync" className="space-y-6 mt-0">
                 <SyncScheduleManager />
-              </TabsContent>
-
-              <TabsContent value="qbittorrent" className="space-y-6 mt-0">
-                <QBittorrentSection userRole={userRole} />
               </TabsContent>
 
               <TabsContent value="news" className="space-y-6 mt-0">
