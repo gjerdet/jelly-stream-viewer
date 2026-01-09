@@ -48,9 +48,6 @@ const Browse = () => {
   const browse = t.browse as any;
   const [selectedGenre, setSelectedGenre] = useState<string>("all");
 
-  // Check if user is in demo mode
-  const isDemoMode = user?.email?.includes('demo');
-
   // Get userId from localStorage session (not /Users endpoint which requires admin)
   const { userId } = useJellyfinSession();
 
@@ -65,7 +62,7 @@ const Browse = () => {
     }
   }, [user, loading, navigate]);
 
-  // Fetch all media items based on content type (skip if demo mode)
+  // Fetch all media items based on content type
   const includeItemTypes = contentType === 'movies' ? 'Movie' : 
                            contentType === 'series' ? 'Series' : 
                            'Movie,Series';
@@ -73,33 +70,33 @@ const Browse = () => {
   const { data: allItems, error: itemsError, isLoading: itemsLoading } = useJellyfinApi<JellyfinResponse>(
     ["all-items", userId || "", contentType],
     {
-      endpoint: userId && !isDemoMode
+      endpoint: userId
         ? `/Users/${userId}/Items?SortBy=DateCreated,SortName&SortOrder=Descending&IncludeItemTypes=${includeItemTypes}&Recursive=true&Fields=PrimaryImageAspectRatio,BasicSyncInfo,Genres,ChildCount,RecursiveItemCount&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId && !isDemoMode
+    !!user && !!userId
   );
 
-  // Fetch resume items with user ID (skip if demo mode)
+  // Fetch resume items with user ID
   const { data: resumeItems, error: resumeError, isLoading: resumeLoading } = useJellyfinApi<JellyfinResponse>(
     ["resume-items", userId || ""],
     {
-      endpoint: userId && !isDemoMode
+      endpoint: userId
         ? `/Users/${userId}/Items/Resume?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo,SeriesId,SeasonId&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId && !isDemoMode
+    !!user && !!userId
   );
 
-  // Fetch recommended items with Series and Season IDs for episodes (skip if demo mode)
+  // Fetch recommended items with Series and Season IDs for episodes
   const { data: recommendedItems } = useJellyfinApi<JellyfinResponse>(
     ["recommended-items", userId || ""],
     {
-      endpoint: userId && !isDemoMode
+      endpoint: userId
         ? `/Users/${userId}/Suggestions?Limit=20&Fields=PrimaryImageAspectRatio,BasicSyncInfo,SeriesId,SeasonId&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Thumb`
         : "",
     },
-    !!user && !!userId && !isDemoMode
+    !!user && !!userId
   );
 
   // Separate movies and series
@@ -169,7 +166,7 @@ const Browse = () => {
   }
 
   // Show error message if server is not available or no data
-  if (isDemoMode || (hasApiError && !isDataLoading) || (hasNoData && !loading && !isDataLoading)) {
+  if ((hasApiError && !isDataLoading) || (hasNoData && !loading && !isDataLoading)) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-20">
@@ -179,12 +176,10 @@ const Browse = () => {
                 <Film className="w-8 h-8 text-destructive" />
               </div>
               <h2 className="text-2xl font-bold mb-3 text-foreground">
-                {isDemoMode ? browse.demoMode : browse.cannotConnect}
+                {browse.cannotConnect}
               </h2>
               <p className="text-muted-foreground mb-6">
-                {isDemoMode 
-                  ? browse.demoModeDesc
-                  : browse.cannotConnectDesc}
+                {browse.cannotConnectDesc}
               </p>
               <div className="space-y-3">
                 <Button 
@@ -287,22 +282,6 @@ const Browse = () => {
           />
         )}
         
-        {/* Show message if no content in demo mode */}
-        {contentType === 'all' && !allItems?.Items?.length && user?.email?.includes('demo') && (
-          <div className="container mx-auto px-4">
-            <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="p-6 rounded-xl bg-card border border-border max-w-md">
-                <h3 className="text-xl font-semibold mb-2">{browse.demoMode}</h3>
-                <p className="text-muted-foreground mb-4">
-                  {browse.demoModeDesc}
-                </p>
-                <Button onClick={() => navigate("/setup")} variant="outline">
-                  {browse.setupJellyfinServer}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Movies page with genre filter */}
         {contentType === 'movies' && (
@@ -334,15 +313,8 @@ const Browse = () => {
                 <div className="p-4 sm:p-6 rounded-xl bg-card border border-border max-w-md w-full">
                   <h3 className="text-lg sm:text-xl font-semibold mb-2">{browse.noMoviesFound}</h3>
                   <p className="text-sm sm:text-base text-muted-foreground mb-4">
-                    {user?.email?.includes('demo') 
-                      ? browse.noMoviesDemo
-                      : browse.noMoviesServer}
+                    {browse.noMoviesServer}
                   </p>
-                  {user?.email?.includes('demo') && (
-                    <Button onClick={() => navigate("/setup")} variant="outline" className="w-full sm:w-auto">
-                      {browse.setupJellyfinServer}
-                    </Button>
-                  )}
                 </div>
               </div>
             )}
@@ -379,15 +351,8 @@ const Browse = () => {
                 <div className="p-4 sm:p-6 rounded-xl bg-card border border-border max-w-md w-full">
                   <h3 className="text-lg sm:text-xl font-semibold mb-2">{browse.noSeriesFound}</h3>
                   <p className="text-sm sm:text-base text-muted-foreground mb-4">
-                    {user?.email?.includes('demo') 
-                      ? browse.noSeriesDemo
-                      : browse.noSeriesServer}
+                    {browse.noSeriesServer}
                   </p>
-                  {user?.email?.includes('demo') && (
-                    <Button onClick={() => navigate("/setup")} variant="outline" className="w-full sm:w-auto">
-                      {browse.setupJellyfinServer}
-                    </Button>
-                  )}
                 </div>
               </div>
             )}

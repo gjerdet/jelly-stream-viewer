@@ -59,7 +59,7 @@ const Header = () => {
   const { t } = useLanguage();
   const header = t.header as any;
   
-  console.log('User role:', userRole, 'Loading:', roleLoading);
+  
   const { siteName, logoUrl, headerTitle } = useSiteSettings();
   const { toggleSidebar } = useSidebar();
   const [searchQuery, setSearchQuery] = useState("");

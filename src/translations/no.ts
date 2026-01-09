@@ -595,9 +595,7 @@ export const noTranslations = {
 
   // Browse page
   browse: {
-    demoMode: 'Demo-modus',
     cannotConnect: 'Kan ikke koble til Jellyfin-server',
-    demoModeDesc: 'Du er logget inn i demo-modus. For å se innhold, må du koble til en Jellyfin-server.',
     cannotConnectDesc: 'Kan ikke hente data fra Jellyfin-serveren. Kontroller at serveren kjører og er tilgjengelig.',
     whatCanYouDo: 'Hva kan du gjøre nå?',
     setupServer: 'Sett opp din Jellyfin-server via Admin-innstillinger',
@@ -612,10 +610,8 @@ export const noTranslations = {
     selectGenre: 'Velg sjanger',
     allGenres: 'Alle sjangere',
     noMoviesFound: 'Ingen filmer funnet',
-    noMoviesDemo: 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se filmer.',
     noMoviesServer: 'Ingen filmer tilgjengelige på serveren.',
     noSeriesFound: 'Ingen serier funnet',
-    noSeriesDemo: 'Demo-modus har ikke ekte innhold. Koble til en Jellyfin-server for å se serier.',
     noSeriesServer: 'Ingen serier tilgjengelig på serveren.',
   },
 

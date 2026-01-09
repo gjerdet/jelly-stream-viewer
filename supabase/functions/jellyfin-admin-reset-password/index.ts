@@ -228,7 +228,14 @@ serve(async (req) => {
     console.log('Password reset successfully verified for user:', jellyfinUserId);
 
     return new Response(
-      JSON.stringify({ success: true, message: 'Passord resatt' }),
+      JSON.stringify({ 
+        success: true, 
+        message: 'Passord resatt',
+        hasPasswordBefore: userBefore?.HasPassword ?? null,
+        hasPasswordAfter: userAfter.HasPassword,
+        hasConfiguredPasswordBefore: userBefore?.HasConfiguredPassword ?? null,
+        hasConfiguredPasswordAfter: userAfter.HasConfiguredPassword,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

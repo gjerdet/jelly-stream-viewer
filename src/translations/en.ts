@@ -595,9 +595,7 @@ export const enTranslations = {
 
   // Browse page
   browse: {
-    demoMode: 'Demo Mode',
     cannotConnect: 'Cannot connect to Jellyfin server',
-    demoModeDesc: 'You are logged in to demo mode. To see content, you must connect to a Jellyfin server.',
     cannotConnectDesc: 'Cannot retrieve data from the Jellyfin server. Check that the server is running and available.',
     whatCanYouDo: 'What can you do now?',
     setupServer: 'Set up your Jellyfin server via Admin settings',
@@ -612,10 +610,8 @@ export const enTranslations = {
     selectGenre: 'Select Genre',
     allGenres: 'All Genres',
     noMoviesFound: 'No Movies Found',
-    noMoviesDemo: 'Demo mode has no real content. Connect to a Jellyfin server to watch movies.',
     noMoviesServer: 'No movies available on the server.',
     noSeriesFound: 'No Series Found',
-    noSeriesDemo: 'Demo mode has no real content. Connect to a Jellyfin server to watch series.',
     noSeriesServer: 'No series available on the server.',
   },
 
