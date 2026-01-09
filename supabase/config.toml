@@ -56,9 +56,6 @@ verify_jwt = true
 [functions.trigger-update]
 verify_jwt = true
 
-[functions.qbittorrent-status]
-verify_jwt = true
-
 [functions.server-stats]
 verify_jwt = true
 
