@@ -326,7 +326,7 @@ export const UserAccessManagement = ({ userRole }: UserAccessManagementProps) =>
           setPasswordStatus(null);
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Reset passord</DialogTitle>
             <DialogDescription>
@@ -344,6 +344,48 @@ export const UserAccessManagement = ({ userRole }: UserAccessManagementProps) =>
                 placeholder="Skriv inn nytt passord"
               />
             </div>
+
+            {/* Password status display */}
+            {passwordStatus && (
+              <div className="space-y-2 p-3 rounded-lg bg-muted/50 border">
+                <p className="text-sm font-medium">Passord-status fra Jellyfin:</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2 rounded bg-background border">
+                    <p className="text-muted-foreground mb-1">Før reset:</p>
+                    <p className={passwordStatus.before?.hasPassword ? "text-green-500" : "text-red-500"}>
+                      HasPassword: {passwordStatus.before?.hasPassword ? "✅ Ja" : "❌ Nei"}
+                    </p>
+                    <p className={passwordStatus.before?.hasConfiguredPassword ? "text-green-500" : "text-red-500"}>
+                      HasConfiguredPassword: {passwordStatus.before?.hasConfiguredPassword ? "✅ Ja" : "❌ Nei"}
+                    </p>
+                  </div>
+                  <div className="p-2 rounded bg-background border">
+                    <p className="text-muted-foreground mb-1">Etter reset:</p>
+                    <p className={passwordStatus.after?.hasPassword ? "text-green-500" : "text-red-500"}>
+                      HasPassword: {passwordStatus.after?.hasPassword ? "✅ Ja" : "❌ Nei"}
+                    </p>
+                    <p className={passwordStatus.after?.hasConfiguredPassword ? "text-green-500" : "text-red-500"}>
+                      HasConfiguredPassword: {passwordStatus.after?.hasConfiguredPassword ? "✅ Ja" : "❌ Nei"}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Show warning if password wasn't set correctly */}
+                {passwordStatus.after && !passwordStatus.after.hasPassword && !passwordStatus.after.hasConfiguredPassword && (
+                  <div className="p-2 rounded bg-destructive/10 border border-destructive/30 text-destructive text-xs">
+                    ⚠️ Advarsel: Passordet ser ikkje ut til å ha blitt sett korrekt i Jellyfin.
+                    Prøv igjen eller sjekk Jellyfin-serveren.
+                  </div>
+                )}
+                
+                {/* Show success if password was set correctly */}
+                {passwordStatus.after?.hasPassword && passwordStatus.after?.hasConfiguredPassword && (
+                  <div className="p-2 rounded bg-green-500/10 border border-green-500/30 text-green-600 text-xs">
+                    ✅ Passord vart sett korrekt i Jellyfin!
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -351,30 +393,33 @@ export const UserAccessManagement = ({ userRole }: UserAccessManagementProps) =>
               onClick={() => {
                 setResetPasswordUser(null);
                 setNewPassword("");
+                setPasswordStatus(null);
               }}
             >
-              Avbryt
+              {passwordStatus ? "Lukk" : "Avbryt"}
             </Button>
-            <Button
-              onClick={() => {
-                if (resetPasswordUser?.jellyfinUserId && newPassword) {
-                  resetPassword.mutate({
-                    jellyfinUserId: resetPasswordUser.jellyfinUserId,
-                    newPassword
-                  });
-                }
-              }}
-              disabled={!newPassword || resetPassword.isPending}
-            >
-              {resetPassword.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Resetter...
-                </>
-              ) : (
-                "Reset passord"
-              )}
-            </Button>
+            {!passwordStatus && (
+              <Button
+                onClick={() => {
+                  if (resetPasswordUser?.jellyfinUserId && newPassword) {
+                    resetPassword.mutate({
+                      jellyfinUserId: resetPasswordUser.jellyfinUserId,
+                      newPassword
+                    });
+                  }
+                }}
+                disabled={!newPassword || resetPassword.isPending}
+              >
+                {resetPassword.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Resetter...
+                  </>
+                ) : (
+                  "Reset passord"
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
