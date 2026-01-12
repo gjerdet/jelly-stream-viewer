@@ -108,7 +108,7 @@ const Player = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
-  const { serverUrl, apiKey, directStreamUrl } = useServerSettings();
+  const { serverUrl, apiKey } = useServerSettings();
   const { t } = useLanguage();
   const player = t.player as any;
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
@@ -349,14 +349,15 @@ const Player = () => {
       
       setStreamError(null);
       
-      // Check if direct streaming is available (HTTPS Jellyfin URL configured)
-      if (directStreamUrl && apiKey) {
+      // Check if direct streaming is available (Jellyfin URL is HTTPS)
+      const isHttps = serverUrl?.startsWith('https://');
+      if (isHttps && apiKey) {
         // Use direct streaming for seamless playback (no proxy, no timeouts)
         const jellyfinSession = localStorage.getItem('jellyfin_session');
         const jellyfinToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
         
         if (jellyfinToken) {
-          const baseUrl = directStreamUrl.replace(/\/$/, '');
+          const baseUrl = serverUrl.replace(/\/$/, '');
           let streamingUrl = `${baseUrl}/Videos/${id}/stream?Static=true&api_key=${apiKey}`;
           
           // Add audio stream index if selected
@@ -364,7 +365,7 @@ const Player = () => {
             streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
           }
           
-          console.log('Using DIRECT streaming (seamless, no proxy)');
+          console.log('Using DIRECT streaming (seamless, HTTPS detected)');
           setUsingDirectStream(true);
           setStreamUrl(streamingUrl);
           return;
@@ -414,7 +415,7 @@ const Player = () => {
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, directStreamUrl, apiKey]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, serverUrl, apiKey]);
 
   // Start playback when stream URL changes + setup proactive refresh timer
   useEffect(() => {

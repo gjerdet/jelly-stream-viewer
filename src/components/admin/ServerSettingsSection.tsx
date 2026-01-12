@@ -21,17 +21,15 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
   const admin = t.admin as any;
   const common = t.common as any;
   const queryClient = useQueryClient();
-  const { serverUrl, updateServerUrl, directStreamUrl, updateDirectStreamUrl } = useServerSettings();
+  const { serverUrl, updateServerUrl } = useServerSettings();
 
   const [newServerUrl, setNewServerUrl] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [newDirectStreamUrl, setNewDirectStreamUrl] = useState("");
+  
   const [jellyseerrUrl, setJellyseerrUrl] = useState("");
   const [jellyseerrApiKey, setJellyseerrApiKey] = useState("");
   const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
-  const [testingDirectStream, setTestingDirectStream] = useState(false);
-  const [directStreamStatus, setDirectStreamStatus] = useState<string | null>(null);
   const [testingJellyseerr, setTestingJellyseerr] = useState(false);
   const [jellyseerrStatus, setJellyseerrStatus] = useState<string | null>(null);
   
@@ -346,11 +344,6 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     }
   }, [serverUrl, newServerUrl]);
 
-  useEffect(() => {
-    if (directStreamUrl !== undefined && !newDirectStreamUrl) {
-      setNewDirectStreamUrl(directStreamUrl || "");
-    }
-  }, [directStreamUrl, newDirectStreamUrl]);
 
   useEffect(() => {
     if (currentApiKey && !apiKey) {
@@ -734,93 +727,29 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         </CardContent>
       </Card>
 
-      {/* Direct Stream URL for seamless playback */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle>🎬 Sømløs Streaming (Valgfritt)</CardTitle>
-          <CardDescription>
-            Konfigurer en HTTPS-tilgjengelig Jellyfin URL for sømløs avspilling uten pauser.
-            <span className="block mt-2 text-yellow-500/80">
-              ⚠️ Krever at Jellyfin er tilgjengelig via HTTPS (f.eks. via Nginx Proxy Manager)
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="direct-stream-url">Jellyfin HTTPS URL</Label>
-            <Input
-              id="direct-stream-url"
-              type="url"
-              placeholder="https://jellyfin.dindomene.no"
-              value={newDirectStreamUrl}
-              onChange={(e) => setNewDirectStreamUrl(e.target.value)}
-              className="bg-secondary/50 border-border/50"
-            />
-            <p className="text-xs text-muted-foreground">
-              La stå tom for å bruke proxy-streaming (med korte pauser hvert 2. min)
-            </p>
+      {/* Streaming mode info */}
+      {newServerUrl.startsWith('https://') && (
+        <div className="p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+          <div className="flex items-center gap-2 text-green-400 font-medium">
+            ✅ Sømløs streaming aktivert
           </div>
-          <div className="flex gap-2">
-            <Button 
-              onClick={() => updateDirectStreamUrl.mutate(newDirectStreamUrl)}
-              disabled={updateDirectStreamUrl.isPending || newDirectStreamUrl === directStreamUrl}
-              className="cinema-glow flex-1"
-            >
-              {updateDirectStreamUrl.isPending ? "Lagrer..." : "Lagre"}
-            </Button>
-            <Button 
-              onClick={async () => {
-                if (!newDirectStreamUrl.trim() || !apiKey.trim()) {
-                  setDirectStreamStatus("❌ URL og API-nøkkel må være satt");
-                  return;
-                }
-                setTestingDirectStream(true);
-                setDirectStreamStatus(null);
-                try {
-                  const response = await fetch(`${newDirectStreamUrl.trim().replace(/\/$/, '')}/System/Info`, {
-                    method: "GET",
-                    headers: {
-                      "X-Emby-Token": apiKey.trim(),
-                      "Content-Type": "application/json",
-                    },
-                  });
-                  if (!response.ok) {
-                    setDirectStreamStatus(`❌ Feil: HTTP ${response.status}`);
-                    return;
-                  }
-                  const data = await response.json();
-                  setDirectStreamStatus(`✅ Tilkoblet! Server: ${data.ServerName || 'Jellyfin'} - Sømløs streaming aktivert!`);
-                } catch (error) {
-                  setDirectStreamStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
-                } finally {
-                  setTestingDirectStream(false);
-                }
-              }}
-              disabled={testingDirectStream || !newDirectStreamUrl}
-              variant="outline"
-              className="flex-1"
-            >
-              {testingDirectStream ? "Tester..." : "Test tilkobling"}
-            </Button>
+          <p className="text-sm text-muted-foreground mt-1">
+            Jellyfin er konfigurert via HTTPS, så du får sømløs avspilling uten pauser.
+          </p>
+        </div>
+      )}
+      
+      {newServerUrl && !newServerUrl.startsWith('https://') && (
+        <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+          <div className="flex items-center gap-2 text-yellow-400 font-medium">
+            ⚠️ Proxy-streaming (med korte pauser)
           </div>
-          
-          {directStreamStatus && (
-            <div className={`p-3 rounded-lg text-sm ${
-              directStreamStatus.startsWith('✅') 
-                ? 'bg-green-500/10 text-green-400 border border-green-500/20' 
-                : 'bg-red-500/10 text-red-400 border border-red-500/20'
-            }`}>
-              {directStreamStatus}
-            </div>
-          )}
-          
-          {directStreamUrl && (
-            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-sm">
-              ✅ Sømløs streaming er aktivert: {directStreamUrl}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <p className="text-sm text-muted-foreground mt-1">
+            Jellyfin er konfigurert via HTTP. Avspilling går via proxy med korte pauser ca. hvert 2. minutt.
+            For sømløs avspilling, konfigurer Jellyfin med HTTPS (f.eks. via Nginx Proxy Manager).
+          </p>
+        </div>
+      )}
 
       <Card className="border-border/50">
         <CardHeader>
