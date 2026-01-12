@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, Subtitles, Check } from "lucide-react";
+import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, Subtitles, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
@@ -69,6 +69,10 @@ interface ChromecastControllerProps {
     total: number;
     seasonNumber?: number;
   };
+  // Next episode countdown
+  nextEpisodeCountdown?: number | null;
+  nextEpisodeName?: string;
+  onCancelNextEpisode?: () => void;
   compact?: boolean;
   floating?: boolean;
   className?: string;
@@ -94,6 +98,9 @@ export const ChromecastController = ({
   onPreviousEpisode,
   onNextEpisode,
   episodeInfo,
+  nextEpisodeCountdown,
+  nextEpisodeName,
+  onCancelNextEpisode,
   compact = false,
   floating = false,
   className,
@@ -207,34 +214,59 @@ export const ChromecastController = ({
   if (floating) {
     return (
       <div className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t shadow-2xl animate-in slide-in-from-bottom duration-300",
+        "fixed bottom-0 left-0 right-0 z-50",
         className
       )}>
-        <div className="container mx-auto px-3 py-2 sm:px-4 sm:py-3">
-          {/* Progress bar at top */}
-          {castState.mediaInfo && (
-            <div 
-              className="absolute top-0 left-0 right-0 h-1 bg-secondary cursor-pointer group"
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const percent = (e.clientX - rect.left) / rect.width;
-                const newTime = percent * (castState.mediaInfo?.duration || 0);
-                if (remotePlayer && remotePlayerController) {
-                  remotePlayer.currentTime = newTime;
-                  remotePlayerController.seek();
-                }
-              }}
-            >
-              <div 
-                className="h-full bg-primary transition-all"
-                style={{ width: `${progress}%` }}
-              />
-              <div 
-                className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ left: `${progress}%`, marginLeft: '-6px' }}
-              />
+        {/* Next episode countdown banner */}
+        {nextEpisodeCountdown !== null && nextEpisodeCountdown !== undefined && nextEpisodeCountdown > 0 && (
+          <div className="bg-primary text-primary-foreground px-4 py-2 flex items-center justify-between animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-primary-foreground/20 font-bold text-lg">
+                {nextEpisodeCountdown}
+              </div>
+              <div className="text-sm">
+                <span className="font-medium">Neste episode:</span>
+                <span className="ml-1 opacity-90">{nextEpisodeName || 'Laster...'}</span>
+              </div>
             </div>
-          )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+              onClick={onCancelNextEpisode}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Avbryt
+            </Button>
+          </div>
+        )}
+        
+        <div className="bg-background/95 backdrop-blur-lg border-t shadow-2xl">
+          <div className="container mx-auto px-3 py-2 sm:px-4 sm:py-3">
+            {/* Progress bar at top */}
+            {castState.mediaInfo && (
+              <div 
+                className="absolute top-0 left-0 right-0 h-1 bg-secondary cursor-pointer group"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const percent = (e.clientX - rect.left) / rect.width;
+                  const newTime = percent * (castState.mediaInfo?.duration || 0);
+                  if (remotePlayer && remotePlayerController) {
+                    remotePlayer.currentTime = newTime;
+                    remotePlayerController.seek();
+                  }
+                }}
+              >
+                <div 
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+                <div 
+                  className="absolute top-1/2 -translate-y-1/2 h-3 w-3 bg-primary rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ left: `${progress}%`, marginLeft: '-6px' }}
+                />
+              </div>
+            )}
 
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Cast icon + Title */}
@@ -461,6 +493,7 @@ export const ChromecastController = ({
               <Square className="h-4 w-4" />
             </Button>
           </div>
+        </div>
         </div>
       </div>
     );
