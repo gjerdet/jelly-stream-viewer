@@ -191,6 +191,12 @@ const Player = () => {
   
   // Start position for server-side seeking (when byte-range is not supported)
   const [streamStartPosition, setStreamStartPosition] = useState<number>(0);
+  
+  // Proactive stream refresh to avoid edge function timeout (~150s)
+  // We refresh at ~120s to ensure seamless playback
+  const STREAM_REFRESH_INTERVAL = 120; // seconds before proactive refresh
+  const streamStartTimeRef = useRef<number>(Date.now());
+  const proactiveRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isSeekingViaReloadRef = useRef(false);
   const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
@@ -384,13 +390,22 @@ const Player = () => {
     setupStream();
   }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition]);
 
-  // Start playback when stream URL changes
+  // Start playback when stream URL changes + setup proactive refresh timer
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !streamUrl) return;
 
     if (lastAutoplayUrlRef.current === streamUrl) return;
     lastAutoplayUrlRef.current = streamUrl;
+
+    // Track when this stream segment started
+    streamStartTimeRef.current = Date.now();
+    
+    // Clear any existing proactive refresh timer
+    if (proactiveRefreshTimerRef.current) {
+      clearTimeout(proactiveRefreshTimerRef.current);
+      proactiveRefreshTimerRef.current = null;
+    }
 
     // Regular MP4 stream
     console.log('Using direct MP4 streaming');
@@ -412,6 +427,29 @@ const Player = () => {
         toast.info('Trykk på videoen for å starte avspilling');
       });
     }
+    
+    // Setup proactive refresh timer to avoid edge function timeout
+    // Only for transcoded streams where server-side seeking is used
+    proactiveRefreshTimerRef.current = setTimeout(() => {
+      const currentVideo = videoRef.current;
+      if (!currentVideo || currentVideo.paused || currentVideo.ended) return;
+      if (isSeekingReload) return; // Don't refresh if already seeking
+      
+      console.log('Proactive stream refresh triggered at', currentVideo.currentTime);
+      
+      // Silently refresh - don't show toast for proactive refresh
+      isSeekingViaReloadRef.current = true;
+      setIsSeekingReload(true);
+      setSeekTargetTime(currentVideo.currentTime);
+      setStreamStartPosition(currentVideo.currentTime);
+    }, STREAM_REFRESH_INTERVAL * 1000);
+    
+    return () => {
+      if (proactiveRefreshTimerRef.current) {
+        clearTimeout(proactiveRefreshTimerRef.current);
+        proactiveRefreshTimerRef.current = null;
+      }
+    };
   }, [streamUrl]);
 
   // Save quality preference
@@ -1313,6 +1351,9 @@ const Player = () => {
       if (hideControlsTimer.current) {
         clearTimeout(hideControlsTimer.current);
       }
+      if (proactiveRefreshTimerRef.current) {
+        clearTimeout(proactiveRefreshTimerRef.current);
+      }
     };
   }, []);
 
@@ -1598,27 +1639,32 @@ const Player = () => {
         onWaiting={() => setIsBuffering(true)}
         onStalled={() => {
           // Edge function timeout (~150s) can cause stalled state
-          // Auto-reconnect by reloading stream from current position
+          // This is a fallback if proactive refresh didn't trigger
           const video = videoRef.current;
           if (!video || isSeekingReload) return;
           
-          console.log('Stream stalled, attempting auto-reconnect from', video.currentTime);
+          // Check if this is an actual stall (not just buffering briefly)
+          const timeSinceStreamStart = (Date.now() - streamStartTimeRef.current) / 1000;
+          console.log('Stream stalled after', timeSinceStreamStart.toFixed(0), 'seconds');
           setIsBuffering(true);
           
-          // Wait a moment to see if buffering recovers naturally
-          setTimeout(() => {
-            const currentVideo = videoRef.current;
-            if (currentVideo && currentVideo.readyState < 3 && !isSeekingReload) {
-              console.log('Stream still stalled after timeout, reloading from position', currentVideo.currentTime);
-              toast.info('Strømmen stoppet, kobler til på nytt...');
-              
-              // Reload stream from current position (server-side seeking)
-              isSeekingViaReloadRef.current = true;
-              setIsSeekingReload(true);
-              setSeekTargetTime(currentVideo.currentTime);
-              setStreamStartPosition(currentVideo.currentTime);
-            }
-          }, 5000); // Wait 5 seconds before auto-reconnect
+          // Only auto-reconnect if we've been streaming for a while (likely timeout)
+          // or if the buffer is nearly empty
+          if (timeSinceStreamStart > 30) {
+            // Wait briefly to see if it recovers, then reconnect
+            setTimeout(() => {
+              const currentVideo = videoRef.current;
+              if (currentVideo && currentVideo.readyState < 3 && !isSeekingReload) {
+                console.log('Stream still stalled, reloading from position', currentVideo.currentTime);
+                
+                // Reload stream from current position (server-side seeking)
+                isSeekingViaReloadRef.current = true;
+                setIsSeekingReload(true);
+                setSeekTargetTime(currentVideo.currentTime);
+                setStreamStartPosition(currentVideo.currentTime);
+              }
+            }, 2000); // Shorter wait since proactive refresh should handle most cases
+          }
         }}
         onPlaying={() => { 
           setIsBuffering(false); 
