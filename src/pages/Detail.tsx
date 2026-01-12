@@ -24,6 +24,7 @@ import { ReportDuplicateDialog } from "@/components/ReportDuplicateDialog";
 import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 import { EpisodeCard } from "@/components/EpisodeCard";
 import { ChromecastController } from "@/components/ChromecastController";
+import { getPersistedCastPosition } from "@/components/FloatingCastController";
 
 interface MediaStream {
   Index: number;
@@ -57,6 +58,10 @@ interface JellyfinItemDetail {
   MediaStreams?: MediaStream[];
   ChildCount?: number;
   RecursiveItemCount?: number;
+  UserData?: {
+    Played?: boolean;
+    PlaybackPositionTicks?: number;
+  };
 }
 
 interface Season {
@@ -276,10 +281,17 @@ const Detail = () => {
             ? `${castServerUrl.replace(/\/$/, '')}/Items/${episodeToPlay.Id}/Images/Primary?maxHeight=600`
             : undefined;
           
+          // Check for persisted position from previous cast session
+          const persistedPosition = getPersistedCastPosition(episodeToPlay.Id);
+          const resumeTime = persistedPosition || (episodeToPlay.UserData?.PlaybackPositionTicks 
+            ? episodeToPlay.UserData.PlaybackPositionTicks / 10000000 
+            : undefined);
+          
           await loadMedia(streamUrl, {
             title: episodeToPlay.Name,
             subtitle: `${item.Name} - Episode ${episodeToPlay.IndexNumber}`,
             imageUrl,
+            currentTime: resumeTime,
           });
           toast.success(`Spiller av "${episodeToPlay.Name}" på ${castState.deviceName}`);
         } else {
@@ -301,10 +313,17 @@ const Detail = () => {
         ? `${castServerUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
         : undefined;
       
+      // Check for persisted position from previous cast session
+      const persistedPosition = id ? getPersistedCastPosition(id) : null;
+      const resumeTime = persistedPosition || (item.UserData?.PlaybackPositionTicks 
+        ? item.UserData.PlaybackPositionTicks / 10000000 
+        : undefined);
+      
       await loadMedia(streamUrl, {
         title: item.Name,
         subtitle: item.ProductionYear?.toString(),
         imageUrl,
+        currentTime: resumeTime,
       });
       toast.success(`Spiller av "${item.Name}" på ${castState.deviceName}`);
     } else {
@@ -320,10 +339,17 @@ const Detail = () => {
         ? `${castServerUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=600`
         : undefined;
       
+      // Check for persisted position from previous cast session
+      const persistedPosition = getPersistedCastPosition(episode.Id);
+      const resumeTime = persistedPosition || (episode.UserData?.PlaybackPositionTicks 
+        ? episode.UserData.PlaybackPositionTicks / 10000000 
+        : undefined);
+      
       await loadMedia(streamUrl, {
         title: episode.Name,
         subtitle: `${item.Name} - Episode ${episode.IndexNumber}`,
         imageUrl,
+        currentTime: resumeTime,
       });
       
       // Track current episode for navigation
@@ -566,6 +592,15 @@ const Detail = () => {
     displayTitle: stream.DisplayTitle || stream.Language || `Audio ${idx + 1}`,
     codec: stream.Codec,
     channels: undefined, // Jellyfin doesn't always provide this
+  })) || [];
+
+  // Get subtitle tracks from current media
+  const subtitleTracks = item?.MediaStreams?.filter(s => s.Type === 'Subtitle').map((stream, idx) => ({
+    index: stream.Index,
+    language: stream.Language || 'Unknown',
+    displayTitle: stream.DisplayTitle || stream.Language || `Subtitle ${idx + 1}`,
+    codec: stream.Codec,
+    isDefault: stream.IsDefault,
   })) || [];
 
   if (loading || itemLoading) {
@@ -1063,6 +1098,9 @@ const Detail = () => {
                 onPlayPause={playOrPause}
                 onEndSession={endSession}
                 audioTracks={audioTracks}
+                subtitleTracks={subtitleTracks}
+                selectedSubtitle={selectedSubtitle}
+                onSubtitleChange={setSelectedSubtitle}
                 hasPreviousEpisode={currentCastEpisodeIndex !== null && currentCastEpisodeIndex > 0}
                 hasNextEpisode={currentCastEpisodeIndex !== null && episodesData.Items.length > 0 && currentCastEpisodeIndex < episodesData.Items.length - 1}
                 onPreviousEpisode={handleCastPreviousEpisode}
@@ -1073,6 +1111,7 @@ const Detail = () => {
                   seasonNumber: seasonsData?.Items?.find(s => s.Id === selectedSeasonId)?.IndexNumber
                 } : undefined}
                 compact={false}
+                itemId={episodesData.Items[currentCastEpisodeIndex || 0]?.Id}
               />
             </div>
           )}
