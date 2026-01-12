@@ -134,6 +134,8 @@ const Detail = () => {
   const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
   const [currentCastEpisodeIndex, setCurrentCastEpisodeIndex] = useState<number | null>(null);
   const [currentCastItemId, setCurrentCastItemId] = useState<string | null>(null);
+  const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | null>(null);
+  const [nextEpisodeDismissed, setNextEpisodeDismissed] = useState(false);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -700,7 +702,7 @@ const Detail = () => {
     }
   }, [episodeId, episodesData]);
 
-  // Auto-next episode when Chromecast media ends
+  // Auto-next episode when Chromecast media ends - start countdown
   useEffect(() => {
     const handleMediaEnded = () => {
       // Only auto-advance for series with a next episode
@@ -709,16 +711,11 @@ const Detail = () => {
         item?.Type === 'Series' &&
         currentCastEpisodeIndex !== null &&
         episodesData?.Items &&
-        currentCastEpisodeIndex < episodesData.Items.length - 1
+        currentCastEpisodeIndex < episodesData.Items.length - 1 &&
+        !nextEpisodeDismissed
       ) {
-        const nextEpisode = episodesData.Items[currentCastEpisodeIndex + 1];
-        if (nextEpisode) {
-          toast.info(`Spiller neste episode: ${nextEpisode.Name}`);
-          // Small delay to ensure smooth transition
-          setTimeout(() => {
-            handleEpisodePlayClick(nextEpisode, currentCastEpisodeIndex + 1);
-          }, 1500);
-        }
+        // Start countdown
+        setNextEpisodeCountdown(10);
       }
     };
 
@@ -726,7 +723,54 @@ const Detail = () => {
     return () => {
       window.removeEventListener('chromecast-media-ended', handleMediaEnded);
     };
-  }, [castState.isConnected, item?.Type, currentCastEpisodeIndex, episodesData?.Items]);
+  }, [castState.isConnected, item?.Type, currentCastEpisodeIndex, episodesData?.Items, nextEpisodeDismissed]);
+
+  // Countdown timer for next episode
+  useEffect(() => {
+    if (nextEpisodeCountdown === null || nextEpisodeCountdown <= 0) return;
+
+    const timer = setInterval(() => {
+      setNextEpisodeCountdown(prev => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          // Play next episode
+          if (
+            currentCastEpisodeIndex !== null &&
+            episodesData?.Items &&
+            currentCastEpisodeIndex < episodesData.Items.length - 1
+          ) {
+            const nextEpisode = episodesData.Items[currentCastEpisodeIndex + 1];
+            if (nextEpisode) {
+              handleEpisodePlayClick(nextEpisode, currentCastEpisodeIndex + 1);
+            }
+          }
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [nextEpisodeCountdown, currentCastEpisodeIndex, episodesData?.Items]);
+
+  // Reset dismissed state when episode changes
+  useEffect(() => {
+    setNextEpisodeDismissed(false);
+    setNextEpisodeCountdown(null);
+  }, [currentCastEpisodeIndex]);
+
+  // Cancel next episode countdown
+  const handleCancelNextEpisode = () => {
+    setNextEpisodeCountdown(null);
+    setNextEpisodeDismissed(true);
+  };
+
+  // Get next episode name for display
+  const nextEpisodeName = currentCastEpisodeIndex !== null && 
+    episodesData?.Items && 
+    currentCastEpisodeIndex < episodesData.Items.length - 1
+    ? episodesData.Items[currentCastEpisodeIndex + 1]?.Name
+    : undefined;
 
   // Get audio tracks from current media (must be after item is defined)
   const audioTracks = item?.MediaStreams?.filter(s => s.Type === 'Audio').map((stream, idx) => ({
@@ -1182,6 +1226,9 @@ const Detail = () => {
                   total: episodesData.Items.length,
                   seasonNumber: seasonsData?.Items?.find(s => s.Id === selectedSeasonId)?.IndexNumber
                 } : undefined}
+                nextEpisodeCountdown={nextEpisodeCountdown}
+                nextEpisodeName={nextEpisodeName}
+                onCancelNextEpisode={handleCancelNextEpisode}
                 compact={false}
                 itemId={episodesData.Items[currentCastEpisodeIndex || 0]?.Id}
               />

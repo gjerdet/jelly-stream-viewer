@@ -36,6 +36,10 @@ interface FloatingCastControllerProps {
     total: number;
     seasonNumber?: number;
   };
+  // Next episode countdown
+  nextEpisodeCountdown?: number | null;
+  nextEpisodeName?: string;
+  onCancelNextEpisode?: () => void;
   itemId?: string;
   itemName?: string;
   itemType?: string;
@@ -60,6 +64,9 @@ export const FloatingCastController = ({
   onPreviousEpisode,
   onNextEpisode,
   episodeInfo,
+  nextEpisodeCountdown,
+  nextEpisodeName,
+  onCancelNextEpisode,
   itemId,
   itemName,
   itemType,
@@ -178,6 +185,9 @@ export const FloatingCastController = ({
       onPreviousEpisode={onPreviousEpisode}
       onNextEpisode={onNextEpisode}
       episodeInfo={episodeInfo}
+      nextEpisodeCountdown={nextEpisodeCountdown}
+      nextEpisodeName={nextEpisodeName}
+      onCancelNextEpisode={onCancelNextEpisode}
       floating={true}
       onPositionUpdate={handlePositionUpdate}
       itemId={itemId}
