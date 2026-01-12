@@ -108,7 +108,7 @@ const Player = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { user } = useAuth();
-  const { serverUrl } = useServerSettings();
+  const { serverUrl, apiKey, directStreamUrl } = useServerSettings();
   const { t } = useLanguage();
   const player = t.player as any;
   const { castState, isLoading: castLoading, requestSession, playOrPause, endSession, loadMedia } = useChromecast();
@@ -192,8 +192,11 @@ const Player = () => {
   // Start position for server-side seeking (when byte-range is not supported)
   const [streamStartPosition, setStreamStartPosition] = useState<number>(0);
   
+  // Track if we're using direct streaming (seamless) or proxy (with refreshes)
+  const [usingDirectStream, setUsingDirectStream] = useState(false);
+  
   // Proactive stream refresh to avoid edge function timeout (~150s)
-  // We refresh at ~120s to ensure seamless playback
+  // We refresh at ~120s to ensure seamless playback (only for proxy streaming)
   const STREAM_REFRESH_INTERVAL = 120; // seconds before proactive refresh
   const streamStartTimeRef = useRef<number>(Date.now());
   const proactiveRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -346,7 +349,29 @@ const Player = () => {
       
       setStreamError(null);
       
-      // Get Supabase session token for authentication
+      // Check if direct streaming is available (HTTPS Jellyfin URL configured)
+      if (directStreamUrl && apiKey) {
+        // Use direct streaming for seamless playback (no proxy, no timeouts)
+        const jellyfinSession = localStorage.getItem('jellyfin_session');
+        const jellyfinToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
+        
+        if (jellyfinToken) {
+          const baseUrl = directStreamUrl.replace(/\/$/, '');
+          let streamingUrl = `${baseUrl}/Videos/${id}/stream?Static=true&api_key=${apiKey}`;
+          
+          // Add audio stream index if selected
+          if (selectedAudioTrack) {
+            streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
+          }
+          
+          console.log('Using DIRECT streaming (seamless, no proxy)');
+          setUsingDirectStream(true);
+          setStreamUrl(streamingUrl);
+          return;
+        }
+      }
+      
+      // Fallback to proxy streaming (with periodic refreshes due to edge function timeout)
       const { data: { session } } = await supabase.auth.getSession();
       const supabaseToken = session?.access_token;
       
@@ -383,12 +408,13 @@ const Player = () => {
         streamingUrl += `&startPosition=${streamStartPosition}`;
       }
       
-      console.log('Using edge function proxy for streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default', 'HLS:', useHls, 'startPosition:', streamStartPosition);
+      console.log('Using PROXY streaming with quality:', selectedQuality, 'audio:', selectedAudioTrack || 'default', 'HLS:', useHls, 'startPosition:', streamStartPosition);
+      setUsingDirectStream(false);
       setStreamUrl(streamingUrl);
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, directStreamUrl, apiKey]);
 
   // Start playback when stream URL changes + setup proactive refresh timer
   useEffect(() => {
@@ -429,20 +455,22 @@ const Player = () => {
     }
     
     // Setup proactive refresh timer to avoid edge function timeout
-    // Only for transcoded streams where server-side seeking is used
-    proactiveRefreshTimerRef.current = setTimeout(() => {
-      const currentVideo = videoRef.current;
-      if (!currentVideo || currentVideo.paused || currentVideo.ended) return;
-      if (isSeekingReload) return; // Don't refresh if already seeking
-      
-      console.log('Proactive stream refresh triggered at', currentVideo.currentTime);
-      
-      // Silently refresh - don't show toast for proactive refresh
-      isSeekingViaReloadRef.current = true;
-      setIsSeekingReload(true);
-      setSeekTargetTime(currentVideo.currentTime);
-      setStreamStartPosition(currentVideo.currentTime);
-    }, STREAM_REFRESH_INTERVAL * 1000);
+    // ONLY for proxy streaming - direct streaming doesn't need this!
+    if (!usingDirectStream) {
+      proactiveRefreshTimerRef.current = setTimeout(() => {
+        const currentVideo = videoRef.current;
+        if (!currentVideo || currentVideo.paused || currentVideo.ended) return;
+        if (isSeekingReload) return; // Don't refresh if already seeking
+        
+        console.log('Proactive stream refresh triggered at', currentVideo.currentTime);
+        
+        // Silently refresh - don't show toast for proactive refresh
+        isSeekingViaReloadRef.current = true;
+        setIsSeekingReload(true);
+        setSeekTargetTime(currentVideo.currentTime);
+        setStreamStartPosition(currentVideo.currentTime);
+      }, STREAM_REFRESH_INTERVAL * 1000);
+    }
     
     return () => {
       if (proactiveRefreshTimerRef.current) {
@@ -1640,6 +1668,12 @@ const Player = () => {
         onStalled={() => {
           // Edge function timeout (~150s) can cause stalled state
           // This is a fallback if proactive refresh didn't trigger
+          // ONLY relevant for proxy streaming - direct streaming handles this natively
+          if (usingDirectStream) {
+            setIsBuffering(true);
+            return;
+          }
+          
           const video = videoRef.current;
           if (!video || isSeekingReload) return;
           

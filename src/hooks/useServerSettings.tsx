@@ -33,6 +33,21 @@ export const useServerSettings = () => {
     },
   });
 
+  // Direct stream URL (optional HTTPS URL for seamless streaming without proxy)
+  const { data: directStreamUrl } = useQuery({
+    queryKey: ["server-settings", "jellyfin_direct_stream_url"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("server_settings")
+        .select("setting_value")
+        .eq("setting_key", "jellyfin_direct_stream_url")
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.setting_value || "";
+    },
+  });
+
   const updateServerUrl = useMutation({
     mutationFn: async (newUrl: string) => {
       const { error } = await supabase
@@ -54,7 +69,51 @@ export const useServerSettings = () => {
     },
   });
 
-  return { serverUrl, apiKey, isLoading, updateServerUrl };
+  const updateDirectStreamUrl = useMutation({
+    mutationFn: async (newUrl: string) => {
+      // Check if setting exists first
+      const { data: existing } = await supabase
+        .from("server_settings")
+        .select("id")
+        .eq("setting_key", "jellyfin_direct_stream_url")
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("server_settings")
+          .update({ 
+            setting_value: newUrl,
+            updated_at: new Date().toISOString()
+          })
+          .eq("setting_key", "jellyfin_direct_stream_url");
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("server_settings")
+          .insert({ 
+            setting_key: "jellyfin_direct_stream_url",
+            setting_value: newUrl,
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      toast.success("Direkte stream URL oppdatert!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke oppdatere direkte stream URL");
+    },
+  });
+
+  return { 
+    serverUrl, 
+    apiKey, 
+    directStreamUrl,
+    isLoading, 
+    updateServerUrl,
+    updateDirectStreamUrl 
+  };
 };
 
 // Helper function to generate Jellyfin image URL
