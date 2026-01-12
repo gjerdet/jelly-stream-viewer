@@ -700,6 +700,34 @@ const Detail = () => {
     }
   }, [episodeId, episodesData]);
 
+  // Auto-next episode when Chromecast media ends
+  useEffect(() => {
+    const handleMediaEnded = () => {
+      // Only auto-advance for series with a next episode
+      if (
+        castState.isConnected &&
+        item?.Type === 'Series' &&
+        currentCastEpisodeIndex !== null &&
+        episodesData?.Items &&
+        currentCastEpisodeIndex < episodesData.Items.length - 1
+      ) {
+        const nextEpisode = episodesData.Items[currentCastEpisodeIndex + 1];
+        if (nextEpisode) {
+          toast.info(`Spiller neste episode: ${nextEpisode.Name}`);
+          // Small delay to ensure smooth transition
+          setTimeout(() => {
+            handleEpisodePlayClick(nextEpisode, currentCastEpisodeIndex + 1);
+          }, 1500);
+        }
+      }
+    };
+
+    window.addEventListener('chromecast-media-ended', handleMediaEnded);
+    return () => {
+      window.removeEventListener('chromecast-media-ended', handleMediaEnded);
+    };
+  }, [castState.isConnected, item?.Type, currentCastEpisodeIndex, episodesData?.Items]);
+
   // Get audio tracks from current media (must be after item is defined)
   const audioTracks = item?.MediaStreams?.filter(s => s.Type === 'Audio').map((stream, idx) => ({
     index: stream.Index,
