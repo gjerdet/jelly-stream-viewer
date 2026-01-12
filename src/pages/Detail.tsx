@@ -115,6 +115,7 @@ const Detail = () => {
   const { castState, requestSession, loadMedia, playOrPause, endSession, remotePlayer, remotePlayerController } = useChromecast();
   const { serverUrl: castServerUrl, apiKey: castApiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
+  const [selectedCastAudioTrack, setSelectedCastAudioTrack] = useState<number | undefined>(undefined);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
@@ -131,6 +132,7 @@ const Detail = () => {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
   const [currentCastEpisodeIndex, setCurrentCastEpisodeIndex] = useState<number | null>(null);
+  const [currentCastItemId, setCurrentCastItemId] = useState<string | null>(null);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -332,16 +334,22 @@ const Detail = () => {
   };
 
   // Handle episode play - either cast or navigate to player
-  const handleEpisodePlayClick = async (episode: Episode, episodeIndex?: number) => {
+  const handleEpisodePlayClick = async (episode: Episode, episodeIndex?: number, audioTrackIndex?: number) => {
     if (castState.isConnected && item) {
-      const streamUrl = `${castServerUrl}/Videos/${episode.Id}/stream?Static=true&api_key=${castApiKey}`;
+      // Build stream URL with optional audio track
+      let streamUrl = `${castServerUrl}/Videos/${episode.Id}/stream?Static=true&api_key=${castApiKey}`;
+      if (audioTrackIndex !== undefined) {
+        streamUrl += `&AudioStreamIndex=${audioTrackIndex}`;
+      }
+      
       const imageUrl = episode.ImageTags?.Primary && castServerUrl
         ? `${castServerUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=600`
         : undefined;
       
-      // Check for persisted position from previous cast session
+      // Check for persisted position from previous cast session or current playback
       const persistedPosition = getPersistedCastPosition(episode.Id);
-      const resumeTime = persistedPosition || (episode.UserData?.PlaybackPositionTicks 
+      const currentPlaybackTime = castState.mediaInfo?.currentTime;
+      const resumeTime = currentPlaybackTime || persistedPosition || (episode.UserData?.PlaybackPositionTicks 
         ? episode.UserData.PlaybackPositionTicks / 10000000 
         : undefined);
       
@@ -352,7 +360,8 @@ const Detail = () => {
         currentTime: resumeTime,
       });
       
-      // Track current episode for navigation
+      // Track current episode and item for audio track changes
+      setCurrentCastItemId(episode.Id);
       if (episodeIndex !== undefined) {
         setCurrentCastEpisodeIndex(episodeIndex);
       } else if (episodesData?.Items) {
@@ -360,7 +369,14 @@ const Detail = () => {
         if (idx >= 0) setCurrentCastEpisodeIndex(idx);
       }
       
-      toast.success(`Spiller av "${episode.Name}" på ${castState.deviceName}`);
+      // Update selected audio track
+      if (audioTrackIndex !== undefined) {
+        setSelectedCastAudioTrack(audioTrackIndex);
+      }
+      
+      if (audioTrackIndex === undefined) {
+        toast.success(`Spiller av "${episode.Name}" på ${castState.deviceName}`);
+      }
     } else {
       navigate(`/player/${episode.Id}`);
     }
@@ -378,6 +394,50 @@ const Detail = () => {
     if (currentCastEpisodeIndex !== null && episodesData?.Items && currentCastEpisodeIndex < episodesData.Items.length - 1) {
       const nextEpisode = episodesData.Items[currentCastEpisodeIndex + 1];
       handleEpisodePlayClick(nextEpisode, currentCastEpisodeIndex + 1);
+    }
+  };
+
+  // Handle audio track change during Chromecast playback - reload stream with new audio
+  const handleCastAudioTrackChange = async (audioIndex: number) => {
+    if (!castState.isConnected) return;
+    
+    // For series episodes
+    if (currentCastEpisodeIndex !== null && episodesData?.Items) {
+      const currentEpisode = episodesData.Items[currentCastEpisodeIndex];
+      if (currentEpisode) {
+        toast.info('Bytter lydspor...');
+        await handleEpisodePlayClick(currentEpisode, currentCastEpisodeIndex, audioIndex);
+        toast.success('Lydspor byttet');
+        return;
+      }
+    }
+    
+    // For movies (non-series)
+    if (item && item.Type !== 'Series' && id) {
+      toast.info('Bytter lydspor...');
+      
+      const streamUrl = `${castServerUrl}/Videos/${id}/stream?Static=true&api_key=${castApiKey}&AudioStreamIndex=${audioIndex}`;
+      const imageUrl = item.ImageTags?.Primary && castServerUrl
+        ? `${castServerUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        : undefined;
+      
+      // Preserve current playback position
+      const currentPlaybackTime = castState.mediaInfo?.currentTime;
+      const persistedPosition = getPersistedCastPosition(id);
+      const resumeTime = currentPlaybackTime || persistedPosition || (item.UserData?.PlaybackPositionTicks 
+        ? item.UserData.PlaybackPositionTicks / 10000000 
+        : undefined);
+      
+      await loadMedia(streamUrl, {
+        title: item.Name,
+        subtitle: item.ProductionYear?.toString(),
+        imageUrl,
+        currentTime: resumeTime,
+      });
+      
+      setCurrentCastItemId(id);
+      setSelectedCastAudioTrack(audioIndex);
+      toast.success('Lydspor byttet');
     }
   };
 
@@ -1098,6 +1158,8 @@ const Detail = () => {
                 onPlayPause={playOrPause}
                 onEndSession={endSession}
                 audioTracks={audioTracks}
+                selectedAudioTrack={selectedCastAudioTrack}
+                onAudioTrackChange={handleCastAudioTrackChange}
                 subtitleTracks={subtitleTracks}
                 selectedSubtitle={selectedSubtitle}
                 onSubtitleChange={setSelectedSubtitle}
