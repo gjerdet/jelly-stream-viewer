@@ -22,6 +22,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReportMediaDialog } from "@/components/ReportMediaDialog";
 import { ReportDuplicateDialog } from "@/components/ReportDuplicateDialog";
 import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
+import { EpisodeCard } from "@/components/EpisodeCard";
+import { ChromecastController } from "@/components/ChromecastController";
 
 interface MediaStream {
   Index: number;
@@ -105,7 +107,7 @@ const Detail = () => {
   const seasonIdFromUrl = searchParams.get('seasonId');
   const { user, loading } = useAuth();
   const { serverUrl, apiKey } = useServerSettings();
-  const { castState, requestSession, loadMedia } = useChromecast();
+  const { castState, requestSession, loadMedia, playOrPause, endSession, remotePlayer, remotePlayerController } = useChromecast();
   const { serverUrl: castServerUrl, apiKey: castApiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
@@ -635,15 +637,17 @@ const Detail = () => {
                 {runtime && <span>{runtime} min</span>}
               </div>
 
-              {/* Action Buttons - Grid on mobile */}
-              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
+              {/* Action Buttons - Better mobile grid */}
+              <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
                 <Button 
                   size="default"
-                  className="gap-1.5 sm:gap-2 text-sm sm:text-base h-10 sm:h-11 col-span-2 sm:col-span-1"
+                  className="gap-1.5 sm:gap-2 text-sm sm:text-base h-10 sm:h-11 flex-1 min-w-[120px] sm:flex-none"
                   onClick={handlePlayClick}
                 >
                   {castState.isConnected ? <Cast className="h-4 w-4 sm:h-5 sm:w-5" /> : <Play className="h-4 w-4 sm:h-5 sm:w-5" />}
-                  {castState.isConnected ? `Cast til ${castState.deviceName}` : 'Spill av'}
+                  <span className="truncate">
+                    {castState.isConnected ? `Cast` : 'Spill av'}
+                  </span>
                 </Button>
 
                 {/* Chromecast Button - only show when available */}
@@ -1014,104 +1018,40 @@ const Detail = () => {
             ))}
           </div>
 
+          {/* Chromecast Controller - show when connected */}
+          {castState.isConnected && (
+            <div className="mb-6">
+              <ChromecastController
+                castState={castState}
+                remotePlayer={remotePlayer}
+                remotePlayerController={remotePlayerController}
+                onPlayPause={playOrPause}
+                onEndSession={endSession}
+                compact={false}
+              />
+            </div>
+          )}
+
           {/* Episodes List */}
           {episodesData?.Items && episodesData.Items.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {episodesData.Items.map((episode) => {
                 const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
                   ? getJellyfinImageUrl(serverUrl, episode.Id, 'Primary', { maxHeight: '300' })
                   : null;
-                const episodeRuntime = episode.RunTimeTicks 
-                  ? Math.round(episode.RunTimeTicks / 600000000) 
-                  : null;
-                const watchedPercentage = episode.UserData?.PlaybackPositionTicks && episode.RunTimeTicks
-                  ? (episode.UserData.PlaybackPositionTicks / episode.RunTimeTicks) * 100
-                  : 0;
-                const isWatched = episode.UserData?.Played || watchedPercentage >= 95;
-                const episodeSubtitleCount = episode.MediaStreams?.filter(s => s.Type === 'Subtitle').length || 0;
 
                 return (
-                  <div
+                  <EpisodeCard
                     key={episode.Id}
-                    ref={(el) => episodeRefs.current[episode.Id] = el}
-                    className={`group cursor-pointer bg-card rounded-lg border smooth-transition flex gap-4 p-3 ${
-                      episodeId === episode.Id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary'
-                    }`}
-                  >
-                    <div 
-                      className="relative w-52 h-28 flex-shrink-0 bg-secondary rounded overflow-hidden cursor-pointer"
-                      onClick={() => handleEpisodePlayClick(episode)}
-                    >
-                      {episodeImageUrl ? (
-                        <img
-                          src={episodeImageUrl}
-                          alt={episode.Name}
-                          className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Play className="h-8 w-8 text-muted-foreground" />
-                        </div>
-                      )}
-                      {isWatched && (
-                        <div className="absolute top-2 right-2 bg-green-600 rounded-full p-1">
-                          <CheckCircle className="h-4 w-4 text-white" />
-                        </div>
-                      )}
-                      {watchedPercentage > 0 && watchedPercentage < 95 && (
-                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-secondary/50">
-                          <div 
-                            className="h-full bg-primary"
-                            style={{ width: `${watchedPercentage}%` }}
-                          />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent opacity-0 group-hover:opacity-100 smooth-transition flex items-center justify-center">
-                        {castState.isConnected ? <Cast className="h-8 w-8 text-white" /> : <Play className="h-8 w-8 text-white" />}
-                      </div>
-                    </div>
-                    <div 
-                      className="flex-1 min-w-0 py-1 cursor-pointer"
-                      onClick={() => handleEpisodePlayClick(episode)}
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <h3 className="font-semibold text-lg">
-                          {episode.IndexNumber && `${episode.IndexNumber}. `}{episode.Name}
-                        </h3>
-                        {episodeRuntime && (
-                          <span className="text-sm text-muted-foreground whitespace-nowrap">
-                            {episodeRuntime} min
-                          </span>
-                        )}
-                      </div>
-                      {episode.Overview && (
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {episode.Overview}
-                        </p>
-                      )}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className={`gap-2 flex-shrink-0 border-border hover:bg-primary hover:text-primary-foreground hover:border-primary ${
-                        episodeSubtitleCount > 0 ? 'bg-green-900/30 border-green-700/50' : 'bg-secondary/50'
-                      }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`);
-                      }}
-                      title={episodeSubtitleCount > 0 ? `${episodeSubtitleCount} undertekster tilgjengelig` : 'Søk undertekster'}
-                    >
-                      <Subtitles className="h-4 w-4" />
-                      {episodeSubtitleCount > 0 ? (
-                        <span className="text-xs bg-green-600 text-white px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                          {episodeSubtitleCount}
-                        </span>
-                      ) : (
-                        <span className="hidden sm:inline text-muted-foreground">Ingen</span>
-                      )}
-                    </Button>
-                  </div>
+                    episode={episode}
+                    seriesName={item?.Name}
+                    episodeImageUrl={episodeImageUrl}
+                    isSelected={episodeId === episode.Id}
+                    isConnectedToCast={castState.isConnected}
+                    onPlay={() => handleEpisodePlayClick(episode)}
+                    onSubtitleSearch={() => openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`)}
+                    refCallback={(el) => episodeRefs.current[episode.Id] = el}
+                  />
                 );
               })}
             </div>
