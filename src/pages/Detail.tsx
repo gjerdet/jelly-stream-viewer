@@ -125,6 +125,7 @@ const Detail = () => {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [castUnsupportedOpen, setCastUnsupportedOpen] = useState(false);
+  const [currentCastEpisodeIndex, setCurrentCastEpisodeIndex] = useState<number | null>(null);
   const episodeRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const queryClient = useQueryClient();
 
@@ -312,7 +313,7 @@ const Detail = () => {
   };
 
   // Handle episode play - either cast or navigate to player
-  const handleEpisodePlayClick = async (episode: Episode) => {
+  const handleEpisodePlayClick = async (episode: Episode, episodeIndex?: number) => {
     if (castState.isConnected && item) {
       const streamUrl = `${castServerUrl}/Videos/${episode.Id}/stream?Static=true&api_key=${castApiKey}`;
       const imageUrl = episode.ImageTags?.Primary && castServerUrl
@@ -324,11 +325,36 @@ const Detail = () => {
         subtitle: `${item.Name} - Episode ${episode.IndexNumber}`,
         imageUrl,
       });
+      
+      // Track current episode for navigation
+      if (episodeIndex !== undefined) {
+        setCurrentCastEpisodeIndex(episodeIndex);
+      } else if (episodesData?.Items) {
+        const idx = episodesData.Items.findIndex(ep => ep.Id === episode.Id);
+        if (idx >= 0) setCurrentCastEpisodeIndex(idx);
+      }
+      
       toast.success(`Spiller av "${episode.Name}" på ${castState.deviceName}`);
     } else {
       navigate(`/player/${episode.Id}`);
     }
   };
+
+  // Episode navigation for Chromecast
+  const handleCastPreviousEpisode = () => {
+    if (currentCastEpisodeIndex !== null && currentCastEpisodeIndex > 0 && episodesData?.Items) {
+      const prevEpisode = episodesData.Items[currentCastEpisodeIndex - 1];
+      handleEpisodePlayClick(prevEpisode, currentCastEpisodeIndex - 1);
+    }
+  };
+
+  const handleCastNextEpisode = () => {
+    if (currentCastEpisodeIndex !== null && episodesData?.Items && currentCastEpisodeIndex < episodesData.Items.length - 1) {
+      const nextEpisode = episodesData.Items[currentCastEpisodeIndex + 1];
+      handleEpisodePlayClick(nextEpisode, currentCastEpisodeIndex + 1);
+    }
+  };
+
 
   // Scroll to top when opening a detail page
   useEffect(() => {
@@ -532,6 +558,15 @@ const Detail = () => {
       }
     }
   }, [episodeId, episodesData]);
+
+  // Get audio tracks from current media (must be after item is defined)
+  const audioTracks = item?.MediaStreams?.filter(s => s.Type === 'Audio').map((stream, idx) => ({
+    index: stream.Index,
+    language: stream.Language || 'Unknown',
+    displayTitle: stream.DisplayTitle || stream.Language || `Audio ${idx + 1}`,
+    codec: stream.Codec,
+    channels: undefined, // Jellyfin doesn't always provide this
+  })) || [];
 
   if (loading || itemLoading) {
     return (
@@ -1019,7 +1054,7 @@ const Detail = () => {
           </div>
 
           {/* Chromecast Controller - show when connected */}
-          {castState.isConnected && (
+          {castState.isConnected && episodesData?.Items && (
             <div className="mb-6">
               <ChromecastController
                 castState={castState}
@@ -1027,6 +1062,16 @@ const Detail = () => {
                 remotePlayerController={remotePlayerController}
                 onPlayPause={playOrPause}
                 onEndSession={endSession}
+                audioTracks={audioTracks}
+                hasPreviousEpisode={currentCastEpisodeIndex !== null && currentCastEpisodeIndex > 0}
+                hasNextEpisode={currentCastEpisodeIndex !== null && episodesData.Items.length > 0 && currentCastEpisodeIndex < episodesData.Items.length - 1}
+                onPreviousEpisode={handleCastPreviousEpisode}
+                onNextEpisode={handleCastNextEpisode}
+                episodeInfo={currentCastEpisodeIndex !== null ? {
+                  current: currentCastEpisodeIndex + 1,
+                  total: episodesData.Items.length,
+                  seasonNumber: seasonsData?.Items?.find(s => s.Id === selectedSeasonId)?.IndexNumber
+                } : undefined}
                 compact={false}
               />
             </div>
@@ -1035,7 +1080,7 @@ const Detail = () => {
           {/* Episodes List */}
           {episodesData?.Items && episodesData.Items.length > 0 && (
             <div className="space-y-2 sm:space-y-3">
-              {episodesData.Items.map((episode) => {
+              {episodesData.Items.map((episode, index) => {
                 const episodeImageUrl = episode.ImageTags?.Primary && serverUrl
                   ? getJellyfinImageUrl(serverUrl, episode.Id, 'Primary', { maxHeight: '300' })
                   : null;
@@ -1048,7 +1093,7 @@ const Detail = () => {
                     episodeImageUrl={episodeImageUrl}
                     isSelected={episodeId === episode.Id}
                     isConnectedToCast={castState.isConnected}
-                    onPlay={() => handleEpisodePlayClick(episode)}
+                    onPlay={() => handleEpisodePlayClick(episode, index)}
                     onSubtitleSearch={() => openEpisodeSubtitleSearch(episode.Id, `${episode.IndexNumber ? episode.IndexNumber + '. ' : ''}${episode.Name}`)}
                     refCallback={(el) => episodeRefs.current[episode.Id] = el}
                   />

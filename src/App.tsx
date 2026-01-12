@@ -28,6 +28,7 @@ import News from "./pages/News";
 import Statistics from "./pages/Statistics";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
+import { FloatingCastController } from "./components/FloatingCastController";
 
 const queryClient = new QueryClient();
 
@@ -69,7 +70,7 @@ const AppContent = () => {
         <AppSidebar />
         <main className="flex-1 flex flex-col min-w-0">
           <Header />
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto pb-16">
             <Routes>
               <Route path="/browse" element={<Browse />} />
               <Route path="/movies" element={<Browse />} />
@@ -91,6 +92,8 @@ const AppContent = () => {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
+          {/* Floating Chromecast controller - always visible when connected */}
+          <FloatingCastController />
         </main>
       </div>
     </SidebarProvider>
