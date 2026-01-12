@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, Subtitles } from "lucide-react";
+import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, Subtitles, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
@@ -361,12 +361,15 @@ export const ChromecastController = ({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant={selectedAudioTrack !== undefined ? "secondary" : "ghost"}
                     size="icon"
-                    className="h-8 w-8 hidden md:flex"
+                    className="h-8 w-8 hidden md:flex relative"
                     title="Velg lydspor"
                   >
                     <Languages className="h-4 w-4" />
+                    {selectedAudioTrack !== undefined && (
+                      <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-primary rounded-full" />
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-2" align="end">
@@ -377,15 +380,20 @@ export const ChromecastController = ({
                         key={track.index}
                         variant={selectedAudioTrack === track.index ? "secondary" : "ghost"}
                         size="sm"
-                        className="w-full justify-start text-left"
+                        className="w-full justify-between gap-2"
                         onClick={() => onAudioTrackChange(track.index)}
                       >
-                        <span className="truncate">{track.displayTitle}</span>
-                        {track.channels && (
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {track.channels >= 6 ? '5.1' : track.channels >= 8 ? '7.1' : 'Stereo'}
-                          </span>
-                        )}
+                        <span className="truncate text-left flex-1">{track.displayTitle}</span>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {track.channels && (
+                            <span className="text-xs text-muted-foreground">
+                              {track.channels >= 6 ? '5.1' : track.channels >= 8 ? '7.1' : 'Stereo'}
+                            </span>
+                          )}
+                          {selectedAudioTrack === track.index && (
+                            <Check className="h-4 w-4 text-primary" />
+                          )}
+                        </div>
                       </Button>
                     ))}
                   </div>
@@ -398,12 +406,15 @@ export const ChromecastController = ({
               <Popover>
                 <PopoverTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant={selectedSubtitle ? "secondary" : "ghost"}
                     size="icon"
-                    className="h-8 w-8 hidden md:flex"
+                    className="h-8 w-8 hidden md:flex relative"
                     title="Velg undertekst"
                   >
                     <Subtitles className="h-4 w-4" />
+                    {selectedSubtitle && (
+                      <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-primary rounded-full" />
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-56 p-2" align="end">
@@ -412,20 +423,26 @@ export const ChromecastController = ({
                     <Button
                       variant={selectedSubtitle === "" ? "secondary" : "ghost"}
                       size="sm"
-                      className="w-full justify-start text-left"
+                      className="w-full justify-between gap-2"
                       onClick={() => onSubtitleChange("")}
                     >
-                      Ingen
+                      <span>Ingen</span>
+                      {selectedSubtitle === "" && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
                     </Button>
                     {subtitleTracks.map((track) => (
                       <Button
                         key={track.index}
                         variant={selectedSubtitle === track.index.toString() ? "secondary" : "ghost"}
                         size="sm"
-                        className="w-full justify-start text-left"
+                        className="w-full justify-between gap-2"
                         onClick={() => onSubtitleChange(track.index.toString())}
                       >
-                        <span className="truncate">{track.displayTitle}</span>
+                        <span className="truncate text-left flex-1">{track.displayTitle}</span>
+                        {selectedSubtitle === track.index.toString() && (
+                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        )}
                       </Button>
                     ))}
                   </div>
@@ -646,7 +663,12 @@ export const ChromecastController = ({
       {/* Audio track selector */}
       {audioTracks.length > 1 && onAudioTrackChange && (
         <div className="flex items-center gap-3">
-          <Languages className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div className="relative flex-shrink-0">
+            <Languages className="h-4 w-4 text-muted-foreground" />
+            {selectedAudioTrack !== undefined && (
+              <span className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full" />
+            )}
+          </div>
           <Select
             value={selectedAudioTrack?.toString()}
             onValueChange={(value) => onAudioTrackChange(parseInt(value))}
@@ -657,8 +679,14 @@ export const ChromecastController = ({
             <SelectContent>
               {audioTracks.map((track) => (
                 <SelectItem key={track.index} value={track.index.toString()}>
-                  {track.displayTitle}
-                  {track.channels && ` (${track.channels >= 6 ? '5.1' : track.channels >= 8 ? '7.1' : 'Stereo'})`}
+                  <div className="flex items-center justify-between w-full gap-2">
+                    <span>{track.displayTitle}</span>
+                    {track.channels && (
+                      <span className="text-xs text-muted-foreground">
+                        {track.channels >= 6 ? '5.1' : track.channels >= 8 ? '7.1' : 'Stereo'}
+                      </span>
+                    )}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -669,7 +697,12 @@ export const ChromecastController = ({
       {/* Subtitle selector */}
       {subtitleTracks.length > 0 && onSubtitleChange && (
         <div className="flex items-center gap-3">
-          <Subtitles className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <div className="relative flex-shrink-0">
+            <Subtitles className="h-4 w-4 text-muted-foreground" />
+            {selectedSubtitle && (
+              <span className="absolute -top-1 -right-1 h-2 w-2 bg-primary rounded-full" />
+            )}
+          </div>
           <Select
             value={selectedSubtitle || ""}
             onValueChange={onSubtitleChange}

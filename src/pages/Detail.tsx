@@ -116,6 +116,7 @@ const Detail = () => {
   const { serverUrl: castServerUrl, apiKey: castApiKey } = useServerSettings();
   const [selectedSubtitle, setSelectedSubtitle] = useState<string>("");
   const [selectedCastAudioTrack, setSelectedCastAudioTrack] = useState<number | undefined>(undefined);
+  const [selectedCastSubtitle, setSelectedCastSubtitle] = useState<string>("");
   const [selectedSeasonId, setSelectedSeasonId] = useState<string>("");
   const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
   const [subtitleSearchOpen, setSubtitleSearchOpen] = useState(false);
@@ -406,7 +407,8 @@ const Detail = () => {
       const currentEpisode = episodesData.Items[currentCastEpisodeIndex];
       if (currentEpisode) {
         toast.info('Bytter lydspor...');
-        await handleEpisodePlayClick(currentEpisode, currentCastEpisodeIndex, audioIndex);
+        await reloadCastWithParams(currentEpisode.Id, audioIndex, selectedCastSubtitle ? parseInt(selectedCastSubtitle) : undefined);
+        setSelectedCastAudioTrack(audioIndex);
         toast.success('Lydspor byttet');
         return;
       }
@@ -415,30 +417,83 @@ const Detail = () => {
     // For movies (non-series)
     if (item && item.Type !== 'Series' && id) {
       toast.info('Bytter lydspor...');
-      
-      const streamUrl = `${castServerUrl}/Videos/${id}/stream?Static=true&api_key=${castApiKey}&AudioStreamIndex=${audioIndex}`;
-      const imageUrl = item.ImageTags?.Primary && castServerUrl
-        ? `${castServerUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
-        : undefined;
-      
-      // Preserve current playback position
-      const currentPlaybackTime = castState.mediaInfo?.currentTime;
-      const persistedPosition = getPersistedCastPosition(id);
-      const resumeTime = currentPlaybackTime || persistedPosition || (item.UserData?.PlaybackPositionTicks 
-        ? item.UserData.PlaybackPositionTicks / 10000000 
-        : undefined);
-      
-      await loadMedia(streamUrl, {
-        title: item.Name,
-        subtitle: item.ProductionYear?.toString(),
-        imageUrl,
-        currentTime: resumeTime,
-      });
-      
-      setCurrentCastItemId(id);
+      await reloadCastWithParams(id, audioIndex, selectedCastSubtitle ? parseInt(selectedCastSubtitle) : undefined);
       setSelectedCastAudioTrack(audioIndex);
       toast.success('Lydspor byttet');
     }
+  };
+
+  // Handle subtitle change during Chromecast playback - reload stream with new subtitle
+  const handleCastSubtitleChange = async (subtitleIndex: string) => {
+    if (!castState.isConnected) return;
+    
+    const subIndex = subtitleIndex ? parseInt(subtitleIndex) : undefined;
+    
+    // For series episodes
+    if (currentCastEpisodeIndex !== null && episodesData?.Items) {
+      const currentEpisode = episodesData.Items[currentCastEpisodeIndex];
+      if (currentEpisode) {
+        toast.info('Bytter undertekst...');
+        await reloadCastWithParams(currentEpisode.Id, selectedCastAudioTrack, subIndex);
+        setSelectedCastSubtitle(subtitleIndex);
+        toast.success(subtitleIndex ? 'Undertekst byttet' : 'Undertekst deaktivert');
+        return;
+      }
+    }
+    
+    // For movies (non-series)
+    if (item && item.Type !== 'Series' && id) {
+      toast.info('Bytter undertekst...');
+      await reloadCastWithParams(id, selectedCastAudioTrack, subIndex);
+      setSelectedCastSubtitle(subtitleIndex);
+      toast.success(subtitleIndex ? 'Undertekst byttet' : 'Undertekst deaktivert');
+    }
+  };
+
+  // Reload cast stream with new audio/subtitle parameters
+  const reloadCastWithParams = async (itemId: string, audioIndex?: number, subtitleIndex?: number) => {
+    let streamUrl = `${castServerUrl}/Videos/${itemId}/stream?Static=true&api_key=${castApiKey}`;
+    if (audioIndex !== undefined) {
+      streamUrl += `&AudioStreamIndex=${audioIndex}`;
+    }
+    if (subtitleIndex !== undefined) {
+      streamUrl += `&SubtitleStreamIndex=${subtitleIndex}`;
+    }
+    
+    // Preserve current playback position
+    const currentPlaybackTime = castState.mediaInfo?.currentTime;
+    const persistedPosition = getPersistedCastPosition(itemId);
+    const resumeTime = currentPlaybackTime || persistedPosition;
+    
+    // Get title info
+    let title = item?.Name || '';
+    let subtitle = '';
+    let imageUrl: string | undefined;
+    
+    if (currentCastEpisodeIndex !== null && episodesData?.Items) {
+      const episode = episodesData.Items[currentCastEpisodeIndex];
+      if (episode) {
+        title = episode.Name;
+        subtitle = `${item?.Name} - Episode ${episode.IndexNumber}`;
+        imageUrl = episode.ImageTags?.Primary && castServerUrl
+          ? `${castServerUrl.replace(/\/$/, '')}/Items/${episode.Id}/Images/Primary?maxHeight=600`
+          : undefined;
+      }
+    } else {
+      subtitle = item?.ProductionYear?.toString() || '';
+      imageUrl = item?.ImageTags?.Primary && castServerUrl
+        ? `${castServerUrl.replace(/\/$/, '')}/Items/${item.Id}/Images/Primary?maxHeight=600`
+        : undefined;
+    }
+    
+    await loadMedia(streamUrl, {
+      title,
+      subtitle,
+      imageUrl,
+      currentTime: resumeTime,
+    });
+    
+    setCurrentCastItemId(itemId);
   };
 
 
@@ -1161,8 +1216,8 @@ const Detail = () => {
                 selectedAudioTrack={selectedCastAudioTrack}
                 onAudioTrackChange={handleCastAudioTrackChange}
                 subtitleTracks={subtitleTracks}
-                selectedSubtitle={selectedSubtitle}
-                onSubtitleChange={setSelectedSubtitle}
+                selectedSubtitle={selectedCastSubtitle}
+                onSubtitleChange={handleCastSubtitleChange}
                 hasPreviousEpisode={currentCastEpisodeIndex !== null && currentCastEpisodeIndex > 0}
                 hasNextEpisode={currentCastEpisodeIndex !== null && episodesData.Items.length > 0 && currentCastEpisodeIndex < episodesData.Items.length - 1}
                 onPreviousEpisode={handleCastPreviousEpisode}
