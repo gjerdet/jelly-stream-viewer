@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, ChevronDown } from "lucide-react";
+import { Play, Pause, Square, Volume2, VolumeX, SkipBack, SkipForward, Cast, ChevronLeft, ChevronRight, Volume1, Languages, Subtitles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,14 @@ interface AudioTrack {
   channels?: number;
 }
 
+interface SubtitleTrack {
+  index: number;
+  language: string;
+  displayTitle: string;
+  codec?: string;
+  isDefault?: boolean;
+}
+
 interface CastState {
   isAvailable: boolean;
   isConnected: boolean;
@@ -49,6 +57,9 @@ interface ChromecastControllerProps {
   audioTracks?: AudioTrack[];
   selectedAudioTrack?: number;
   onAudioTrackChange?: (index: number) => void;
+  subtitleTracks?: SubtitleTrack[];
+  selectedSubtitle?: string;
+  onSubtitleChange?: (index: string) => void;
   hasPreviousEpisode?: boolean;
   hasNextEpisode?: boolean;
   onPreviousEpisode?: () => void;
@@ -61,6 +72,9 @@ interface ChromecastControllerProps {
   compact?: boolean;
   floating?: boolean;
   className?: string;
+  // Persisted position
+  onPositionUpdate?: (positionSeconds: number) => void;
+  itemId?: string;
 }
 
 export const ChromecastController = ({
@@ -72,6 +86,9 @@ export const ChromecastController = ({
   audioTracks = [],
   selectedAudioTrack,
   onAudioTrackChange,
+  subtitleTracks = [],
+  selectedSubtitle,
+  onSubtitleChange,
   hasPreviousEpisode = false,
   hasNextEpisode = false,
   onPreviousEpisode,
@@ -80,12 +97,15 @@ export const ChromecastController = ({
   compact = false,
   floating = false,
   className,
+  onPositionUpdate,
+  itemId,
 }: ChromecastControllerProps) => {
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekValue, setSeekValue] = useState(0);
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
+  const [lastPositionUpdate, setLastPositionUpdate] = useState(0);
 
   // Sync volume from remote player
   useEffect(() => {
@@ -101,6 +121,20 @@ export const ChromecastController = ({
       setSeekValue(castState.mediaInfo.currentTime);
     }
   }, [castState.mediaInfo?.currentTime, isSeeking]);
+
+  // Persist playback position periodically
+  useEffect(() => {
+    if (!castState.mediaInfo || !onPositionUpdate || !itemId) return;
+    
+    const currentTime = castState.mediaInfo.currentTime;
+    const now = Date.now();
+    
+    // Update every 10 seconds
+    if (now - lastPositionUpdate >= 10000 && currentTime > 0) {
+      onPositionUpdate(currentTime);
+      setLastPositionUpdate(now);
+    }
+  }, [castState.mediaInfo?.currentTime, onPositionUpdate, itemId, lastPositionUpdate]);
 
   const handleVolumeChange = useCallback((value: number[]) => {
     const newVolume = value[0];
@@ -359,6 +393,46 @@ export const ChromecastController = ({
               </Popover>
             )}
 
+            {/* Subtitle selector */}
+            {subtitleTracks.length > 0 && onSubtitleChange && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 hidden md:flex"
+                    title="Velg undertekst"
+                  >
+                    <Subtitles className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2" align="end">
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground px-2 pb-1">Undertekster</p>
+                    <Button
+                      variant={selectedSubtitle === "" ? "secondary" : "ghost"}
+                      size="sm"
+                      className="w-full justify-start text-left"
+                      onClick={() => onSubtitleChange("")}
+                    >
+                      Ingen
+                    </Button>
+                    {subtitleTracks.map((track) => (
+                      <Button
+                        key={track.index}
+                        variant={selectedSubtitle === track.index.toString() ? "secondary" : "ghost"}
+                        size="sm"
+                        className="w-full justify-start text-left"
+                        onClick={() => onSubtitleChange(track.index.toString())}
+                      >
+                        <span className="truncate">{track.displayTitle}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
+
             {/* Stop button */}
             <Button
               variant="ghost"
@@ -585,6 +659,29 @@ export const ChromecastController = ({
                 <SelectItem key={track.index} value={track.index.toString()}>
                   {track.displayTitle}
                   {track.channels && ` (${track.channels >= 6 ? '5.1' : track.channels >= 8 ? '7.1' : 'Stereo'})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Subtitle selector */}
+      {subtitleTracks.length > 0 && onSubtitleChange && (
+        <div className="flex items-center gap-3">
+          <Subtitles className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Select
+            value={selectedSubtitle || ""}
+            onValueChange={onSubtitleChange}
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue placeholder="Velg undertekst" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Ingen undertekst</SelectItem>
+              {subtitleTracks.map((track) => (
+                <SelectItem key={track.index} value={track.index.toString()}>
+                  {track.displayTitle}
                 </SelectItem>
               ))}
             </SelectContent>
