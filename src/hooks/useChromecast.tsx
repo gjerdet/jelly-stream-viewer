@@ -163,6 +163,18 @@ export const useChromecast = () => {
           }
         );
 
+        // Listen for player state changes (for media ended detection)
+        playerController.addEventListener(
+          castFramework.RemotePlayerEventType.PLAYER_STATE_CHANGED,
+          () => {
+            const playerState = player.playerState;
+            if (playerState === 'IDLE' && player.isConnected) {
+              // Media has ended - dispatch custom event
+              window.dispatchEvent(new CustomEvent('chromecast-media-ended'));
+            }
+          }
+        );
+
         setCastState((prev) => ({ ...prev, isAvailable: true }));
         setIsLoading(false);
 
