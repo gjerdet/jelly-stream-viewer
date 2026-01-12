@@ -1596,6 +1596,30 @@ const Player = () => {
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
         onWaiting={() => setIsBuffering(true)}
+        onStalled={() => {
+          // Edge function timeout (~150s) can cause stalled state
+          // Auto-reconnect by reloading stream from current position
+          const video = videoRef.current;
+          if (!video || isSeekingReload) return;
+          
+          console.log('Stream stalled, attempting auto-reconnect from', video.currentTime);
+          setIsBuffering(true);
+          
+          // Wait a moment to see if buffering recovers naturally
+          setTimeout(() => {
+            const currentVideo = videoRef.current;
+            if (currentVideo && currentVideo.readyState < 3 && !isSeekingReload) {
+              console.log('Stream still stalled after timeout, reloading from position', currentVideo.currentTime);
+              toast.info('Strømmen stoppet, kobler til på nytt...');
+              
+              // Reload stream from current position (server-side seeking)
+              isSeekingViaReloadRef.current = true;
+              setIsSeekingReload(true);
+              setSeekTargetTime(currentVideo.currentTime);
+              setStreamStartPosition(currentVideo.currentTime);
+            }
+          }, 5000); // Wait 5 seconds before auto-reconnect
+        }}
         onPlaying={() => { 
           setIsBuffering(false); 
           setIsPlaying(true); 
