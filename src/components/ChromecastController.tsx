@@ -532,9 +532,10 @@ export const ChromecastController = ({
     );
   }
 
-  // Full controller
+  // Full controller with mobile scroll support
   return (
-    <Card className={cn("p-4 space-y-4", className)}>
+    <Card className={cn("p-4 max-h-[70vh] overflow-y-auto", className)}>
+      <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-lg bg-primary/10">
@@ -731,6 +732,7 @@ export const ChromecastController = ({
         <Square className="h-4 w-4 mr-2" />
         Stopp casting
       </Button>
+      </div>
     </Card>
   );
 };

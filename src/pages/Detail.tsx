@@ -1111,82 +1111,9 @@ const Detail = () => {
         </div>
       </div>
 
-      {/* Additional Info */}
-      <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {item.Type === 'Series' && (item.RecursiveItemCount || item.ChildCount) && (
-            <div>
-              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Episoder</h3>
-              <p>{item.RecursiveItemCount || item.ChildCount} totalt</p>
-            </div>
-          )}
-
-          {item.Genres && item.Genres.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Sjangere</h3>
-              <p>{item.Genres.join(", ")}</p>
-            </div>
-          )}
-
-          {item.Studios && item.Studios.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Studio</h3>
-              <p>{item.Studios.map(s => s.Name).join(", ")}</p>
-            </div>
-          )}
-
-          {item.People && item.People.length > 0 && (
-            <div className="md:col-span-3">
-              <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {item.People.filter(p => p.Type === "Actor").map((person, index) => {
-                  const personImageUrl = person.Id && person.PrimaryImageTag && serverUrl
-                    ? getJellyfinImageUrl(serverUrl, person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
-                    : null;
-                  
-                  return (
-                    <div 
-                      key={index} 
-                      onClick={() => person.Id && navigate(`/person/${person.Id}`)}
-                      className="text-sm space-y-2 cursor-pointer group"
-                    >
-                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary smooth-transition group-hover:ring-2 group-hover:ring-primary">
-                        {personImageUrl ? (
-                          <img
-                            src={personImageUrl}
-                            alt={person.Name}
-                            className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
-                            onError={(e) => {
-                              const parent = e.currentTarget.parentElement;
-                              if (parent) {
-                                parent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>`;
-                              }
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <User className="h-12 w-12 text-muted-foreground" />
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium truncate group-hover:text-primary smooth-transition">{person.Name}</p>
-                        {person.Role && (
-                          <p className="text-muted-foreground text-xs truncate">{person.Role}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Seasons and Episodes for Series */}
+      {/* Seasons and Episodes for Series - BEFORE cast for series */}
       {item.Type === "Series" && seasonsData?.Items && seasonsData.Items.length > 0 && (
-        <div className="container mx-auto px-4 py-12 border-t border-border">
+        <div className="container mx-auto px-4 py-8 sm:py-12 border-t border-border">
           <h2 className="text-2xl font-bold mb-6">Episoder</h2>
           
           {/* Season Selector */}
@@ -1259,6 +1186,79 @@ const Detail = () => {
           )}
         </div>
       )}
+
+      {/* Additional Info (for Series: shown after episodes) */}
+      <div className="container mx-auto px-4 py-8 sm:py-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          {item.Type === 'Series' && (item.RecursiveItemCount || item.ChildCount) && (
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Episoder</h3>
+              <p>{item.RecursiveItemCount || item.ChildCount} totalt</p>
+            </div>
+          )}
+
+          {item.Genres && item.Genres.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Sjangere</h3>
+              <p>{item.Genres.join(", ")}</p>
+            </div>
+          )}
+
+          {item.Studios && item.Studios.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-muted-foreground">Studio</h3>
+              <p>{item.Studios.map(s => s.Name).join(", ")}</p>
+            </div>
+          )}
+
+          {item.People && item.People.length > 0 && (
+            <div className="md:col-span-4">
+              <h3 className="text-lg font-semibold mb-4 text-muted-foreground">Skuespillere</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {item.People.filter(p => p.Type === "Actor").map((person, index) => {
+                  const personImageUrl = person.Id && person.PrimaryImageTag && serverUrl
+                    ? getJellyfinImageUrl(serverUrl, person.Id, 'Primary', { tag: person.PrimaryImageTag, maxHeight: '300' })
+                    : null;
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      onClick={() => person.Id && navigate(`/person/${person.Id}`)}
+                      className="text-sm space-y-2 cursor-pointer group"
+                    >
+                      <div className="aspect-[2/3] rounded-lg overflow-hidden bg-secondary smooth-transition group-hover:ring-2 group-hover:ring-primary">
+                        {personImageUrl ? (
+                          <img
+                            src={personImageUrl}
+                            alt={person.Name}
+                            className="w-full h-full object-cover group-hover:scale-105 smooth-transition"
+                            onError={(e) => {
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                parent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>`;
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <User className="h-12 w-12 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium truncate group-hover:text-primary smooth-transition">{person.Name}</p>
+                        {person.Role && (
+                          <p className="text-muted-foreground text-xs truncate">{person.Role}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Episode Subtitle Search Dialog */}
       <Dialog 
