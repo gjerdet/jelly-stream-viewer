@@ -196,6 +196,12 @@ const Player = () => {
   // Track if we're using direct streaming (seamless) or proxy (with refreshes)
   const [usingDirectStream, setUsingDirectStream] = useState(false);
   
+  // Force direct streaming mode (bypass proxy for better performance)
+  const [forceDirectStream, setForceDirectStream] = useState<boolean>(() => {
+    const saved = localStorage.getItem('forceDirectStream');
+    return saved === 'true';
+  });
+  
   // Proactive stream refresh to avoid edge function timeout (~150s)
   // We refresh at ~120s to ensure seamless playback (only for proxy streaming)
   const STREAM_REFRESH_INTERVAL = 120; // seconds before proactive refresh
@@ -351,9 +357,13 @@ const Player = () => {
       
       setStreamError(null);
       
-      // Check if direct streaming is available (Jellyfin URL is HTTPS)
+      // Check if direct streaming should be used:
+      // 1. Force direct stream is enabled (user preference)
+      // 2. OR Jellyfin URL is HTTPS (automatic seamless mode)
       const isHttps = serverUrl?.startsWith('https://');
-      if (isHttps && apiKey) {
+      const useDirectStreaming = forceDirectStream || isHttps;
+      
+      if (useDirectStreaming && serverUrl && apiKey) {
         // Use direct streaming for seamless playback (no proxy, no timeouts)
         const jellyfinSession = localStorage.getItem('jellyfin_session');
         const jellyfinToken = jellyfinSession ? JSON.parse(jellyfinSession).AccessToken : null;
@@ -367,7 +377,7 @@ const Player = () => {
             streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
           }
           
-          console.log('Using DIRECT streaming (seamless, HTTPS detected)');
+          console.log('Using DIRECT streaming', forceDirectStream ? '(forced by user)' : '(HTTPS detected)');
           setUsingDirectStream(true);
           setStreamUrl(streamingUrl);
           return;
@@ -417,7 +427,7 @@ const Player = () => {
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, serverUrl, apiKey]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, serverUrl, apiKey, forceDirectStream]);
 
   // Start playback when stream URL changes + setup proactive refresh timer
   useEffect(() => {
@@ -1819,7 +1829,32 @@ const Player = () => {
             <span className="font-semibold">Feildiagnostikk</span>
             <button onClick={() => setShowDiagnostics(false)} className="text-white/60 hover:text-white">✕</button>
           </div>
+          {/* Force Direct Streaming Toggle */}
+          <div className="flex items-center justify-between py-2 border-b border-white/10 mb-2">
+            <div>
+              <p className="font-medium text-white">Direkte streaming</p>
+              <p className="text-white/50 text-[10px]">Bypass proxy for mindre buffering</p>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const newValue = !forceDirectStream;
+                setForceDirectStream(newValue);
+                localStorage.setItem('forceDirectStream', String(newValue));
+                toast.success(newValue ? 'Direkte streaming aktivert' : 'Proxy streaming aktivert');
+                // Force stream reload
+                setStreamUrl('');
+              }}
+              className={`w-11 h-6 rounded-full transition-colors ${forceDirectStream ? 'bg-green-500' : 'bg-white/20'}`}
+            >
+              <div className={`w-5 h-5 rounded-full bg-white transition-transform ${forceDirectStream ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+          
           <div className="space-y-1 text-white/80">
+            <p className={usingDirectStream ? 'text-green-400' : 'text-amber-400'}>
+              <span className="text-white/50">Strømmemodus:</span> {usingDirectStream ? '✓ Direkte' : '⚡ Proxy'}
+            </p>
             <p><span className="text-white/50">HTTP (info):</span> {streamHttpStatus === -1 ? 'Nettverksfeil' : streamHttpStatus ?? '–'}</p>
             <p><span className="text-white/50">HTTP (stream):</span> {streamProbeStatus === -1 ? 'Nettverksfeil' : streamProbeStatus ?? 'Åpne diagnose for å teste'}</p>
             <p className={streamProbeStatus === 206 ? 'text-green-400' : streamProbeStatus === 200 ? 'text-amber-400' : ''}>
