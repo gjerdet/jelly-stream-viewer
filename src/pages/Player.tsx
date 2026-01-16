@@ -5,6 +5,7 @@ import { useServerSettings } from "@/hooks/useServerSettings";
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
+import { useDebouncedVisibility } from "@/hooks/useDebouncedVisibility";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -203,9 +204,10 @@ const Player = () => {
   const isSeekingViaReloadRef = useRef(false);
   const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
-  // Buffering state
-  const [isBuffering, setIsBuffering] = useState(false);
-  
+  // Buffering overlay state (debounced to avoid flickering on micro-buffering)
+  const { visible: isBuffering, show: showBuffering, hide: hideBuffering } =
+    useDebouncedVisibility({ showDelayMs: 350, minVisibleMs: 650 });
+
   // Seeking state (for showing loading spinner when reloading stream for seek)
   const [isSeekingReload, setIsSeekingReload] = useState(false);
   const [seekTargetTime, setSeekTargetTime] = useState<number | null>(null);
@@ -1665,13 +1667,13 @@ const Player = () => {
         onError={handleVideoError}
         onEnded={handleVideoEnded}
         onTimeUpdate={handleTimeUpdate}
-        onWaiting={() => setIsBuffering(true)}
+        onWaiting={() => showBuffering()}
         onStalled={() => {
           // Edge function timeout (~150s) can cause stalled state
           // This is a fallback if proactive refresh didn't trigger
           // ONLY relevant for proxy streaming - direct streaming handles this natively
           if (usingDirectStream) {
-            setIsBuffering(true);
+            showBuffering();
             return;
           }
           
@@ -1681,7 +1683,7 @@ const Player = () => {
           // Check if this is an actual stall (not just buffering briefly)
           const timeSinceStreamStart = (Date.now() - streamStartTimeRef.current) / 1000;
           console.log('Stream stalled after', timeSinceStreamStart.toFixed(0), 'seconds');
-          setIsBuffering(true);
+          showBuffering();
           
           // Only auto-reconnect if we've been streaming for a while (likely timeout)
           // or if the buffer is nearly empty
@@ -1702,7 +1704,7 @@ const Player = () => {
           }
         }}
         onPlaying={() => { 
-          setIsBuffering(false); 
+          hideBuffering(); 
           setIsPlaying(true); 
           // Dismiss seeking state when playback starts
           if (isSeekingReload) {
@@ -1712,7 +1714,7 @@ const Player = () => {
         }}
         onPause={() => setIsPlaying(false)}
         onCanPlay={() => {
-          setIsBuffering(false);
+          hideBuffering();
           // Also dismiss seeking state on canplay in case playing doesn't fire immediately
           if (isSeekingReload) {
             setIsSeekingReload(false);
