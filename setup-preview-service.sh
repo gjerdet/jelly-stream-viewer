@@ -51,6 +51,15 @@ if [ -z "$NPM_PATH" ]; then
 fi
 echo "Using npm at: $NPM_PATH"
 
+# Ensure Node is available for systemd (npm uses /usr/bin/env node)
+NODE_PATH=$(su - "$ACTUAL_USER" -c "command -v node" 2>/dev/null || true)
+if [ -z "$NODE_PATH" ]; then
+    NODE_PATH="/usr/bin/node"
+fi
+NODE_BIN_DIR=$(dirname "$NODE_PATH")
+SERVICE_PATH="${NODE_BIN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+echo "Using node at: $NODE_PATH"
+
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
 [Unit]
 Description=Jelly Stream Preview
@@ -64,7 +73,8 @@ WorkingDirectory=$APP_DIR
 ExecStart=$NPM_PATH run preview -- --host 0.0.0.0 --port 4173
 Restart=always
 RestartSec=10
-Environment=NODE_ENV=production
+Environment="NODE_ENV=production"
+Environment="PATH=$SERVICE_PATH"
 
 [Install]
 WantedBy=multi-user.target
