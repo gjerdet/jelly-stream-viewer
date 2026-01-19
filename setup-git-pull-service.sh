@@ -115,8 +115,8 @@ echo -e "${BLUE}Lager systemd service: ${SERVICE_FILE}${NC}"
 cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Jelly Stream Git Pull Server
-After=network.target
 Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
