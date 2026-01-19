@@ -54,7 +54,8 @@ echo "Using npm at: $NPM_PATH"
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
 [Unit]
 Description=Jelly Stream Preview
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
