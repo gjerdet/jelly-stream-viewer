@@ -67,26 +67,54 @@ serve(async (req) => {
     let jellyfinData: any = null;
     let usedApiKeyAuth = false;
 
-    // First, try normal password authentication
-    const jellyfinResponse = await fetch(authUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Emby-Authorization': authHeader,
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        Username: username.trim(),
-        Pw: password,
-        pw: password,
-      }),
-    });
+    // First, try normal password authentication.
+    // NOTE: Jellyfin versions differ in whether they expect `Pw` or `pw`.
+    // Do NOT send both keys in the same JSON object (some servers treat keys case-insensitively and can error).
+    const authAttempts = [
+      { Username: username.trim(), Pw: password },
+      { Username: username.trim(), pw: password },
+    ];
 
-    console.log('Response status:', jellyfinResponse.status);
+    let jellyfinResponse: Response | null = null;
+    let jellyfinResponseText = '';
 
-    if (jellyfinResponse.ok) {
-      jellyfinData = await jellyfinResponse.json();
-      console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
+    for (const attemptBody of authAttempts) {
+      jellyfinResponse = await fetch(authUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Emby-Authorization': authHeader,
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(attemptBody),
+      });
+
+      jellyfinResponseText = await jellyfinResponse.text();
+      console.log(
+        'AuthenticateByName status:',
+        jellyfinResponse.status,
+        'keys:',
+        Object.keys(attemptBody)
+      );
+
+      if (jellyfinResponse.ok) {
+        jellyfinData = JSON.parse(jellyfinResponseText);
+        console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
+        break;
+      }
+
+      // Only retry on likely validation/processing errors.
+      if (![400, 500].includes(jellyfinResponse.status)) {
+        break;
+      }
+    }
+
+    if (!jellyfinResponse) {
+      throw new Error('No response from Jellyfin authentication request');
+    }
+
+    if (jellyfinResponse.ok && jellyfinData) {
+      // Success handled above
     } else {
       // Normal auth failed - try API key authentication for new/unactivated users
       console.log('Normal auth failed, trying API key lookup for new users...');
@@ -120,34 +148,48 @@ serve(async (req) => {
           const authByIdUrl = `${serverUrl}/Users/${matchedUser.Id}/Authenticate`;
           console.log('Authenticating user by ID:', authByIdUrl);
           
-          const authByIdResponse = await fetch(authByIdUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Emby-Token': jellyfinApiKey,
-              'Accept': 'application/json',
-            },
-             body: JSON.stringify({
-               pw: password,
-               Pw: password,
-             }),
-          });
+           const authByIdAttempts = [{ pw: password }, { Pw: password }];
 
-          console.log('Auth by ID response status:', authByIdResponse.status);
+           let authByIdResponse: Response | null = null;
+           let authByIdText = '';
 
-          if (authByIdResponse.ok) {
-            const authResult = await authByIdResponse.json();
-            jellyfinData = {
-              AccessToken: authResult.AccessToken || jellyfinApiKey,
-              User: matchedUser,
-              ServerId: authResult.ServerId || matchedUser.ServerId,
-            };
-            usedApiKeyAuth = true;
-            console.log('API key authentication successful for new user:', matchedUser.Name);
-          } else {
-            const authError = await authByIdResponse.text();
-            console.log('Password verification failed for user:', matchedUser.Name, 'Error:', authError);
-          }
+           for (const attemptBody of authByIdAttempts) {
+             authByIdResponse = await fetch(authByIdUrl, {
+               method: 'POST',
+               headers: {
+                 'Content-Type': 'application/json',
+                 'X-Emby-Token': jellyfinApiKey,
+                 'Accept': 'application/json',
+               },
+               body: JSON.stringify(attemptBody),
+             });
+
+             authByIdText = await authByIdResponse.text();
+             console.log(
+               'Auth by ID response status:',
+               authByIdResponse.status,
+               'keys:',
+               Object.keys(attemptBody)
+             );
+
+             if (authByIdResponse.ok) break;
+
+             // Only retry on likely validation/processing errors
+             if (![400, 500].includes(authByIdResponse.status)) break;
+           }
+
+           if (authByIdResponse?.ok) {
+             const authResult = JSON.parse(authByIdText);
+             jellyfinData = {
+               AccessToken: authResult.AccessToken || jellyfinApiKey,
+               User: matchedUser,
+               ServerId: authResult.ServerId || matchedUser.ServerId,
+             };
+             usedApiKeyAuth = true;
+             console.log('API key authentication successful for new user:', matchedUser.Name);
+           } else {
+             console.log('Password verification failed for user:', matchedUser.Name, 'Error:', authByIdText);
+           }
         } else {
           console.log('No matching user found for username:', username.trim());
         }
@@ -157,7 +199,7 @@ serve(async (req) => {
       }
 
       if (!jellyfinData) {
-        const errorText = await jellyfinResponse.text();
+        const errorText = jellyfinResponseText;
         const contentType = jellyfinResponse.headers.get('content-type') ?? '';
         const serverHeader = (jellyfinResponse.headers.get('server') ?? '').toLowerCase();
         const hasWwwAuth = !!jellyfinResponse.headers.get('www-authenticate');
