@@ -29,48 +29,29 @@ systemctl stop jelly-stream-preview 2>/dev/null || true
 systemctl stop jelly-webhook 2>/dev/null || true
 
 echo -e "${GREEN}[2/6]${NC} Fixing permissions / cleaning old build..."
-# Old builds are often owned by root (from previous sudo runs) and will break vite build
+# Old installs/builds are often owned by root (from previous sudo runs) and will break Vite.
+# The safest fix is to delete node_modules and reinstall as the real user.
 rm -rf "$APP_DIR/dist" 2>/dev/null || true
-rm -rf "$APP_DIR/node_modules/.vite" 2>/dev/null || true
-rm -rf "$APP_DIR/node_modules/.vite-temp" 2>/dev/null || true
-# Fix ownership of node_modules if it exists
-if [ -d "$APP_DIR/node_modules" ]; then
-    chown -R "$ACTUAL_USER:$ACTUAL_USER" "$APP_DIR/node_modules" 2>/dev/null || true
-fi
+rm -rf "$APP_DIR/node_modules" 2>/dev/null || true
+rm -rf "$APP_DIR/.vite" 2>/dev/null || true
+
+# Ensure the application directory is owned by the actual user (prevents EACCES in .vite-temp, etc.)
+chown -R "$ACTUAL_USER:$ACTUAL_USER" "$APP_DIR"
 
 echo -e "${GREEN}[3/6]${NC} Installing dependencies..."
 cd "$APP_DIR"
-# Prefer Node 20+ if available via nvm, fallback to whatever is installed
-# First check Node version
-NODE_VERSION=$(su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; nvm use 20 >/dev/null 2>&1 || true; node -v 2>/dev/null" | sed 's/v//' | cut -d. -f1)
-if [ "$NODE_VERSION" -lt 20 ] 2>/dev/null; then
-    echo -e "${RED}Warning: Node version is less than 20. Installing Node 20...${NC}"
-    su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; nvm install 20.19.0"
-fi
 
-su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; command -v nvm >/dev/null 2>&1 && (nvm use 20.19.0 >/dev/null 2>&1 || nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm install"
+# Vite 6 + SWC requires Node 20.19+.
+# Ensure nvm exists for the actual user (installs it if missing).
+su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; if [ ! -s \"\$NVM_DIR/nvm.sh\" ]; then curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash; fi"
+
+# Install/use Node 20.19.0 and run npm install as the actual user (never as root).
+su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; . \"\$NVM_DIR/nvm.sh\"; nvm install 20.19.0; nvm use 20.19.0; cd '$APP_DIR' && npm install"
 
 echo -e "${GREEN}[4/6]${NC} Building application..."
-su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"; command -v nvm >/dev/null 2>&1 && (nvm use 20.19.0 >/dev/null 2>&1 || nvm use 20 >/dev/null 2>&1 || true); cd '$APP_DIR' && npm run build"
+su - "$ACTUAL_USER" -c "export NVM_DIR=\"\$HOME/.nvm\"; . \"\$NVM_DIR/nvm.sh\"; nvm use 20.19.0; cd '$APP_DIR' && npm run build"
 
 echo -e "${GREEN}[5/6]${NC} Creating systemd service for preview (port 4173)..."
-
-# Find npm path for the actual user
-NPM_PATH=$(su - "$ACTUAL_USER" -c "which npm" 2>/dev/null)
-if [ -z "$NPM_PATH" ]; then
-    echo -e "${RED}Error: npm not found for user $ACTUAL_USER${NC}"
-    exit 1
-fi
-echo "Using npm at: $NPM_PATH"
-
-# Ensure Node is available for systemd (npm uses /usr/bin/env node)
-NODE_PATH=$(su - "$ACTUAL_USER" -c "command -v node" 2>/dev/null || true)
-if [ -z "$NODE_PATH" ]; then
-    NODE_PATH="/usr/bin/node"
-fi
-NODE_BIN_DIR=$(dirname "$NODE_PATH")
-SERVICE_PATH="${NODE_BIN_DIR}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-echo "Using node at: $NODE_PATH"
 
 cat > /etc/systemd/system/jelly-stream-preview.service <<EOF
 [Unit]
@@ -82,11 +63,10 @@ After=network-online.target
 Type=simple
 User=$ACTUAL_USER
 WorkingDirectory=$APP_DIR
-ExecStart=$NPM_PATH run preview -- --host 0.0.0.0 --port 4173
+Environment="NODE_ENV=production"
+ExecStart=/bin/bash -lc 'export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"; nvm use 20.19.0 >/dev/null; npm run preview -- --host 0.0.0.0 --port 4173'
 Restart=always
 RestartSec=10
-Environment="NODE_ENV=production"
-Environment="PATH=$SERVICE_PATH"
 
 [Install]
 WantedBy=multi-user.target
