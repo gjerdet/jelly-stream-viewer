@@ -78,6 +78,7 @@ serve(async (req) => {
       body: JSON.stringify({
         Username: username.trim(),
         Pw: password,
+        pw: password,
       }),
     });
 
@@ -126,9 +127,10 @@ serve(async (req) => {
               'X-Emby-Token': jellyfinApiKey,
               'Accept': 'application/json',
             },
-            body: JSON.stringify({
-              Pw: password,
-            }),
+             body: JSON.stringify({
+               pw: password,
+               Pw: password,
+             }),
           });
 
           console.log('Auth by ID response status:', authByIdResponse.status);
