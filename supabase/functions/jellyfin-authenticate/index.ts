@@ -65,7 +65,8 @@ serve(async (req) => {
 
     // IMPORTANT: Do NOT send a Token here.
     // This endpoint is used to obtain a user access token; sending an (invalid) token can cause a 401.
-    // Some clients/servers expect this value under `Authorization`, others under `X-Emby-Authorization`.
+    // Also avoid using the standard HTTP `Authorization` header here; Jellyfin expects client info in
+    // `X-Emby-Authorization` and some deployments behave badly if `Authorization` is a non-standard value.
     const authHeader = `MediaBrowser Client="kjeller-stream", Device="Web", DeviceId="kjeller-stream-web", Version="1.0.0"`;
 
     console.log('Full URL:', authUrl);
@@ -91,7 +92,6 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/json',
           'X-Emby-Authorization': authHeader,
-          'Authorization': authHeader,
           'Accept': 'application/json',
         },
         body: JSON.stringify(attemptBody),
@@ -230,6 +230,18 @@ serve(async (req) => {
           apiKeyPrefix: jellyfinApiKey.slice(0, 8),
           looksLikeProxyAuth,
         });
+
+        // If Jellyfin itself returns 500, this is usually a server-side auth provider/plugin issue.
+        // Don’t mislead the user with “invalid username/password”.
+        if (jellyfinResponse.status === 500) {
+          return new Response(
+            JSON.stringify({
+              error:
+                'Jellyfin svarte med en intern feil under innlogging. Sjekk Jellyfin-serverloggene (eller auth-plugin) og prøv igjen.',
+            }),
+            { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         return new Response(
           JSON.stringify({
