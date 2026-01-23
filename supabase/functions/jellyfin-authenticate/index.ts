@@ -6,6 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Use a permissive HTTP client to better support self-signed certs / local PKI.
+// (Matches the approach used in jellyfin-proxy.)
+const httpClient = Deno.createHttpClient({
+  caCerts: [],
+});
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -59,6 +65,7 @@ serve(async (req) => {
 
     // IMPORTANT: Do NOT send a Token here.
     // This endpoint is used to obtain a user access token; sending an (invalid) token can cause a 401.
+    // Some clients/servers expect this value under `Authorization`, others under `X-Emby-Authorization`.
     const authHeader = `MediaBrowser Client="kjeller-stream", Device="Web", DeviceId="kjeller-stream-web", Version="1.0.0"`;
 
     console.log('Full URL:', authUrl);
@@ -84,9 +91,11 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/json',
           'X-Emby-Authorization': authHeader,
+          'Authorization': authHeader,
           'Accept': 'application/json',
         },
         body: JSON.stringify(attemptBody),
+        client: httpClient,
       });
 
       jellyfinResponseText = await jellyfinResponse.text();
@@ -126,8 +135,10 @@ serve(async (req) => {
       const usersResponse = await fetch(usersUrl, {
         headers: {
           'X-Emby-Token': jellyfinApiKey,
+          'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
           'Accept': 'application/json',
         },
+        client: httpClient,
       });
 
       console.log('Users API response status:', usersResponse.status);
@@ -159,9 +170,11 @@ serve(async (req) => {
                headers: {
                  'Content-Type': 'application/json',
                  'X-Emby-Token': jellyfinApiKey,
+                  'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
                  'Accept': 'application/json',
                },
                body: JSON.stringify(attemptBody),
+                client: httpClient,
              });
 
              authByIdText = await authByIdResponse.text();
