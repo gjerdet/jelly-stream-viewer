@@ -76,9 +76,15 @@ serve(async (req) => {
     let usedApiKeyAuth = false;
 
     // First, try normal password authentication.
-    // NOTE: Jellyfin versions differ in whether they expect `Pw` or `pw`.
-    // Do NOT send both keys in the same JSON object (some servers treat keys case-insensitively and can error).
-    const authAttempts = [
+    // NOTE: Jellyfin deployments differ in whether they accept client info in `Authorization` or `X-Emby-Authorization`.
+    // Also, some differ in whether they expect `Pw` or `pw`.
+    // We try these combinations explicitly (never send both headers at once).
+    const authHeaderAttempts: Array<Record<string, string>> = [
+      { Authorization: authHeader },
+      { 'X-Emby-Authorization': authHeader },
+    ];
+
+    const authBodyAttempts = [
       { Username: username.trim(), Pw: password },
       { Username: username.trim(), pw: password },
     ];
@@ -86,35 +92,40 @@ serve(async (req) => {
     let jellyfinResponse: Response | null = null;
     let jellyfinResponseText = '';
 
-    for (const attemptBody of authAttempts) {
-      jellyfinResponse = await fetch(authUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Emby-Authorization': authHeader,
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(attemptBody),
-        client: httpClient,
-      });
+    outerAuth: for (const headerAttempt of authHeaderAttempts) {
+      const headerName = Object.keys(headerAttempt)[0] ?? 'unknown';
+      for (const attemptBody of authBodyAttempts) {
+        jellyfinResponse = await fetch(authUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...headerAttempt,
+          },
+          body: JSON.stringify(attemptBody),
+          client: httpClient,
+        });
 
-      jellyfinResponseText = await jellyfinResponse.text();
-      console.log(
-        'AuthenticateByName status:',
-        jellyfinResponse.status,
-        'keys:',
-        Object.keys(attemptBody)
-      );
+        jellyfinResponseText = await jellyfinResponse.text();
+        console.log(
+          'AuthenticateByName attempt:',
+          headerName,
+          'status:',
+          jellyfinResponse.status,
+          'keys:',
+          Object.keys(attemptBody)
+        );
 
-      if (jellyfinResponse.ok) {
-        jellyfinData = JSON.parse(jellyfinResponseText);
-        console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
-        break;
-      }
+        if (jellyfinResponse.ok) {
+          jellyfinData = JSON.parse(jellyfinResponseText);
+          console.log('Jellyfin authentication successful for user:', jellyfinData.User?.Name);
+          break outerAuth;
+        }
 
-      // Only retry on likely validation/processing errors.
-      if (![400, 500].includes(jellyfinResponse.status)) {
-        break;
+        // Only retry on likely validation/processing errors.
+        if (![400, 500].includes(jellyfinResponse.status)) {
+          break outerAuth;
+        }
       }
     }
 
@@ -154,42 +165,72 @@ serve(async (req) => {
         if (matchedUser) {
           console.log('Found matching user:', matchedUser.Name, 'ID:', matchedUser.Id);
           
-          // Verify password by attempting to authenticate the user
-          // Use admin API to check if credentials are valid
+           // Verify password by attempting to authenticate the user.
+           // Some Jellyfin installs return 500 for /Users/AuthenticateByName, but still allow /Users/{id}/Authenticate
+           // when authenticated with an admin API key.
           const authByIdUrl = `${serverUrl}/Users/${matchedUser.Id}/Authenticate`;
           console.log('Authenticating user by ID:', authByIdUrl);
-          
-           const authByIdAttempts = [{ pw: password }, { Pw: password }];
 
-           let authByIdResponse: Response | null = null;
-           let authByIdText = '';
+            const adminClientAuthHeader = `MediaBrowser Client="kjeller-stream", Device="Web", DeviceId="kjeller-stream-web", Version="1.0.0", Token="${jellyfinApiKey}"`;
 
-           for (const attemptBody of authByIdAttempts) {
-             authByIdResponse = await fetch(authByIdUrl, {
-               method: 'POST',
-               headers: {
-                 'Content-Type': 'application/json',
-                 'X-Emby-Token': jellyfinApiKey,
-                  'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
-                 'Accept': 'application/json',
-               },
-               body: JSON.stringify(attemptBody),
-                client: httpClient,
-             });
+            const authByIdHeaderAttempts: Array<Record<string, string>> = [
+              // Common Jellyfin patterns
+              {
+                'X-Emby-Token': jellyfinApiKey,
+                'Authorization': `MediaBrowser Token="${jellyfinApiKey}"`,
+              },
+              {
+                'X-Emby-Token': jellyfinApiKey,
+                'X-Emby-Authorization': adminClientAuthHeader,
+              },
+              {
+                'Authorization': adminClientAuthHeader,
+              },
+            ];
 
-             authByIdText = await authByIdResponse.text();
-             console.log(
-               'Auth by ID response status:',
-               authByIdResponse.status,
-               'keys:',
-               Object.keys(attemptBody)
-             );
+            const authByIdBodyAttempts = [
+              { Pw: password },
+              { pw: password },
+              { Password: password },
+              { password },
+            ];
 
-             if (authByIdResponse.ok) break;
+            let authByIdResponse: Response | null = null;
+            let authByIdText = '';
 
-             // Only retry on likely validation/processing errors
-             if (![400, 500].includes(authByIdResponse.status)) break;
-           }
+            outerById: for (const headerAttempt of authByIdHeaderAttempts) {
+              const headerName = Object.keys(headerAttempt).find((k) =>
+                ['authorization', 'x-emby-authorization', 'x-emby-token'].includes(k.toLowerCase())
+              ) ?? 'headers';
+
+              for (const attemptBody of authByIdBodyAttempts) {
+                authByIdResponse = await fetch(authByIdUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    ...headerAttempt,
+                  },
+                  body: JSON.stringify(attemptBody),
+                  client: httpClient,
+                });
+
+                authByIdText = await authByIdResponse.text();
+                console.log(
+                  'Auth by ID attempt:',
+                  headerName,
+                  'status:',
+                  authByIdResponse.status,
+                  'keys:',
+                  Object.keys(attemptBody)
+                );
+
+                if (authByIdResponse.ok) break outerById;
+
+                // Only retry on likely validation/processing errors
+                if (![400, 500].includes(authByIdResponse.status)) break outerById;
+              }
+            }
 
            if (authByIdResponse?.ok) {
              const authResult = JSON.parse(authByIdText);
