@@ -370,14 +370,26 @@ const Player = () => {
         
         if (jellyfinToken) {
           const baseUrl = serverUrl.replace(/\/$/, '');
-          let streamingUrl = `${baseUrl}/Videos/${id}/stream?Static=true&api_key=${apiKey}`;
+          
+          // For seeking support, we need to use the transcoding endpoint with StartTimeTicks
+          // Direct static streaming doesn't support seeking reliably
+          let streamingUrl: string;
+          
+          if (streamStartPosition > 0) {
+            // Use transcoding endpoint for seeking support
+            const startTicks = Math.floor(streamStartPosition * 10000000);
+            streamingUrl = `${baseUrl}/Videos/${id}/stream.mp4?UserId=${userId || ''}&api_key=${apiKey}&VideoCodec=h264&AudioCodec=aac&StartTimeTicks=${startTicks}`;
+          } else {
+            // Use static stream for initial playback
+            streamingUrl = `${baseUrl}/Videos/${id}/stream?Static=true&api_key=${apiKey}`;
+          }
           
           // Add audio stream index if selected
           if (selectedAudioTrack) {
             streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
           }
           
-          console.log('Using DIRECT streaming', forceDirectStream ? '(forced by user)' : '(HTTPS detected)');
+          console.log('Using DIRECT streaming', forceDirectStream ? '(forced by user)' : '(HTTPS detected)', 'startPosition:', streamStartPosition);
           setUsingDirectStream(true);
           setStreamUrl(streamingUrl);
           return;
@@ -427,7 +439,7 @@ const Player = () => {
     };
 
     setupStream();
-  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, serverUrl, apiKey, forceDirectStream]);
+  }, [id, selectedQuality, selectedAudioTrack, audioTrackInitialized, useHls, streamStartPosition, serverUrl, apiKey, forceDirectStream, userId]);
 
   // Start playback when stream URL changes + setup proactive refresh timer
   useEffect(() => {
@@ -1082,10 +1094,13 @@ const Player = () => {
     
     const newTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
     
-    // For transcoded streams, we need to reload with a new start position
-    // because byte-range seeking is not supported
-    if (streamStatus.isTranscoding) {
-      console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s`);
+    // For transcoded streams OR direct streaming, we need to reload with a new start position
+    // because byte-range seeking is not reliably supported
+    // Note: Even direct HTTPS streams to Jellyfin may be transcoded (HEVC→H264) and not support seeking
+    const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
+    
+    if (needsServerSideSeek) {
+      console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s (transcoding: ${streamStatus.isTranscoding}, direct: ${usingDirectStream})`);
       isSeekingViaReloadRef.current = true;
       setIsSeekingReload(true);
       setSeekTargetTime(newTime);
@@ -1109,8 +1124,12 @@ const Player = () => {
     
     const clampedTime = Math.max(0, Math.min(video.duration, newTime));
     
-    if (streamStatus.isTranscoding) {
-      console.log(`Slider seek via reload: ${video.currentTime.toFixed(1)}s -> ${clampedTime.toFixed(1)}s`);
+    // For transcoded streams OR direct streaming, we need to reload with a new start position
+    // because byte-range seeking is not reliably supported
+    const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
+    
+    if (needsServerSideSeek) {
+      console.log(`Slider seek via reload: ${video.currentTime.toFixed(1)}s -> ${clampedTime.toFixed(1)}s (transcoding: ${streamStatus.isTranscoding}, direct: ${usingDirectStream})`);
       isSeekingViaReloadRef.current = true;
       setIsSeekingReload(true);
       setSeekTargetTime(clampedTime);
