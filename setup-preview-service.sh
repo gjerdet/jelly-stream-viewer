@@ -29,13 +29,16 @@ systemctl stop jelly-stream-preview 2>/dev/null || true
 systemctl stop jelly-webhook 2>/dev/null || true
 
 echo -e "${GREEN}[2/6]${NC} Fixing permissions / cleaning old build..."
-# Old installs/builds are often owned by root (from previous sudo runs) and will break Vite.
-# The safest fix is to delete node_modules and reinstall as the real user.
+# CRITICAL: Fix ownership FIRST before any file operations.
+# Previous sudo runs may have created root-owned files that block npm install.
+chown -R "$ACTUAL_USER:$ACTUAL_USER" "$APP_DIR"
+
+# Now clean old build artifacts (with correct permissions)
 rm -rf "$APP_DIR/dist" 2>/dev/null || true
 rm -rf "$APP_DIR/node_modules" 2>/dev/null || true
 rm -rf "$APP_DIR/.vite" 2>/dev/null || true
 
-# Ensure the application directory is owned by the actual user (prevents EACCES in .vite-temp, etc.)
+# Double-check ownership after cleanup
 chown -R "$ACTUAL_USER:$ACTUAL_USER" "$APP_DIR"
 
 echo -e "${GREEN}[3/6]${NC} Installing dependencies..."
