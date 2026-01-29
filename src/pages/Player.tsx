@@ -1041,12 +1041,30 @@ const Player = () => {
     }
   };
 
+  // Some Jellyfin streams report `video.duration` as 0/NaN/Infinity.
+  // Seeking must still work, so we fall back to the item's runtime when available.
+  const getEffectiveDurationSeconds = useCallback((video: HTMLVideoElement): number | null => {
+    const d = video.duration;
+    if (Number.isFinite(d) && d > 0) return d;
+
+    const runtimeTicks = item?.RunTimeTicks;
+    if (typeof runtimeTicks === "number" && runtimeTicks > 0) {
+      return runtimeTicks / 10000000;
+    }
+
+    return null;
+  }, [item?.RunTimeTicks]);
+
   // Seek to position (slider input) - for direct streams, seek immediately
   // For transcoded streams, we update the visual but wait for release
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = parseFloat(e.target.value);
+
+    if (!Number.isFinite(time)) return;
+
+    const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
     
-    if (streamStatus.isTranscoding) {
+    if (needsServerSideSeek) {
       // Just update the visual position while dragging
       setSliderDragValue(time);
       setCurrentTime(time); // Update display
@@ -1058,7 +1076,8 @@ const Player = () => {
   
   // Handle slider drag start
   const handleSliderDragStart = () => {
-    if (streamStatus.isTranscoding) {
+    const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
+    if (needsServerSideSeek) {
       setIsDraggingSlider(true);
       setSliderDragValue(currentTime);
     }
@@ -1066,7 +1085,8 @@ const Player = () => {
   
   // Handle slider drag end - execute the actual seek for transcoded streams
   const handleSliderDragEnd = () => {
-    if (streamStatus.isTranscoding && isDraggingSlider) {
+    const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
+    if (needsServerSideSeek && isDraggingSlider) {
       setIsDraggingSlider(false);
       handleSeekToPosition(sliderDragValue);
     }
@@ -1084,15 +1104,19 @@ const Player = () => {
   // This is necessary because transcoded streams don't support byte-range seeking
   const skip = (seconds: number) => {
     const video = videoRef.current;
-    if (!video || !Number.isFinite(video.duration)) return;
+    if (!video) return;
     
     // Rate-limit: don't start a new seek if one is already in progress
     if (isSeekingReload) {
       console.log('Seek already in progress, ignoring');
       return;
     }
-    
-    const newTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
+
+    const effectiveDuration = getEffectiveDurationSeconds(video);
+    const target = video.currentTime + seconds;
+    const newTime = effectiveDuration
+      ? Math.max(0, Math.min(effectiveDuration, target))
+      : Math.max(0, target);
     
     // For transcoded streams OR direct streaming, we need to reload with a new start position
     // because byte-range seeking is not reliably supported
@@ -1114,15 +1138,18 @@ const Player = () => {
   // Handle slider seek (also uses server-side seeking for transcoded streams)
   const handleSeekToPosition = (newTime: number) => {
     const video = videoRef.current;
-    if (!video || !Number.isFinite(video.duration)) return;
+    if (!video || !Number.isFinite(newTime)) return;
     
     // Rate-limit: don't start a new seek if one is already in progress
     if (isSeekingReload) {
       console.log('Seek already in progress, ignoring');
       return;
     }
-    
-    const clampedTime = Math.max(0, Math.min(video.duration, newTime));
+
+    const effectiveDuration = getEffectiveDurationSeconds(video);
+    const clampedTime = effectiveDuration
+      ? Math.max(0, Math.min(effectiveDuration, newTime))
+      : Math.max(0, newTime);
     
     // For transcoded streams OR direct streaming, we need to reload with a new start position
     // because byte-range seeking is not reliably supported
