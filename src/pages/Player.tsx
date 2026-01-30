@@ -376,17 +376,31 @@ const Player = () => {
           let streamingUrl: string;
           
           if (streamStartPosition > 0) {
-            // Use transcoding endpoint for seeking support
+            // Use transcoding endpoint for seeking support - include all required parameters
             const startTicks = Math.floor(streamStartPosition * 10000000);
-            streamingUrl = `${baseUrl}/Videos/${id}/stream.mp4?UserId=${userId || ''}&api_key=${apiKey}&VideoCodec=h264&AudioCodec=aac&StartTimeTicks=${startTicks}`;
+            const params = new URLSearchParams({
+              UserId: userId || '',
+              api_key: apiKey,
+              VideoCodec: 'h264',
+              AudioCodec: 'aac',
+              VideoBitrate: '8000000',
+              AudioBitrate: '192000',
+              TranscodingContainer: 'mp4',
+              TranscodingProtocol: 'http',
+              StartTimeTicks: startTicks.toString(),
+            });
+            if (selectedAudioTrack) {
+              params.set('AudioStreamIndex', selectedAudioTrack);
+            }
+            streamingUrl = `${baseUrl}/Videos/${id}/stream.mp4?${params.toString()}`;
+            console.log(`Direct stream seeking to ${streamStartPosition}s (ticks: ${startTicks})`);
           } else {
             // Use static stream for initial playback
             streamingUrl = `${baseUrl}/Videos/${id}/stream?Static=true&api_key=${apiKey}`;
-          }
-          
-          // Add audio stream index if selected
-          if (selectedAudioTrack) {
-            streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
+            // Add audio stream index if selected
+            if (selectedAudioTrack) {
+              streamingUrl += `&AudioStreamIndex=${selectedAudioTrack}`;
+            }
           }
           
           console.log('Using DIRECT streaming', forceDirectStream ? '(forced by user)' : '(HTTPS detected)', 'startPosition:', streamStartPosition);
