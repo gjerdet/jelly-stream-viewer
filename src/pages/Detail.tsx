@@ -5,6 +5,7 @@ import { useServerSettings, getJellyfinImageUrl } from "@/hooks/useServerSetting
 import { useJellyfinApi } from "@/hooks/useJellyfinApi";
 import { useJellyfinSession } from "@/hooks/useJellyfinSession";
 import { useChromecast } from "@/hooks/useChromecast";
+import { useSubtitleManager } from "@/hooks/useSubtitleManager";
 import { Button } from "@/components/ui/button";
 import { Play, Plus, ThumbsUp, ChevronLeft, Subtitles, User, CheckCircle, Check, Cast, Film, Search, Download, Loader2, Flag, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -25,84 +26,15 @@ import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 import { EpisodeCard } from "@/components/EpisodeCard";
 import { ChromecastController } from "@/components/ChromecastController";
 import { getPersistedCastPosition } from "@/components/FloatingCastController";
-
-interface MediaStream {
-  Index: number;
-  Type: string;
-  DisplayTitle?: string;
-  Language?: string;
-  Codec?: string;
-  IsDefault?: boolean;
-}
-
-interface JellyfinItemDetail {
-  Id: string;
-  Name: string;
-  Type: string;
-  ProductionYear?: number;
-  CommunityRating?: number;
-  Overview?: string;
-  ImageTags?: { Primary?: string; Backdrop?: string };
-  BackdropImageTags?: string[];
-  RunTimeTicks?: number;
-  OfficialRating?: string;
-  Genres?: string[];
-  Studios?: { Name: string }[];
-  People?: { 
-    Name: string; 
-    Role: string; 
-    Type: string; 
-    Id?: string;
-    PrimaryImageTag?: string;
-  }[];
-  MediaStreams?: MediaStream[];
-  ChildCount?: number;
-  RecursiveItemCount?: number;
-  UserData?: {
-    Played?: boolean;
-    PlaybackPositionTicks?: number;
-  };
-}
-
-interface Season {
-  Id: string;
-  Name: string;
-  IndexNumber?: number;
-  ImageTags?: { Primary?: string };
-}
-
-interface Episode {
-  Id: string;
-  Name: string;
-  IndexNumber?: number;
-  SeasonId: string;
-  Overview?: string;
-  ImageTags?: { Primary?: string };
-  RunTimeTicks?: number;
-  UserData?: {
-    Played?: boolean;
-    PlaybackPositionTicks?: number;
-  };
-  MediaStreams?: MediaStream[];
-}
-
-interface SeasonsResponse {
-  Items: Season[];
-}
-
-interface EpisodesResponse {
-  Items: Episode[];
-}
-
-interface RemoteSubtitle {
-  Id: string;
-  Name: string;
-  Language: string;
-  Provider: string;
-  Comment?: string;
-  DownloadCount?: number;
-  Format?: string;
-}
+import type { 
+  MediaStream,
+  RemoteSubtitle,
+  JellyfinItemDetail, 
+  Season, 
+  Episode, 
+  SeasonsResponse, 
+  EpisodesResponse 
+} from "@/types/jellyfin";
 
 const Detail = () => {
   const navigate = useNavigate();
