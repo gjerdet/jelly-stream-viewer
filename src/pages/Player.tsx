@@ -29,81 +29,18 @@ import {
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { CastUnsupportedDialog } from "@/components/CastUnsupportedDialog";
 import PlayerStatsPanel from "@/components/player/PlayerStatsPanel";
-
-interface MediaStream {
-  Index: number;
-  Type: string;
-  DisplayTitle?: string;
-  Language?: string;
-  Codec?: string;
-  IsDefault?: boolean;
-}
-
-interface MediaSource {
-  Id: string;
-  DirectStreamUrl?: string;
-  TranscodingUrl?: string;
-}
-
-interface PlaybackInfo {
-  MediaSources: MediaSource[];
-}
-
-interface JellyfinItemDetail {
-  Id: string;
-  Name: string;
-  Type: string;
-  SeriesId?: string;
-  SeriesName?: string;
-  SeasonId?: string;
-  IndexNumber?: number;
-  RunTimeTicks?: number;
-  ImageTags?: { Primary?: string };
-  MediaStreams?: MediaStream[];
-  UserData?: {
-    Played?: boolean;
-    PlaybackPositionTicks?: number;
-  };
-}
-
-interface Episode {
-  Id: string;
-  Name: string;
-  IndexNumber?: number;
-  SeasonId: string;
-  ImageTags?: { Primary?: string };
-  RunTimeTicks?: number;
-  Overview?: string;
-  UserData?: {
-    Played?: boolean;
-    PlaybackPositionTicks?: number;
-  };
-}
-
-interface EpisodesResponse {
-  Items: Episode[];
-}
-
-interface RemoteSubtitle {
-  Id: string;
-  Name: string;
-  Language: string;
-  Provider: string;
-  Comment?: string;
-  DownloadCount?: number;
-  Format?: string;
-}
-
-// Media segment types (intro, credits, etc.)
-interface MediaSegment {
-  Type: string; // 'Intro', 'Outro', 'Commercial', 'Preview', 'Recap'
-  StartTicks: number;
-  EndTicks: number;
-}
-
-interface MediaSegmentsResponse {
-  Items: MediaSegment[];
-}
+import { formatTime, formatBytes } from "@/lib/playerUtils";
+import type { 
+  MediaStream, 
+  MediaSource, 
+  PlaybackInfo, 
+  JellyfinItemDetail, 
+  Episode, 
+  EpisodesResponse,
+  RemoteSubtitle,
+  MediaSegment,
+  MediaSegmentsResponse 
+} from "@/types/jellyfin";
 
 const Player = () => {
   const navigate = useNavigate();
@@ -1252,13 +1189,6 @@ const Player = () => {
     } else {
       lastBytesRef.current = { bytes: estimatedTotalBytes, time: now };
     }
-  };
-
-  // Format bytes to human readable
-  const formatBytes = (bytes: number): string => {
-    if (bytes < 1024) return `${bytes} B/s`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
   };
 
   // Skip current segment (intro/credits)
@@ -2688,18 +2618,6 @@ const Player = () => {
       />
     </TooltipProvider>
   );
-};
-
-// Helper function to format time
-const formatTime = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
 };
 
 export default Player;
