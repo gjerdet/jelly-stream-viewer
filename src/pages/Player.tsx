@@ -2084,7 +2084,7 @@ const Player = () => {
             {formatTime(Math.floor(duration))}
           </span>
 
-          {/* Volume */}
+          {/* Volume (hidden on mobile) */}
           <Button
             variant="ghost"
             size="icon"
@@ -2092,6 +2092,20 @@ const Player = () => {
             className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg hidden sm:flex"
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </Button>
+
+          {/* Fullscreen button (visible on mobile, hidden on desktop where it's in top bar) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
+            className="text-white hover:bg-white/20 h-10 w-10 sm:hidden touch-manipulation rounded-lg"
+            title={isFullscreen ? "Avslutt fullskjerm" : "Fullskjerm"}
+          >
+            {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
           </Button>
         </div>
       </div>
