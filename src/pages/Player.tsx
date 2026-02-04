@@ -2120,14 +2120,22 @@ const Player = () => {
             {formatTime(Math.floor(duration))}
           </span>
 
-          {/* Volume - mute/unmute toggle (visible on all devices) */}
+          {/* Volume - mute/unmute toggle (visible on all devices) with visual indicator when muted */}
           <Button
             variant="ghost"
             size="icon"
             onClick={(e) => { e.stopPropagation(); toggleMute(); }}
-            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg"
+            className={`relative h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg transition-all ${
+              isMuted 
+                ? 'bg-destructive/80 hover:bg-destructive text-white animate-pulse' 
+                : 'text-white hover:bg-white/20'
+            }`}
+            title={isMuted ? 'Lyd av - trykk for å slå på' : 'Lyd på - trykk for å dempe'}
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+            {isMuted && (
+              <span className="absolute -top-1 -right-1 h-3 w-3 bg-destructive rounded-full border-2 border-black animate-bounce" />
+            )}
           </Button>
 
           {/* Fullscreen button (visible on mobile, hidden on desktop where it's in top bar) */}
