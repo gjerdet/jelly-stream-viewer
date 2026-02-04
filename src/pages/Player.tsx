@@ -2084,12 +2084,12 @@ const Player = () => {
             {formatTime(Math.floor(duration))}
           </span>
 
-          {/* Volume (hidden on mobile) */}
+          {/* Volume - mute/unmute toggle (visible on all devices) */}
           <Button
             variant="ghost"
             size="icon"
             onClick={(e) => { e.stopPropagation(); toggleMute(); }}
-            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg hidden sm:flex"
+            className="text-white hover:bg-white/20 h-10 w-10 sm:h-12 sm:w-12 touch-manipulation rounded-lg"
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </Button>
