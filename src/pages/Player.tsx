@@ -1715,10 +1715,24 @@ const Player = () => {
         onPause={() => setIsPlaying(false)}
         onCanPlay={() => {
           hideBuffering();
+          // Sync muted state with actual video state (browser may have auto-muted)
+          const video = videoRef.current;
+          if (video) {
+            setIsMuted(video.muted);
+            setVolume(video.volume);
+          }
           // Also dismiss seeking state on canplay in case playing doesn't fire immediately
           if (isSeekingReload) {
             setIsSeekingReload(false);
             setSeekTargetTime(null);
+          }
+        }}
+        onVolumeChange={() => {
+          // Sync UI state when browser or user changes volume/muted state
+          const video = videoRef.current;
+          if (video) {
+            setIsMuted(video.muted);
+            setVolume(video.volume);
           }
         }}
         onProgress={handleProgress}
@@ -1726,6 +1740,28 @@ const Player = () => {
       >
         Din nettleser støtter ikke videoavspilling.
       </video>
+
+      {/* Prominent Unmute Overlay - shows when video is muted (common on mobile autoplay) */}
+      {isMuted && isPlaying && !isBuffering && !streamError && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30">
+          <Button
+            onClick={(e) => {
+              e.stopPropagation();
+              const video = videoRef.current;
+              if (video) {
+                video.muted = false;
+                video.volume = 1.0;
+                setIsMuted(false);
+                setVolume(1.0);
+              }
+            }}
+            className="pointer-events-auto bg-primary/90 hover:bg-primary text-primary-foreground px-6 py-4 h-auto text-lg font-semibold shadow-2xl gap-3 animate-pulse"
+          >
+            <VolumeX className="h-6 w-6" />
+            Trykk for å slå på lyd
+          </Button>
+        </div>
+      )}
 
       {/* Buffering/Seeking Indicator with seek target time */}
       {(isBuffering || isSeekingReload) && !streamError && (
