@@ -492,6 +492,21 @@ export const ActiveStreamsDashboard = () => {
                               )}
                             </>
                           )}
+                          
+                          {/* Transcode reasons displayed directly */}
+                          {session.transcodingInfo?.transcodeReasons && session.transcodingInfo.transcodeReasons.length > 0 && (
+                            <div className="flex flex-wrap gap-1 w-full mt-1">
+                              {session.transcodingInfo.transcodeReasons.map((reason, i) => (
+                                <Badge 
+                                  key={i} 
+                                  variant="outline" 
+                                  className="text-xs bg-orange-500/5 text-orange-400 border-orange-500/20"
+                                >
+                                  {reason}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* Play Method */}
