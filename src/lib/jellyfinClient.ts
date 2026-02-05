@@ -191,6 +191,31 @@ export async function markAsFavorite(
 }
 
 /**
+ * Report playback started - tells Jellyfin a session has started playing
+ */
+export async function reportPlaybackStarted(
+  serverUrl: string,
+  itemId: string,
+  audioStreamIndex?: number,
+  subtitleStreamIndex?: number
+): Promise<void> {
+  await jellyfinRequest(
+    serverUrl,
+    `/Sessions/Playing`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        ItemId: itemId,
+        AudioStreamIndex: audioStreamIndex,
+        SubtitleStreamIndex: subtitleStreamIndex,
+        CanSeek: true,
+        PlayMethod: 'DirectStream',
+      }),
+    }
+  );
+}
+
+/**
  * Update playback progress
  */
 export async function updatePlaybackProgress(
@@ -208,6 +233,27 @@ export async function updatePlaybackProgress(
         ItemId: itemId,
         PositionTicks: positionTicks,
         IsPaused: isPaused,
+      }),
+    }
+  );
+}
+
+/**
+ * Report playback stopped - tells Jellyfin a session has ended
+ */
+export async function reportPlaybackStopped(
+  serverUrl: string,
+  itemId: string,
+  positionTicks: number
+): Promise<void> {
+  await jellyfinRequest(
+    serverUrl,
+    `/Sessions/Playing/Stopped`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        ItemId: itemId,
+        PositionTicks: positionTicks,
       }),
     }
   );
