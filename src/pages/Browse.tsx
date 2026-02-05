@@ -51,6 +51,15 @@ const Browse = () => {
   // Get userId from localStorage session (not /Users endpoint which requires admin)
   const { userId } = useJellyfinSession();
 
+  // Debug logging
+  console.log('[Browse] Debug info:', {
+    userId,
+    serverUrl,
+    userExists: !!user,
+    loading,
+    isServerSettingsLoading: !serverUrl && !loading
+  });
+
   // Determine what content type to show based on route
   const contentType = location.pathname === '/movies' ? 'movies' : 
                       location.pathname === '/series' ? 'series' : 
@@ -130,6 +139,18 @@ const Browse = () => {
   const hasApiError = itemsError || resumeError;
   const isDataLoading = itemsLoading || resumeLoading || !userId;
   const hasNoData = !isDataLoading && (!allItems || allItems.Items?.length === 0);
+
+  // Debug logging for error state
+  console.log('[Browse] Error state:', {
+    hasApiError,
+    itemsError: itemsError?.message,
+    resumeError: resumeError?.message,
+    isDataLoading,
+    hasNoData,
+    itemsLoading,
+    resumeLoading,
+    allItemsCount: allItems?.Items?.length ?? 0
+  });
 
   const mapJellyfinItems = (items?: JellyfinItem[]) => {
     if (!items || !serverUrl) return [];
