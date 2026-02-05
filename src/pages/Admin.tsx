@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
@@ -43,6 +45,8 @@ const Admin = () => {
   const { user, loading: authLoading } = useAuth();
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { t, language } = useLanguage();
+  const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState("health");
   const admin = t.admin as any;
   const common = t.common as any;
   
@@ -134,21 +138,22 @@ const Admin = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 lg:py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-primary/10">
-              <Settings className="h-8 w-8 text-primary" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 lg:mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 lg:p-3 rounded-xl bg-primary/10">
+              <Settings className="h-6 w-6 lg:h-8 lg:w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{admin.title || "Admin Panel"}</h1>
-              <p className="text-muted-foreground">{admin.serverSettings || "Manage server connections and content"}</p>
+              <h1 className="text-2xl lg:text-3xl font-bold">{admin.title || "Admin Panel"}</h1>
+              <p className="text-sm text-muted-foreground hidden sm:block">{admin.serverSettings || "Manage server connections and content"}</p>
             </div>
           </div>
           <Button 
             onClick={() => navigate("/requests-admin")}
             variant="outline"
+            size={isMobile ? "sm" : "default"}
             className="gap-2"
           >
             <Newspaper className="h-4 w-4" />
@@ -156,27 +161,44 @@ const Admin = () => {
           </Button>
         </div>
 
-        <Tabs defaultValue="health" className="w-full" orientation="vertical">
-          <div className="flex flex-col lg:flex-row gap-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full" orientation="vertical">
+          <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
             {/* Sidebar Navigation */}
             <div className="lg:w-56 flex-shrink-0">
-              {/* Mobile: Scrollable horizontal tabs with wrap for full visibility */}
+              {/* Mobile: Dropdown select for navigation */}
               <div className="lg:hidden">
-                <TabsList className="flex flex-wrap h-auto w-full gap-1 bg-secondary/30 p-2 rounded-lg">
-                  {adminTabs.map((tab) => {
-                    const Icon = tab.icon;
-                    return (
-                      <TabsTrigger 
-                        key={tab.value}
-                        value={tab.value} 
-                        className="flex-shrink-0 justify-center gap-1.5 px-2.5 py-2 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                      >
-                        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
-                        <span className="whitespace-nowrap">{tab.label}</span>
-                      </TabsTrigger>
-                    );
-                  })}
-                </TabsList>
+                <Select value={activeTab} onValueChange={setActiveTab}>
+                  <SelectTrigger className="w-full bg-secondary/30">
+                    <SelectValue>
+                      {(() => {
+                        const currentTab = adminTabs.find(t => t.value === activeTab);
+                        if (currentTab) {
+                          const Icon = currentTab.icon;
+                          return (
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {currentTab.label}
+                            </span>
+                          );
+                        }
+                        return "Select section";
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border-border max-h-[60vh]">
+                    {adminTabs.map((tab) => {
+                      const Icon = tab.icon;
+                      return (
+                        <SelectItem key={tab.value} value={tab.value}>
+                          <span className="flex items-center gap-2">
+                            <Icon className="h-4 w-4" />
+                            {tab.label}
+                          </span>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Desktop: Vertical sidebar */}
               <TabsList className="hidden lg:flex flex-col h-auto w-full gap-1 bg-secondary/30 p-2 rounded-lg">
