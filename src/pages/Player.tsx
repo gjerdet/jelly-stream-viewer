@@ -711,6 +711,14 @@ const Player = () => {
     }
   }, [item?.Id, subtitles.length]);
 
+  // Reset streamStartPosition when video ID changes (new video loaded)
+  useEffect(() => {
+    setStreamStartPosition(0);
+    setCurrentTime(0);
+    setDuration(0);
+    console.log('Video ID changed, reset streamStartPosition to 0');
+  }, [id]);
+
   // Auto-select default subtitle or first Norwegian subtitle
   useEffect(() => {
     if (subtitles.length > 0 && !selectedSubtitle) {
@@ -940,10 +948,22 @@ const Player = () => {
     if (!video) return;
 
     // Update custom player state
-    setCurrentTime(video.currentTime);
-    setDuration(video.duration || 0);
+   // Add streamStartPosition to get absolute time (video.currentTime is relative to stream start)
+   const absoluteTime = streamStartPosition + video.currentTime;
+   setCurrentTime(absoluteTime);
+   // Use item.RunTimeTicks as authoritative duration since video.duration
+   // can report incorrect values after seeking in transcoded streams
+   const itemDuration = item?.RunTimeTicks ? item.RunTimeTicks / 10000000 : 0;
+   const videoDuration = video.duration;
+   // Prefer item duration if available, fallback to video duration
+   if (itemDuration > 0) {
+     setDuration(itemDuration);
+   } else if (Number.isFinite(videoDuration) && videoDuration > 0) {
+     // When using proxy with startPosition, video.duration is remaining duration
+     setDuration(streamStartPosition + videoDuration);
+   }
 
-    const currentTimeTicks = video.currentTime * 10000000; // Convert to ticks
+   const currentTimeTicks = absoluteTime * 10000000; // Convert to ticks
     
     // Update buffer stats
     if (video.buffered.length > 0) {
@@ -970,7 +990,9 @@ const Player = () => {
     // Show next episode preview when 30 seconds remaining (only for episodes)
     // Don't show if already dismissed by user
     if (isEpisode && !nextEpisodeDismissed) {
-      const timeRemaining = video.duration - video.currentTime;
+     // Calculate remaining time using total duration and absolute position
+     const totalDuration = itemDuration > 0 ? itemDuration : (streamStartPosition + video.duration);
+     const timeRemaining = totalDuration - absoluteTime;
       if (timeRemaining <= 30 && timeRemaining > 0 && !showNextEpisodePreview) {
         const nextEpisode = getNextEpisode();
         if (nextEpisode) {
@@ -1063,11 +1085,16 @@ const Player = () => {
       return;
     }
 
-    const effectiveDuration = getEffectiveDurationSeconds(video);
-    const target = video.currentTime + seconds;
-    const newTime = effectiveDuration
-      ? Math.max(0, Math.min(effectiveDuration, target))
-      : Math.max(0, target);
+   // Use absolute time (currentTime state includes streamStartPosition)
+   const absoluteCurrentTime = currentTime; // This already includes streamStartPosition
+   const target = absoluteCurrentTime + seconds;
+   
+   // Use item duration as authoritative, or fall back to calculated duration
+   const itemDuration = item?.RunTimeTicks ? item.RunTimeTicks / 10000000 : null;
+   const effectiveDuration = itemDuration ?? duration;
+   const newTime = effectiveDuration > 0
+     ? Math.max(0, Math.min(effectiveDuration, target))
+     : Math.max(0, target);
     
     // For transcoded streams OR direct streaming, we need to reload with a new start position
     // because byte-range seeking is not reliably supported
@@ -1075,7 +1102,7 @@ const Player = () => {
     const needsServerSideSeek = streamStatus.isTranscoding || usingDirectStream;
     
     if (needsServerSideSeek) {
-      console.log(`Seeking via reload: ${video.currentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s (transcoding: ${streamStatus.isTranscoding}, direct: ${usingDirectStream})`);
+     console.log(`Seeking via reload: ${absoluteCurrentTime.toFixed(1)}s -> ${newTime.toFixed(1)}s (transcoding: ${streamStatus.isTranscoding}, direct: ${usingDirectStream})`);
       isSeekingViaReloadRef.current = true;
       setIsSeekingReload(true);
       setSeekTargetTime(newTime);
