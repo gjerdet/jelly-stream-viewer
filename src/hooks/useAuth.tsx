@@ -28,9 +28,20 @@ export const useAuth = () => {
   }, []);
 
   const signOut = async () => {
+    // Clear local state first
     localStorage.removeItem('jellyfin_session');
     window.dispatchEvent(new Event('jellyfin-session-change'));
-    await supabase.auth.signOut();
+    
+    // Try to sign out from Supabase, but don't fail if session is already gone
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.log('Sign out completed (session may have already expired)');
+    }
+    
+    // Clear local auth state regardless
+    setSession(null);
+    setUser(null);
   };
 
   return { user, session, loading, signOut };
