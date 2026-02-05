@@ -160,7 +160,28 @@ const Admin = () => {
           <div className="flex flex-col lg:flex-row gap-6">
             {/* Sidebar Navigation */}
             <div className="lg:w-56 flex-shrink-0">
-              <TabsList className="flex lg:flex-col h-auto w-full overflow-x-auto lg:overflow-visible gap-1 bg-secondary/30 p-2 rounded-lg">
+              {/* Mobile: Scrollable horizontal with gradient indicators */}
+              <div className="lg:hidden relative">
+                <div className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+                <TabsList className="flex h-auto w-full overflow-x-auto gap-1 bg-secondary/30 p-2 rounded-lg scrollbar-hide pb-3">
+                  {adminTabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <TabsTrigger 
+                        key={tab.value}
+                        value={tab.value} 
+                        className="flex-shrink-0 justify-center gap-1.5 px-3 py-2.5 text-xs data-[state=active]:bg-primary data-[state=active]:text-primary-foreground min-w-fit"
+                      >
+                        <Icon className="h-4 w-4 flex-shrink-0" />
+                        <span className="whitespace-nowrap">{tab.label}</span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </div>
+              {/* Desktop: Vertical sidebar */}
+              <TabsList className="hidden lg:flex flex-col h-auto w-full gap-1 bg-secondary/30 p-2 rounded-lg">
                 {adminTabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
