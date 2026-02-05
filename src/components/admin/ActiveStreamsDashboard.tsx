@@ -340,36 +340,51 @@ export const ActiveStreamsDashboard = () => {
                           </div>
                         </div>
 
-                        {/* Transcoding Info */}
-                        {session.transcodingInfo && (
-                          <div className="flex flex-wrap gap-1.5 mt-2">
-                            {!session.transcodingInfo.isVideoDirect && (
-                              <Badge variant="secondary" className="text-xs">
-                                Video: {session.transcodingInfo.videoCodec}
-                              </Badge>
-                            )}
-                            {!session.transcodingInfo.isAudioDirect && (
-                              <Badge variant="secondary" className="text-xs">
-                                Audio: {session.transcodingInfo.audioCodec}
-                              </Badge>
-                            )}
-                            {session.transcodingInfo.width && session.transcodingInfo.height && (
-                              <Badge variant="outline" className="text-xs">
-                                {session.transcodingInfo.width}x{session.transcodingInfo.height}
-                              </Badge>
-                            )}
-                            {session.transcodingInfo.bitrate && (
-                              <Badge variant="outline" className="text-xs">
-                                {formatBitrate(session.transcodingInfo.bitrate)}
-                              </Badge>
-                            )}
-                            {session.transcodingInfo.isVideoDirect && session.transcodingInfo.isAudioDirect && (
-                              <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-xs">
-                                Direct Play
-                              </Badge>
-                            )}
-                          </div>
-                        )}
+                        {/* Playback Method - Server vs Client */}
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {session.playState.playMethod === "Transcode" ? (
+                            <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20 text-xs gap-1">
+                              <Zap className="h-3 w-3" />
+                              Server Transkoding
+                            </Badge>
+                          ) : session.playState.playMethod === "DirectStream" ? (
+                            <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs gap-1">
+                              <Video className="h-3 w-3" />
+                              Direct Stream
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-xs gap-1">
+                              <Play className="h-3 w-3" />
+                              Direct Play
+                            </Badge>
+                          )}
+                          
+                          {/* Codec details when transcoding */}
+                          {session.transcodingInfo && (
+                            <>
+                              {!session.transcodingInfo.isVideoDirect && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Video: {session.transcodingInfo.videoCodec}
+                                </Badge>
+                              )}
+                              {!session.transcodingInfo.isAudioDirect && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Audio: {session.transcodingInfo.audioCodec}
+                                </Badge>
+                              )}
+                              {session.transcodingInfo.width && session.transcodingInfo.height && (
+                                <Badge variant="outline" className="text-xs">
+                                  {session.transcodingInfo.width}x{session.transcodingInfo.height}
+                                </Badge>
+                              )}
+                              {session.transcodingInfo.bitrate && (
+                                <Badge variant="outline" className="text-xs">
+                                  {formatBitrate(session.transcodingInfo.bitrate)}
+                                </Badge>
+                              )}
+                            </>
+                          )}
+                        </div>
 
                         {/* Play Method */}
                         <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
