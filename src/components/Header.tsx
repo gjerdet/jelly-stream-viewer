@@ -121,7 +121,14 @@ const Header = () => {
   const handleLogout = async () => {
     localStorage.removeItem('jellyfin_session');
     window.dispatchEvent(new Event('jellyfin-session-change'));
-    await supabase.auth.signOut();
+    
+    // Try to sign out, but don't fail if session is already gone
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.log('Sign out completed (session may have already expired)');
+    }
+    
     toast.success(header.loggedOut || "Logged out");
     navigate("/");
   };
