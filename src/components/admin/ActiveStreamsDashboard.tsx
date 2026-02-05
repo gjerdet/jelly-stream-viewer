@@ -6,6 +6,13 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Activity,
   RefreshCw,
   Loader2,
@@ -22,6 +29,9 @@ import {
   Music,
   Film,
   Zap,
+  AlertTriangle,
+  CheckCircle,
+  Info,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -89,12 +99,102 @@ interface SessionSummary {
   idleSessions: number;
 }
 
+// Helper function to get recommendations based on transcode reasons
+const getTranscodeRecommendations = (
+  playMethod: string,
+  transcodingInfo: TranscodingInfo | null,
+  nowPlaying: NowPlaying | null
+): { title: string; description: string; icon: React.ReactNode }[] => {
+  const recommendations: { title: string; description: string; icon: React.ReactNode }[] = [];
+  
+  if (playMethod === "DirectPlay") return recommendations;
+  
+  const reasons = transcodingInfo?.transcodeReasons || [];
+  
+  // Video codec issues
+  if (!transcodingInfo?.isVideoDirect || reasons.some(r => r.toLowerCase().includes("video"))) {
+    const videoCodec = transcodingInfo?.videoCodec?.toUpperCase() || "ukjent";
+    recommendations.push({
+      title: "Video-codec krever transkoding",
+      description: `Codec "${videoCodec}" støttes ikke av klienten. Vurder å re-encode til H.264 (mest kompatibel) eller H.265/HEVC for moderne enheter.`,
+      icon: <AlertTriangle className="h-5 w-5 text-orange-500" />,
+    });
+  }
+  
+  // Audio codec issues
+  if (!transcodingInfo?.isAudioDirect || reasons.some(r => r.toLowerCase().includes("audio"))) {
+    const audioCodec = transcodingInfo?.audioCodec?.toUpperCase() || "ukjent";
+    recommendations.push({
+      title: "Lyd-codec krever transkoding",
+      description: `Codec "${audioCodec}" støttes ikke. AAC og AC3 er mest kompatible. Vurder å legge til et AAC-lydspor.`,
+      icon: <AlertTriangle className="h-5 w-5 text-orange-500" />,
+    });
+  }
+  
+  // Container issues
+  if (reasons.some(r => r.toLowerCase().includes("container"))) {
+    recommendations.push({
+      title: "Container-format ikke støttet",
+      description: "MKV-filer må ofte remuxes til MP4 for direkte avspilling på nettlesere og smart-TV-er.",
+      icon: <Info className="h-5 w-5 text-blue-500" />,
+    });
+  }
+  
+  // Bitrate issues
+  if (reasons.some(r => r.toLowerCase().includes("bitrate"))) {
+    recommendations.push({
+      title: "Bitrate for høy",
+      description: "Filen har høyere bitrate enn klienten støtter. Vurder å komprimere filen eller øke klientens kvalitetsinnstillinger.",
+      icon: <AlertTriangle className="h-5 w-5 text-yellow-500" />,
+    });
+  }
+  
+  // Subtitle issues
+  if (reasons.some(r => r.toLowerCase().includes("subtitle"))) {
+    recommendations.push({
+      title: "Undertekster krever transkoding",
+      description: "Innebygde undertekster (PGS/ASS) må brennes inn. Bruk SRT-undertekster for å unngå transkoding.",
+      icon: <Info className="h-5 w-5 text-blue-500" />,
+    });
+  }
+  
+  // Resolution issues
+  if (transcodingInfo?.height && transcodingInfo.height > 1080) {
+    recommendations.push({
+      title: "4K-innhold",
+      description: "4K-innhold transkodes ofte. Sørg for at klienten støtter 4K, eller tilby en 1080p-versjon.",
+      icon: <Info className="h-5 w-5 text-blue-500" />,
+    });
+  }
+  
+  // DirectStream specific
+  if (playMethod === "DirectStream" && recommendations.length === 0) {
+    recommendations.push({
+      title: "Container remuxing",
+      description: "Video/lyd sendes uendret, men containeren pakkes om. Dette er minimal belastning og ofte greit.",
+      icon: <CheckCircle className="h-5 w-5 text-green-500" />,
+    });
+  }
+  
+  // General recommendations
+  if (recommendations.length === 0 && playMethod === "Transcode") {
+    recommendations.push({
+      title: "Generell transkoding",
+      description: "Sjekk klientens avspillingsinnstillinger i Jellyfin. Øk maksimal streaming-kvalitet for å redusere transkoding.",
+      icon: <Info className="h-5 w-5 text-blue-500" />,
+    });
+  }
+  
+  return recommendations;
+};
+
 export const ActiveStreamsDashboard = () => {
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [summary, setSummary] = useState<SessionSummary | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<ActiveSession | null>(null);
 
   const fetchSessions = async () => {
     setIsLoading(true);
@@ -343,14 +443,22 @@ export const ActiveStreamsDashboard = () => {
                         {/* Playback Method - Server vs Client */}
                         <div className="flex flex-wrap gap-1.5 mt-2">
                           {session.playState.playMethod === "Transcode" ? (
-                            <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/20 text-xs gap-1">
+                            <Badge 
+                              className="bg-orange-500/10 text-orange-500 border-orange-500/20 text-xs gap-1 cursor-pointer hover:bg-orange-500/20 transition-colors"
+                              onClick={() => setSelectedSession(session)}
+                            >
                               <Zap className="h-3 w-3" />
                               Server Transkoding
+                              <Info className="h-3 w-3 ml-1" />
                             </Badge>
                           ) : session.playState.playMethod === "DirectStream" ? (
-                            <Badge className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs gap-1">
+                            <Badge 
+                              className="bg-blue-500/10 text-blue-500 border-blue-500/20 text-xs gap-1 cursor-pointer hover:bg-blue-500/20 transition-colors"
+                              onClick={() => setSelectedSession(session)}
+                            >
                               <Video className="h-3 w-3" />
                               Direct Stream
+                              <Info className="h-3 w-3 ml-1" />
                             </Badge>
                           ) : (
                             <Badge className="bg-green-500/10 text-green-500 border-green-500/20 text-xs gap-1">
@@ -413,6 +521,77 @@ export const ActiveStreamsDashboard = () => {
           </p>
         )}
       </CardContent>
+
+      {/* Recommendations Dialog */}
+      <Dialog open={!!selectedSession} onOpenChange={(open) => !open && setSelectedSession(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedSession?.playState.playMethod === "Transcode" ? (
+                <>
+                  <Zap className="h-5 w-5 text-orange-500" />
+                  Hvordan oppnå Direct Play
+                </>
+              ) : (
+                <>
+                  <Video className="h-5 w-5 text-blue-500" />
+                  Hvordan oppnå Direct Play
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedSession?.nowPlaying?.seriesName 
+                ? `${selectedSession.nowPlaying.seriesName} - ${selectedSession.nowPlaying.name}`
+                : selectedSession?.nowPlaying?.name}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            {selectedSession && getTranscodeRecommendations(
+              selectedSession.playState.playMethod,
+              selectedSession.transcodingInfo,
+              selectedSession.nowPlaying
+            ).map((rec, index) => (
+              <div key={index} className="flex gap-3 p-3 rounded-lg bg-secondary/50">
+                <div className="flex-shrink-0 mt-0.5">{rec.icon}</div>
+                <div>
+                  <p className="font-medium text-sm">{rec.title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{rec.description}</p>
+                </div>
+              </div>
+            ))}
+            
+            {/* Technical details */}
+            {selectedSession?.transcodingInfo && (
+              <div className="pt-3 border-t">
+                <p className="text-xs font-medium mb-2">Tekniske detaljer</p>
+                <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                  <div>Video: {selectedSession.transcodingInfo.isVideoDirect ? "Direct" : selectedSession.transcodingInfo.videoCodec}</div>
+                  <div>Audio: {selectedSession.transcodingInfo.isAudioDirect ? "Direct" : selectedSession.transcodingInfo.audioCodec}</div>
+                  {selectedSession.transcodingInfo.width && (
+                    <div>Oppløsning: {selectedSession.transcodingInfo.width}x{selectedSession.transcodingInfo.height}</div>
+                  )}
+                  {selectedSession.transcodingInfo.bitrate && (
+                    <div>Bitrate: {formatBitrate(selectedSession.transcodingInfo.bitrate)}</div>
+                  )}
+                </div>
+                {selectedSession.transcodingInfo.transcodeReasons && selectedSession.transcodingInfo.transcodeReasons.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-medium mb-1">Transcode-årsaker:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedSession.transcodingInfo.transcodeReasons.map((reason, i) => (
+                        <Badge key={i} variant="outline" className="text-xs">
+                          {reason}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 };
