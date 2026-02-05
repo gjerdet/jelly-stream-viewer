@@ -85,6 +85,9 @@ serve(async (req) => {
     console.log(`Found ${sessions.length} total sessions from Jellyfin`);
     sessions.forEach((s: any, i: number) => {
       console.log(`Session ${i + 1}: User=${s.UserName}, Client=${s.Client}, Device=${s.DeviceName}, HasNowPlaying=${!!s.NowPlayingItem}, NowPlayingItem=${s.NowPlayingItem?.Name || 'none'}`);
+      if (s.NowPlayingItem) {
+        console.log(`  -> PlayMethod: ${s.PlayState?.PlayMethod}, TranscodingInfo: ${JSON.stringify(s.TranscodingInfo || 'null')}`);
+      }
     });
 
     // Filter and format sessions - only include those with NowPlayingItem (active playback)
