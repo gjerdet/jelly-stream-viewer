@@ -218,6 +218,129 @@ const Player = () => {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Keyboard shortcuts for player controls
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input field
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      const video = videoRef.current;
+      if (!video) return;
+
+      switch (e.key) {
+        case ' ':
+        case 'k':
+          // Space or K = Play/Pause
+          e.preventDefault();
+          if (video.paused) {
+            video.play();
+          } else {
+            video.pause();
+          }
+          break;
+        case 'ArrowLeft':
+          // Left arrow = Rewind 10s
+          e.preventDefault();
+          if (streamStatus.isTranscoding) {
+            // For transcoded streams, use server-side seeking
+            const newTime = Math.max(0, (streamStartPosition + currentTime) - 10);
+            setStreamStartPosition(newTime);
+          } else {
+            video.currentTime = Math.max(0, video.currentTime - 10);
+          }
+          break;
+        case 'ArrowRight':
+          // Right arrow = Forward 10s
+          e.preventDefault();
+          if (streamStatus.isTranscoding) {
+            const newTime = Math.min(duration, (streamStartPosition + currentTime) + 10);
+            setStreamStartPosition(newTime);
+          } else {
+            video.currentTime = Math.min(video.duration, video.currentTime + 10);
+          }
+          break;
+        case 'ArrowUp':
+          // Up arrow = Volume up
+          e.preventDefault();
+          video.volume = Math.min(1, video.volume + 0.1);
+          setVolume(video.volume);
+          break;
+        case 'ArrowDown':
+          // Down arrow = Volume down
+          e.preventDefault();
+          video.volume = Math.max(0, video.volume - 0.1);
+          setVolume(video.volume);
+          break;
+        case 'f':
+        case 'F':
+          // F = Toggle fullscreen
+          e.preventDefault();
+          toggleFullscreen();
+          break;
+        case 'm':
+        case 'M':
+          // M = Toggle mute
+          e.preventDefault();
+          video.muted = !video.muted;
+          setIsMuted(video.muted);
+          break;
+        case 'Escape':
+          // Escape = Exit fullscreen
+          if (document.fullscreenElement) {
+            document.exitFullscreen();
+          }
+          break;
+        case 'j':
+        case 'J':
+          // J = Rewind 10s (YouTube style)
+          e.preventDefault();
+          if (streamStatus.isTranscoding) {
+            const newTime = Math.max(0, (streamStartPosition + currentTime) - 10);
+            setStreamStartPosition(newTime);
+          } else {
+            video.currentTime = Math.max(0, video.currentTime - 10);
+          }
+          break;
+        case 'l':
+        case 'L':
+          // L = Forward 10s (YouTube style)
+          e.preventDefault();
+          if (streamStatus.isTranscoding) {
+            const newTime = Math.min(duration, (streamStartPosition + currentTime) + 10);
+            setStreamStartPosition(newTime);
+          } else {
+            video.currentTime = Math.min(video.duration, video.currentTime + 10);
+          }
+          break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+          // Number keys = Jump to percentage of video
+          e.preventDefault();
+          const percent = parseInt(e.key) / 10;
+          const targetTime = duration * percent;
+          if (streamStatus.isTranscoding) {
+            setStreamStartPosition(targetTime);
+          } else {
+            video.currentTime = targetTime;
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentTime, duration, streamStatus.isTranscoding, streamStartPosition]);
+
   // Search for subtitles via Jellyfin
   const searchSubtitles = async (language: string = 'nor') => {
     if (!id) return;
