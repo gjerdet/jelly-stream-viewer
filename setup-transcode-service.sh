@@ -80,7 +80,8 @@ echo -e "${YELLOW}Creating systemd service...${NC}"
 cat > /etc/systemd/system/jelly-transcode.service << EOF
 [Unit]
 Description=Jelly Stream Transcode Server (Polling)
-After=network.target
+Wants=network-online.target
+After=network-online.target
 
 [Service]
 Type=simple
