@@ -8,6 +8,7 @@ import { useChromecast } from "@/hooks/useChromecast";
 import { useDebouncedVisibility } from "@/hooks/useDebouncedVisibility";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
+import { reportPlaybackStarted, updatePlaybackProgress, reportPlaybackStopped } from "@/lib/jellyfinClient";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Subtitles, Cast, Play, Pause, Square, ChevronLeft, ChevronRight, SkipBack, SkipForward, CheckCircle, Search, Download, Loader2, FastForward, Maximize, Minimize, Info, AlertCircle, RefreshCw, Settings, Copy, Volume2, VolumeX, List, Music } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -67,6 +68,9 @@ const Player = () => {
   // Used to preserve playback position when swapping streams (e.g. audio track)
   const pendingSeekSecondsRef = useRef<number | null>(null);
   const resumeAfterStreamSwapRef = useRef<boolean>(true);
+  // Track if we've reported playback to Jellyfin (for active sessions)
+  const playbackReportedRef = useRef<boolean>(false);
+  const playbackReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -217,6 +221,56 @@ const Player = () => {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // Report playback to Jellyfin for active sessions tracking
+  useEffect(() => {
+    if (!serverUrl || !id || !isPlaying) return;
+    
+    // Report playback started when video starts playing
+    if (!playbackReportedRef.current) {
+      playbackReportedRef.current = true;
+      reportPlaybackStarted(serverUrl, id).catch(err => {
+        console.warn('Failed to report playback started:', err);
+      });
+    }
+    
+    // Set up interval to report progress every 10 seconds
+    if (!playbackReportIntervalRef.current) {
+      playbackReportIntervalRef.current = setInterval(() => {
+        const video = videoRef.current;
+        if (video && serverUrl && id) {
+          const positionTicks = Math.floor((streamStartPosition + video.currentTime) * 10000000);
+          updatePlaybackProgress(serverUrl, id, positionTicks, video.paused).catch(err => {
+            console.warn('Failed to report playback progress:', err);
+          });
+        }
+      }, 10000);
+    }
+    
+    return () => {
+      // Clear interval on cleanup
+      if (playbackReportIntervalRef.current) {
+        clearInterval(playbackReportIntervalRef.current);
+        playbackReportIntervalRef.current = null;
+      }
+    };
+  }, [serverUrl, id, isPlaying, streamStartPosition]);
+
+  // Report playback stopped when unmounting or navigating away
+  useEffect(() => {
+    return () => {
+      if (playbackReportedRef.current && serverUrl && id) {
+        const video = videoRef.current;
+        const positionTicks = video 
+          ? Math.floor((streamStartPosition + video.currentTime) * 10000000) 
+          : 0;
+        reportPlaybackStopped(serverUrl, id, positionTicks).catch(err => {
+          console.warn('Failed to report playback stopped:', err);
+        });
+        playbackReportedRef.current = false;
+      }
+    };
+  }, [serverUrl, id]);
 
   // Keyboard shortcuts for player controls
   useEffect(() => {
