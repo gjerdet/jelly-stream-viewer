@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw } from "lucide-react";
+import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -33,6 +33,7 @@ import { NewsManagementSection } from "@/components/admin/NewsManagementSection"
 import { SiteSettingsSection } from "@/components/admin/SiteSettingsSection";
 import { AppServicesHealth } from "@/components/admin/AppServicesHealth";
 import { SystemStatusDashboard } from "@/components/admin/SystemStatusDashboard";
+import { ActiveStreamsDashboard } from "@/components/admin/ActiveStreamsDashboard";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -110,6 +111,7 @@ const Admin = () => {
 
   const adminTabs = [
     { value: "health", label: "Health", icon: Activity },
+    { value: "streams", label: language === 'no' ? "Strømmer" : "Streams", icon: Radio },
     { value: "system-status", label: language === 'no' ? "System Status" : "System Status", icon: Server },
     { value: "media", label: "Media", icon: Library },
     { value: "radarr", label: "Radarr", icon: Film },
@@ -180,6 +182,10 @@ const Admin = () => {
               <TabsContent value="health" className="space-y-6 mt-0">
                 <AppServicesHealth />
                 <HealthCheckDashboard />
+              </TabsContent>
+
+              <TabsContent value="streams" className="space-y-6 mt-0">
+                <ActiveStreamsDashboard />
               </TabsContent>
 
               <TabsContent value="system-status" className="space-y-6 mt-0">
