@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,9 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Home, Globe, Wrench, ExternalLink, Wifi, WifiOff } from "lucide-react";
+import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -17,10 +15,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 
 interface UpdateInfo {
   updateAvailable: boolean;
-  installedVersion: {
-    sha: string;
-    shortSha: string;
-  };
+  installedVersion: { sha: string; shortSha: string };
   latestVersion: {
     sha: string;
     shortSha: string;
@@ -30,926 +25,174 @@ interface UpdateInfo {
   };
 }
 
-interface UpdateStatus {
-  id: string;
-  status: string;
-  progress: number;
-  current_step: string;
-  logs: Array<{
-    timestamp: string;
-    message: string;
-    level: 'info' | 'success' | 'error' | 'warning';
-  }>;
-  error?: string;
+interface LogEntry {
+  timestamp: string;
+  message: string;
+  level: "info" | "success" | "error" | "warning";
 }
 
+const addLog = (logs: LogEntry[], message: string, level: LogEntry["level"] = "info"): LogEntry[] => [
+  ...logs,
+  { timestamp: new Date().toISOString(), message, level },
+];
+
 export const UpdateManager = () => {
-  const { language, t } = useLanguage();
-  const dateLocale = language === 'no' ? nb : enUS;
-  const updates = t.updates as any; // Cast to any for simplicity
-  const common = t.common as any;
+  const { language } = useLanguage();
+  const no = language === "no";
+  const dateLocale = no ? nb : enUS;
+
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [progress, setProgress] = useState(0);
   const [showLogs, setShowLogs] = useState(false);
-  const [forceLocalMode, setForceLocalMode] = useState(false);
-  const [gitPullUrlIsLocal, setGitPullUrlIsLocal] = useState<boolean | null>(null);
-  const [troubleshooting, setTroubleshooting] = useState(false);
-  const [troubleshootResult, setTroubleshootResult] = useState<{
-    issue: string;
-    solution: string;
-    canAutoFix: boolean;
-    localAppUrl?: string;
-  } | null>(null);
+  const [updateStep, setUpdateStep] = useState("");
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Connection test state
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    status: 'idle' | 'ok' | 'error';
-    message: string;
-    details?: string;
-    suggestion?: string;
-    url?: string;
-  }>({ status: 'idle', message: '' });
+  // Cleanup polling on unmount
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  // Helper to check if a URL is a local/private IP
-  const isLocalUrl = (url: string) => {
-    if (!url) return false;
-    try {
-      const parsedUrl = new URL(url);
-      const hostname = parsedUrl.hostname;
-      return (
-        hostname === 'localhost' ||
-        hostname === '127.0.0.1' ||
-        hostname.startsWith('192.168.') ||
-        hostname.startsWith('10.') ||
-        hostname.startsWith('172.16.') ||
-        hostname.startsWith('172.17.') ||
-        hostname.startsWith('172.18.') ||
-        hostname.startsWith('172.19.') ||
-        hostname.startsWith('172.20.') ||
-        hostname.startsWith('172.21.') ||
-        hostname.startsWith('172.22.') ||
-        hostname.startsWith('172.23.') ||
-        hostname.startsWith('172.24.') ||
-        hostname.startsWith('172.25.') ||
-        hostname.startsWith('172.26.') ||
-        hostname.startsWith('172.27.') ||
-        hostname.startsWith('172.28.') ||
-        hostname.startsWith('172.29.') ||
-        hostname.startsWith('172.30.') ||
-        hostname.startsWith('172.31.')
-      );
-    } catch {
-      return false;
-    }
-  };
-
-  // Check if we can run updates (local URL requires local network)
-  const canRunUpdate = () => {
-    if (gitPullUrlIsLocal === null) return true; // Not yet checked
-    if (!gitPullUrlIsLocal) return true; // Public URL - always OK
-    return isLocalNetwork(); // Local URL - only OK on local network
-  };
-
-  // Fetch git-pull URL to check if it's local
-  useEffect(() => {
-    const checkGitPullUrl = async () => {
-      const { data: settings } = await supabase
-        .from('server_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
-      
-      const settingsMap = new Map(
-        (settings || []).map((row: any) => [row.setting_key, row.setting_value])
-      );
-      
-      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url') || '';
-      setGitPullUrlIsLocal(isLocalUrl(gitPullUrl));
-    };
-    checkGitPullUrl();
-  }, []);
-
-  const checkForUpdates = async () => {
+  const checkForUpdates = useCallback(async () => {
     setChecking(true);
     setError(null);
-    
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('check-updates');
-      
-      // Handle function invocation errors gracefully
-      if (invokeError) {
-        console.error('Function invocation error:', invokeError);
-        setError('Kunne ikke sjekke for oppdateringer');
-        setIsSetupComplete(false);
-        return;
-      }
+      const { data, error: invokeError } = await supabase.functions.invoke("check-updates");
+      if (invokeError) throw new Error(invokeError.message);
 
       if (data?.needsSetup) {
-        setError(data.error);
-        setIsSetupComplete(false);
-        toast.info('GitHub repository må konfigureres først');
+        setError(no ? "GitHub repository er ikkje konfigurert. Gå til Servere-fanen." : "GitHub repository not configured. Go to Servers tab.");
         return;
       }
-
-      setIsSetupComplete(true);
       setUpdateInfo(data);
-      
-      if (data.updateAvailable) {
-        toast.success('Ny oppdatering tilgjengelig!');
-      } else {
-        toast.info('Du har den nyeste versjonen');
-      }
+      toast[data.updateAvailable ? "success" : "info"](
+        data.updateAvailable
+          ? (no ? "Ny oppdatering tilgjengeleg!" : "New update available!")
+          : (no ? "Du har nyaste versjonen" : "You have the latest version")
+      );
     } catch (err: any) {
-      console.error('Check updates error:', err);
-      setError('Kunne ikke sjekke for oppdateringer');
-      setIsSetupComplete(false);
+      console.error("Check updates error:", err);
+      setError(no ? "Kunne ikkje sjekke for oppdateringar" : "Could not check for updates");
     } finally {
       setChecking(false);
     }
-  };
+  }, [no]);
 
-  // Test connection to git-pull server
-  const testConnection = async () => {
-    setTestingConnection(true);
-    setConnectionStatus({ status: 'idle', message: language === 'no' ? 'Testar tilkobling...' : 'Testing connection...' });
+  const installUpdate = useCallback(async () => {
+    if (!updateInfo?.updateAvailable) return;
 
-    try {
-      // Get git-pull URL from settings
-      const { data: settings } = await supabase
-        .from('server_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
-
-      const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
-      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url');
-
-      if (!gitPullUrl) {
-        setConnectionStatus({
-          status: 'error',
-          message: language === 'no' ? 'Git-pull URL er ikkje konfigurert' : 'Git-pull URL is not configured',
-          suggestion: language === 'no' ? 'Gå til Servere-fanen og sett inn Git Pull Server URL' : 'Go to Servers tab and enter Git Pull Server URL',
-        });
-        return;
-      }
-
-      // Build health URL
-      let healthUrl = gitPullUrl;
-      if (healthUrl.endsWith('/git-pull')) {
-        healthUrl = healthUrl.replace(/\/git-pull$/, '/health');
-      } else {
-        healthUrl = healthUrl.replace(/\/$/, '') + '/health';
-      }
-
-      // Check for mixed content issue BEFORE trying fetch
-      if (window.location.protocol === 'https:' && healthUrl.startsWith('http:')) {
-        setConnectionStatus({
-          status: 'error',
-          message: language === 'no' ? 'Blokkert: HTTPS → HTTP' : 'Blocked: HTTPS → HTTP',
-          url: healthUrl,
-          details: language === 'no'
-            ? `Du er på HTTPS (${window.location.origin}), men git-pull serveren brukar HTTP. Nettlesaren blokkerer dette.`
-            : `You are on HTTPS (${window.location.origin}), but git-pull server uses HTTP. Browser blocks this.`,
-          suggestion: language === 'no'
-            ? 'Åpne appen lokalt via http:// (f.eks. http://192.168.x.x:5173) eller legg git-pull serveren bak HTTPS.'
-            : 'Open the app locally via http:// (e.g. http://192.168.x.x:5173) or put git-pull server behind HTTPS.',
-        });
-        return;
-      }
-
-      // Attempt fetch with timeout
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
-
-      try {
-        const response = await fetch(healthUrl, { method: 'GET', signal: controller.signal });
-        clearTimeout(timeout);
-
-        if (response.ok) {
-          const data = await response.json().catch(() => ({}));
-          setConnectionStatus({
-            status: 'ok',
-            message: language === 'no' ? 'Tilkobling OK!' : 'Connection OK!',
-            url: healthUrl,
-            details: data.service ? `Service: ${data.service}` : undefined,
-          });
-        } else {
-          const text = await response.text().catch(() => '');
-          setConnectionStatus({
-            status: 'error',
-            message: language === 'no' ? `Feil ${response.status}` : `Error ${response.status}`,
-            url: healthUrl,
-            details: text || undefined,
-            suggestion: language === 'no' ? 'Sjekk at git-pull-server køyrer og er riktig konfigurert.' : 'Check that git-pull-server is running and correctly configured.',
-          });
-        }
-      } catch (fetchErr: any) {
-        clearTimeout(timeout);
-        const isTimeout = fetchErr?.name === 'AbortError';
-        setConnectionStatus({
-          status: 'error',
-          message: isTimeout
-            ? (language === 'no' ? 'Tidsavbrudd (5s)' : 'Timeout (5s)')
-            : (language === 'no' ? 'Kunne ikkje nå serveren' : 'Could not reach server'),
-          url: healthUrl,
-          details: isTimeout
-            ? undefined
-            : (fetchErr?.message || String(fetchErr)),
-          suggestion: language === 'no'
-            ? 'Sjekk at git-pull-server køyrer:\n• sudo systemctl status jelly-git-pull\n• curl http://localhost:3002/health'
-            : 'Check that git-pull-server is running:\n• sudo systemctl status jelly-git-pull\n• curl http://localhost:3002/health',
-        });
-      }
-    } catch (err: any) {
-      console.error('Test connection error:', err);
-      setConnectionStatus({
-        status: 'error',
-        message: language === 'no' ? 'Feil under testing' : 'Error during test',
-        details: err?.message || String(err),
-      });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
-  const syncInstalledVersion = async () => {
-    try {
-      // Prompt user for current commit SHA
-      const commitSha = prompt('Lim inn commit SHA fra git log (kjør: git rev-parse HEAD)');
-      
-      if (!commitSha) {
-        toast.error('Commit SHA er påkrevd');
-        return;
-      }
-
-      toast.info('Synkroniserer installert versjon...');
-
-      const { data, error: syncError } = await supabase.functions.invoke('sync-installed-version', {
-        body: { commitSha: commitSha.trim() }
-      });
-
-      if (syncError) {
-        console.error('Sync error:', syncError);
-        toast.error('Kunne ikke synkronisere versjon');
-        return;
-      }
-
-      toast.success('Installert versjon synkronisert!');
-      
-      // Check for updates again
-      await checkForUpdates();
-    } catch (err: any) {
-      console.error('Sync error:', err);
-      toast.error('Kunne ikke synkronisere versjon');
-    }
-  };
-
-  // Subscribe to realtime updates
-  useEffect(() => {
-    if (!updateStatus?.id) return;
-
-    const channel = supabase
-      .channel('update-status-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'update_status',
-          filter: `id=eq.${updateStatus.id}`
-        },
-        (payload) => {
-          console.log('Update status changed:', payload);
-          const newData = payload.new as any;
-          setUpdateStatus({
-            id: newData.id,
-            status: newData.status,
-            progress: newData.progress,
-            current_step: newData.current_step,
-            logs: typeof newData.logs === 'string' ? JSON.parse(newData.logs) : newData.logs,
-            error: newData.error
-          });
-
-          // Stop updating state and refresh when completed
-          if (newData.status === 'completed') {
-            setUpdating(false);
-            toast.success('Oppdatering fullført! Siden laster på nytt om 3 sekunder...');
-            setTimeout(() => {
-              window.location.reload();
-            }, 3000);
-          }
-          
-          // Stop updating on failure
-          if (newData.status === 'failed') {
-            setUpdating(false);
-            toast.error('Oppdatering feilet. Se loggene for detaljer.');
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [updateStatus?.id]);
-
-  // Poll for update completion when git-pull-server can't send status updates
-  useEffect(() => {
-    if (!updating) return;
-
-    // Store the initial installed SHA to detect changes
-    const initialSha = updateInfo?.installedVersion?.sha || '';
-    let pollCount = 0;
-    const maxPolls = 120; // 10 minutes max (5s * 120)
-
-    const pollInterval = setInterval(async () => {
-      pollCount++;
-      console.log(`[UpdateManager] Polling for completion (${pollCount}/${maxPolls})...`);
-
-      const estimatedProgress = Math.min(95, Math.max(5, Math.round((pollCount / maxPolls) * 90)));
-
-      // Add polling log + estimated progress to UI
-      setUpdateStatus((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: prev.status === 'starting' ? 'in_progress' : prev.status,
-              progress: prev.status === 'completed' ? 100 : estimatedProgress,
-              current_step: prev.status === 'completed' ? prev.current_step : (language === 'no' ? 'Venter på serveren...' : 'Waiting for server...'),
-              logs: [
-                ...(prev.logs || []),
-                {
-                  timestamp: new Date().toISOString(),
-                  message: `🔄 Sjekker status... (${pollCount}/${maxPolls})`,
-                  level: 'info' as const,
-                },
-              ],
-            }
-          : null,
-      );
-
-      try {
-        const { data } = await supabase.functions.invoke('check-updates');
-        
-        // Check if installed version changed (update completed)
-        if (data && data.installedVersion?.sha && data.installedVersion.sha !== initialSha) {
-          // Update completed!
-          clearInterval(pollInterval);
-          
-          setUpdateStatus(prev => prev ? {
-            ...prev,
-            status: 'completed',
-            progress: 100,
-            current_step: 'Oppdatering fullført!',
-            logs: [...(prev.logs || []), {
-              timestamp: new Date().toISOString(),
-              message: '✅ Oppdatering fullført! Versjonen er nå oppdatert.',
-              level: 'success' as const
-            }]
-          } : null);
-          
-          setUpdateInfo(data);
-          setUpdating(false);
-          toast.success('Oppdatering fullført!');
-        } else if (!data?.updateAvailable && pollCount > 3) {
-          // No update available and we've polled a few times - probably completed
-          clearInterval(pollInterval);
-          
-          setUpdateStatus(prev => prev ? {
-            ...prev,
-            status: 'completed',
-            progress: 100,
-            current_step: 'Oppdatering fullført!',
-            logs: [...(prev.logs || []), {
-              timestamp: new Date().toISOString(),
-              message: '✅ Ingen oppdatering tilgjengelig - du har nyeste versjon.',
-              level: 'success' as const
-            }]
-          } : null);
-          
-          setUpdateInfo(data);
-          setUpdating(false);
-          toast.success('Du har nyeste versjon!');
-        } else if (pollCount >= maxPolls) {
-          // Timeout
-          clearInterval(pollInterval);
-          
-          setUpdateStatus(prev => prev ? {
-            ...prev,
-            status: 'unknown',
-            current_step: 'Tidsavbrudd - sjekk serverlogs',
-            logs: [...(prev.logs || []), {
-              timestamp: new Date().toISOString(),
-              message: '⚠️ Tidsavbrudd - klikk "Sjekk etter oppdatering" manuelt',
-              level: 'warning' as const
-            }]
-          } : null);
-          
-          setUpdating(false);
-          toast.warning('Tidsavbrudd - klikk "Sjekk etter oppdatering" for å se status');
-        }
-      } catch (err) {
-        console.error('[UpdateManager] Poll error:', err);
-      }
-    }, 5000); // Poll every 5 seconds
-
-    return () => clearInterval(pollInterval);
-  }, [updating]);
-
-  // Check if we're on a local network (private IP)
-  const isLocalNetwork = () => {
-    const hostname = window.location.hostname;
-    return (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname.startsWith('192.168.') ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('172.16.') ||
-      hostname.startsWith('172.17.') ||
-      hostname.startsWith('172.18.') ||
-      hostname.startsWith('172.19.') ||
-      hostname.startsWith('172.20.') ||
-      hostname.startsWith('172.21.') ||
-      hostname.startsWith('172.22.') ||
-      hostname.startsWith('172.23.') ||
-      hostname.startsWith('172.24.') ||
-      hostname.startsWith('172.25.') ||
-      hostname.startsWith('172.26.') ||
-      hostname.startsWith('172.27.') ||
-      hostname.startsWith('172.28.') ||
-      hostname.startsWith('172.29.') ||
-      hostname.startsWith('172.30.') ||
-      hostname.startsWith('172.31.')
-    );
-  };
-
-  const installUpdate = async () => {
     setUpdating(true);
-    setShowLogs(true); // Åpne terminal-vinduet umiddelbart
+    setShowLogs(true);
+    setProgress(5);
+    setLogs([]);
+    setUpdateStep(no ? "Startar oppdatering..." : "Starting update...");
+    setLogs((l) => addLog(l, no ? "Startar oppdatering..." : "Starting update..."));
 
-    let createdUpdateId: string | null = null;
+    const initialSha = updateInfo.installedVersion.sha;
 
     try {
-      // Create initial update status entry
-      const { data: statusData, error: statusError } = await supabase
-        .from('update_status')
-        .insert({
-          status: 'starting',
-          progress: 0,
-          current_step: 'Forbereder oppdatering...',
-          logs: JSON.stringify([
-            {
-              timestamp: new Date().toISOString(),
-              message: 'Oppdatering startet...',
-              level: 'info',
-            },
-          ]),
-        })
-        .select()
-        .single();
+      // Step 1: Trigger update via edge function (which calls git-pull server from backend)
+      setLogs((l) => addLog(l, no ? "Kontaktar oppdateringsserver..." : "Contacting update server..."));
+      setProgress(10);
 
-      if (statusError) {
-        throw statusError;
-      }
-
-      const updateId = statusData.id;
-      createdUpdateId = updateId;
-
-      // Set initial status for UI immediately after creating DB entry
-      setUpdateStatus({
-        id: updateId,
-        status: 'starting',
-        progress: 0,
-        current_step: 'Forbereder oppdatering...',
-        logs: [
-          {
-            timestamp: new Date().toISOString(),
-            message: 'Oppdatering startet...',
-            level: 'info',
-          },
-        ],
+      const { data, error: invokeError } = await supabase.functions.invoke("trigger-update", {
+        body: {},
       });
 
-      // Determine if we should call locally or via edge function
-      const useLocalCall = forceLocalMode || isLocalNetwork();
-      console.log('[UpdateManager] forceLocalMode:', forceLocalMode, 'isLocalNetwork:', isLocalNetwork(), 'useLocalCall:', useLocalCall);
+      if (invokeError) {
+        throw new Error(invokeError.message || (no ? "Edge function feilet" : "Edge function failed"));
+      }
 
-      if (useLocalCall) {
-        // Try to get git_pull_server_url or update_webhook_url from database
-        const { data: settings } = await supabase
-          .from('server_settings')
-          .select('setting_key, setting_value')
-          .in('setting_key', ['git_pull_server_url', 'update_webhook_url', 'git_pull_secret', 'update_webhook_secret']);
+      if (data?.error) {
+        throw new Error(data.error + (data.details ? `\n${data.details}` : ""));
+      }
 
-        const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
+      setLogs((l) => addLog(l, no ? "✅ Git pull starta på serveren" : "✅ Git pull started on server", "success"));
+      setProgress(20);
+      setUpdateStep(no ? "Ventar på at serveren fullfører..." : "Waiting for server to finish...");
 
-        // Check for git_pull_server_url first, then fallback to update_webhook_url
-        const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url');
+      // Step 2: Poll check-updates every 5s to detect when version changes
+      let pollCount = 0;
+      const maxPolls = 60; // 5 minutes max
 
-        if (!gitPullUrl) {
-          throw new Error('Git Pull URL er ikke konfigurert. Gå til Servere-fanen og sett opp Git Pull URL.');
-        }
-
-        // Get secret (check both keys)
-        const gitPullSecret = settingsMap.get('git_pull_secret') || settingsMap.get('update_webhook_secret');
-
-        console.log('[UpdateManager] Calling git-pull server directly (local mode):', gitPullUrl);
-
-        const contactingLog = [
-          {
-            timestamp: new Date().toISOString(),
-            message: 'Oppdatering startet...',
-            level: 'info' as const,
-          },
-          {
-            timestamp: new Date().toISOString(),
-            message: `🏠 Lokal modus: Kontakter git-pull server direkte på ${gitPullUrl}`,
-            level: 'info' as const,
-          },
-        ];
-
-        setUpdateStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                logs: contactingLog,
-              }
-            : null,
+      pollRef.current = setInterval(async () => {
+        pollCount++;
+        const estimatedProgress = Math.min(90, 20 + Math.round((pollCount / maxPolls) * 70));
+        setProgress(estimatedProgress);
+        setLogs((l) =>
+          addLog(l, `🔄 ${no ? "Sjekkar status" : "Checking status"} (${pollCount}/${maxPolls})...`)
         );
-
-        // Update status in database
-        await supabase
-          .from('update_status')
-          .update({
-            logs: JSON.stringify(contactingLog),
-          })
-          .eq('id', updateId);
-
-        // Ensure URL ends with /git-pull
-        let targetUrl = gitPullUrl;
-        if (!targetUrl.endsWith('/git-pull')) {
-          targetUrl = targetUrl.replace(/\/$/, '') + '/git-pull';
-        }
-
-        // Build /health URL for a quick reachability test (gives clearer errors than a raw NetworkError)
-        let healthUrl = gitPullUrl;
-        if (healthUrl.endsWith('/git-pull')) {
-          healthUrl = healthUrl.replace(/\/git-pull$/, '/health');
-        } else {
-          healthUrl = healthUrl.replace(/\/$/, '') + '/health';
-        }
-
-        // Block mixed content early (HTTPS app -> HTTP local server) to avoid a generic "Failed to fetch"
-        if (window.location.protocol === 'https:' && (targetUrl.startsWith('http:') || healthUrl.startsWith('http:'))) {
-          throw new Error(
-            `Du er på HTTPS (${window.location.origin}), men git-pull serveren er konfigurert med HTTP (${gitPullUrl}). Nettleseren blokkerer dette. Åpne appen via http:// på lokalnettet, eller legg git-pull-server bak HTTPS.`,
-          );
-        }
-
-        const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 5000) => {
-          const controller = new AbortController();
-          const t = setTimeout(() => controller.abort(), timeoutMs);
-          try {
-            return await fetch(url, { ...init, signal: controller.signal });
-          } finally {
-            clearTimeout(t);
-          }
-        };
-
-        const preflightLog = {
-          timestamp: new Date().toISOString(),
-          message: `🔎 Tester tilkobling: ${healthUrl}`,
-          level: 'info' as const,
-        };
-        const preflightLogs = [...contactingLog, preflightLog];
-
-        setUpdateStatus((prev) => (prev ? { ...prev, logs: preflightLogs } : null));
-        await supabase.from('update_status').update({ logs: JSON.stringify(preflightLogs) }).eq('id', updateId);
 
         try {
-          const healthRes = await fetchWithTimeout(healthUrl, { method: 'GET' }, 5000);
-          if (!healthRes.ok) {
-            const txt = await healthRes.text().catch(() => '');
-            throw new Error(`Health check feila (${healthRes.status}) ${txt ? `- ${txt}` : ''}`);
+          const { data: checkData } = await supabase.functions.invoke("check-updates");
+
+          if (checkData?.installedVersion?.sha && checkData.installedVersion.sha !== initialSha) {
+            // Version changed — update complete!
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+
+            setProgress(100);
+            setUpdateStep(no ? "Oppdatering fullført!" : "Update complete!");
+            setLogs((l) => addLog(l, no ? "✅ Oppdatering fullført!" : "✅ Update complete!", "success"));
+            setUpdateInfo(checkData);
+            setUpdating(false);
+            toast.success(no ? "Oppdatering fullført!" : "Update complete!");
+            return;
           }
-        } catch (e: any) {
-          const msg =
-            e?.name === 'AbortError'
-              ? 'Tidsavbrudd (ingen svar frå server)'
-              : e?.message || String(e);
-          throw new Error(
-            `Git-pull serveren er ikkje tilgjengeleg på ${healthUrl}. ${msg}. Tips: sjekk at ${gitPullUrl} svarer og at port 3002 er open / tenesta køyrer.`,
+
+          // Also detect "no update available" after some polls
+          if (!checkData?.updateAvailable && pollCount > 6) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+
+            setProgress(100);
+            setUpdateStep(no ? "Du har nyaste versjonen" : "You have the latest version");
+            setLogs((l) => addLog(l, no ? "✅ Allereie oppdatert" : "✅ Already up to date", "success"));
+            setUpdateInfo(checkData);
+            setUpdating(false);
+            toast.success(no ? "Du har nyaste versjonen!" : "You have the latest version!");
+            return;
+          }
+        } catch (e) {
+          console.error("Poll error:", e);
+        }
+
+        if (pollCount >= maxPolls) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setUpdateStep(no ? "Tidsavbrot — sjekk manuelt" : "Timeout — check manually");
+          setLogs((l) =>
+            addLog(l, no ? "⚠️ Tidsavbrot — klikk 'Sjekk etter oppdatering'" : "⚠️ Timeout — click 'Check for updates'", "warning")
           );
+          setUpdating(false);
+          toast.warning(no ? "Tidsavbrot" : "Timeout");
         }
-
-        // Build headers
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-        };
-
-        // Add signature if secret is available and crypto.subtle is supported
-        // Note: crypto.subtle is only available in secure contexts (HTTPS or localhost)
-        if (gitPullSecret && typeof crypto !== 'undefined' && crypto.subtle) {
-          try {
-            const body = JSON.stringify({ updateId });
-            const encoder = new TextEncoder();
-            const key = await crypto.subtle.importKey(
-              'raw',
-              encoder.encode(gitPullSecret),
-              { name: 'HMAC', hash: 'SHA-256' },
-              false,
-              ['sign'],
-            );
-            const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(body));
-            const signatureHex = Array.from(new Uint8Array(signature))
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join('');
-            headers['X-Update-Signature'] = signatureHex;
-          } catch (cryptoError) {
-            console.warn('Could not generate signature (crypto.subtle not available):', cryptoError);
-          }
-        } else if (gitPullSecret) {
-          console.warn('Signature skipped: crypto.subtle not available (requires HTTPS or localhost)');
-        }
-
-        const response = await fetch(targetUrl, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ updateId }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Git-pull server svarte med feil: ${response.status} - ${errorText}`);
-        }
-
-        console.log('[UpdateManager] Git pull triggered successfully (local mode)');
-
-        // Best-effort: update DB/UI to show we're in progress (git-pull-server runs async)
-        const startedLog = {
-          timestamp: new Date().toISOString(),
-          message: '✅ Git pull er trigga på serveren. Dette kan ta nokre minutt.',
-          level: 'success' as const,
-        };
-
-        setUpdateStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: 'in_progress',
-                progress: 5,
-                current_step: language === 'no' ? 'Oppdatering køyrer på serveren...' : 'Update running on server...',
-                logs: [...(prev.logs || []), startedLog],
-              }
-            : null,
-        );
-
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'in_progress',
-            progress: 5,
-            current_step: 'Oppdatering køyrer på serveren...',
-            logs: JSON.stringify([...preflightLogs, startedLog]),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', updateId);
-
-        toast.success('Oppdatering startet! Sjå logg-vinduet for status.');
-      } else {
-        // Use edge function for remote access
-        console.log('[UpdateManager] Calling git-pull-proxy edge function (remote mode)');
-
-        const contactingLog = [
-          {
-            timestamp: new Date().toISOString(),
-            message: 'Oppdatering startet...',
-            level: 'info' as const,
-          },
-          {
-            timestamp: new Date().toISOString(),
-            message: '☁️ Ekstern modus: Kontakter git-pull server via Edge Function...',
-            level: 'info' as const,
-          },
-          {
-            timestamp: new Date().toISOString(),
-            message: '⚠️ OBS: Edge Functions kan ikke nå lokale IP-adresser. Sett opp en offentlig URL eller kjør lokalt.',
-            level: 'warning' as const,
-          },
-        ];
-
-        setUpdateStatus((prev) =>
-          prev
-            ? {
-                ...prev,
-                logs: contactingLog,
-              }
-            : null,
-        );
-
-        await supabase
-          .from('update_status')
-          .update({
-            logs: JSON.stringify(contactingLog),
-          })
-          .eq('id', updateId);
-
-        const { data, error: invokeError } = await supabase.functions.invoke('git-pull-proxy', {
-          body: { updateId },
-        });
-
-        if (invokeError) {
-          console.error('[UpdateManager] Edge function error:', invokeError);
-          throw new Error(invokeError.message || 'Edge function feilet');
-        }
-
-        if (!data?.success) {
-          throw new Error(data?.error || 'Ukjent feil fra git-pull-proxy');
-        }
-
-        console.log('[UpdateManager] Git pull triggered successfully:', data);
-        toast.success('Oppdatering startet! Se terminal-vinduet for fremgang.');
-      }
+      }, 5000);
     } catch (err: any) {
-      console.error('Install update error:', err);
-
-      const errorMessage = err?.message || 'Kunne ikke starte oppdatering';
-
-      // Create detailed error logs
-      const errorLogs = [
-        {
-          timestamp: new Date().toISOString(),
-          message: 'Oppdatering startet...',
-          level: 'info' as const,
-        },
-        {
-          timestamp: new Date().toISOString(),
-          message: `❌ FEIL: ${errorMessage}`,
-          level: 'error' as const,
-        },
-      ];
-
-      const idToUpdate = createdUpdateId || updateStatus?.id || null;
-
-      // Persist failure to database so the status view stays correct
-      if (idToUpdate) {
-        await supabase
-          .from('update_status')
-          .update({
-            status: 'failed',
-            progress: 0,
-            current_step: 'Feil: Kunne ikke starte oppdatering',
-            error: errorMessage,
-            completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            logs: JSON.stringify(errorLogs),
-          })
-          .eq('id', idToUpdate);
-      }
-
-      // Update status in UI to show error - keep terminal open!
-      // Use crypto.randomUUID() for a valid UUID format
-      setUpdateStatus((prev) => ({
-        id: prev?.id || idToUpdate || crypto.randomUUID(),
-        status: 'failed',
-        progress: 0,
-        current_step: 'Feil: Kunne ikke kontakte git-pull server',
-        error: errorMessage,
-        logs: errorLogs,
-      }));
-
-      toast.error('Oppdatering feilet - se terminal for detaljer');
+      console.error("Install update error:", err);
+      const msg = err?.message || (no ? "Ukjend feil" : "Unknown error");
+      setUpdateStep(no ? "Feil" : "Error");
+      setLogs((l) => addLog(l, `❌ ${msg}`, "error"));
+      setProgress(0);
       setUpdating(false);
-      // Don't close the logs dialog - let user see what went wrong!
+      toast.error(no ? "Oppdatering feilet" : "Update failed");
     }
-  };
+  }, [updateInfo, no]);
 
-  // Troubleshooting function that analyzes the error and suggests/applies fixes
-  const runTroubleshooting = async () => {
-    setTroubleshooting(true);
-    setTroubleshootResult(null);
+  const syncInstalledVersion = async () => {
+    const commitSha = prompt(no ? "Lim inn commit SHA (køyr: git rev-parse HEAD)" : "Paste commit SHA (run: git rev-parse HEAD)");
+    if (!commitSha) return;
 
     try {
-      // Get current settings
-      const { data: settings } = await supabase
-        .from('server_settings')
-        .select('setting_key, setting_value')
-        .in('setting_key', ['git_pull_server_url', 'update_webhook_url']);
-
-      const settingsMap = new Map((settings || []).map((row: any) => [row.setting_key, row.setting_value]));
-      const gitPullUrl = settingsMap.get('git_pull_server_url') || settingsMap.get('update_webhook_url') || '';
-
-      // Analyze the error
-      const errorMsg = updateStatus?.error || '';
-      const currentProtocol = window.location.protocol;
-      let parsedGitPullUrl: URL | null = null;
-      try {
-        parsedGitPullUrl = new URL(gitPullUrl);
-      } catch {
-        // Invalid URL
-      }
-
-      // Check for mixed content issue (HTTPS app -> HTTP git-pull)
-      if (currentProtocol === 'https:' && parsedGitPullUrl?.protocol === 'http:') {
-        // Extract the local IP/hostname from git-pull URL
-        const localHost = parsedGitPullUrl.hostname;
-        const localPort = parsedGitPullUrl.port || '3002';
-        
-        // Try to determine what port the app runs on (common ports)
-        const appPorts = ['3000', '5173', '4173', '8080'];
-        const suggestedLocalAppUrl = `http://${localHost}:${appPorts[0]}`;
-
-        setTroubleshootResult({
-          issue: language === 'no'
-            ? 'Blandet innhald (Mixed Content): Appen køyrer over HTTPS, men git-pull serveren brukar HTTP. Nettlesaren blokkerer dette av tryggleiksgrunnar.'
-            : 'Mixed Content: The app runs over HTTPS, but the git-pull server uses HTTP. The browser blocks this for security reasons.',
-          solution: language === 'no'
-            ? `Du har to alternativ:\n\n1. **Opne appen lokalt** (anbefalt for rask fix):\n   Gå til din lokale instans på LAN og køyr oppdateringa derifrå.\n\n2. **Sett opp HTTPS for git-pull** (permanent løysing):\n   Bruk ein reverse proxy (Caddy/Nginx) framfor git-pull-server og oppdater URL til https://...`
-            : `You have two options:\n\n1. **Open the app locally** (recommended for quick fix):\n   Go to your local instance on LAN and run the update from there.\n\n2. **Set up HTTPS for git-pull** (permanent solution):\n   Use a reverse proxy (Caddy/Nginx) in front of git-pull-server and update URL to https://...`,
-          canAutoFix: false,
-          localAppUrl: suggestedLocalAppUrl,
-        });
-
-        toast.info(language === 'no' ? 'Feilsøking fullført - sjå løysingsforslag' : 'Troubleshooting complete - see solution');
-        return;
-      }
-
-      // Check for network error (server not running or unreachable)
-      if (errorMsg.includes('NetworkError') || errorMsg.includes('fetch')) {
-        // Test if we can reach the git-pull server health endpoint
-        let serverReachable = false;
-        if (parsedGitPullUrl) {
-          try {
-            const healthUrl = `${parsedGitPullUrl.protocol}//${parsedGitPullUrl.host}/health`;
-            const response = await fetch(healthUrl, { method: 'GET', mode: 'cors' });
-            serverReachable = response.ok;
-          } catch {
-            serverReachable = false;
-          }
-        }
-
-        if (!serverReachable) {
-          setTroubleshootResult({
-            issue: language === 'no'
-              ? 'Git-pull serveren er ikkje tilgjengeleg. Anten køyrer den ikkje, eller så er det nettverksproblem.'
-              : 'Git-pull server is not reachable. Either it is not running, or there are network issues.',
-            solution: language === 'no'
-              ? `Sjekk følgjande på serveren din:\n\n1. **Er git-pull-server køyrande?**\n   \`sudo systemctl status jelly-git-pull\`\n\n2. **Start den viss den er stoppa:**\n   \`sudo systemctl start jelly-git-pull\`\n\n3. **Sjekk loggar:**\n   \`sudo journalctl -u jelly-git-pull -f\`\n\n4. **Sjekk at porten er open:**\n   \`curl http://localhost:3002/health\``
-              : `Check the following on your server:\n\n1. **Is git-pull-server running?**\n   \`sudo systemctl status jelly-git-pull\`\n\n2. **Start it if stopped:**\n   \`sudo systemctl start jelly-git-pull\`\n\n3. **Check logs:**\n   \`sudo journalctl -u jelly-git-pull -f\`\n\n4. **Check if port is open:**\n   \`curl http://localhost:3002/health\``,
-            canAutoFix: false,
-          });
-        } else {
-          setTroubleshootResult({
-            issue: language === 'no'
-              ? 'Git-pull serveren svarer på /health, men oppdateringa feilar. Dette kan vere eit CORS- eller signaturproblem.'
-              : 'Git-pull server responds to /health, but update fails. This could be a CORS or signature issue.',
-            solution: language === 'no'
-              ? `Prøv følgjande:\n\n1. **Sjekk CORS-headerar** i git-pull-server\n2. **Sjekk om signaturverifisering er slått av** (skal vere disabled for privat nettverk)\n3. **Restart git-pull-server:**\n   \`sudo systemctl restart git-pull\``
-              : `Try the following:\n\n1. **Check CORS headers** in git-pull-server\n2. **Check if signature verification is disabled** (should be disabled for private network)\n3. **Restart git-pull-server:**\n   \`sudo systemctl restart git-pull\``,
-            canAutoFix: false,
-          });
-        }
-
-        toast.info(language === 'no' ? 'Feilsøking fullført' : 'Troubleshooting complete');
-        return;
-      }
-
-      // Check if git-pull URL is not configured
-      if (!gitPullUrl) {
-        setTroubleshootResult({
-          issue: language === 'no'
-            ? 'Git-pull URL er ikkje konfigurert i serverinnstillingane.'
-            : 'Git-pull URL is not configured in server settings.',
-          solution: language === 'no'
-            ? 'Gå til Admin → Servere og set inn Git Pull Server URL (f.eks. http://192.168.1.100:3002)'
-            : 'Go to Admin → Servers and enter Git Pull Server URL (e.g., http://192.168.1.100:3002)',
-          canAutoFix: false,
-        });
-
-        toast.info(language === 'no' ? 'Git-pull URL manglar' : 'Git-pull URL missing');
-        return;
-      }
-
-      // Generic error
-      setTroubleshootResult({
-        issue: language === 'no'
-          ? `Ukjent feil: ${errorMsg}`
-          : `Unknown error: ${errorMsg}`,
-        solution: language === 'no'
-          ? 'Prøv å køyre oppdateringa manuelt på serveren:\n\n```\ncd ~/jelly-stream-viewer\ngit pull origin main\nnpm install\nnpm run build\n```'
-          : 'Try running the update manually on the server:\n\n```\ncd ~/jelly-stream-viewer\ngit pull origin main\nnpm install\nnpm run build\n```',
-        canAutoFix: false,
+      const { error: syncError } = await supabase.functions.invoke("sync-installed-version", {
+        body: { commitSha: commitSha.trim() },
       });
-
-      toast.info(language === 'no' ? 'Feilsøking fullført' : 'Troubleshooting complete');
-    } catch (err: any) {
-      console.error('Troubleshooting error:', err);
-      toast.error(language === 'no' ? 'Feilsøking feilet' : 'Troubleshooting failed');
-    } finally {
-      setTroubleshooting(false);
+      if (syncError) throw syncError;
+      toast.success(no ? "Versjon synkronisert!" : "Version synced!");
+      await checkForUpdates();
+    } catch {
+      toast.error(no ? "Kunne ikkje synkronisere versjon" : "Could not sync version");
     }
   };
 
@@ -958,181 +201,51 @@ export const UpdateManager = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <GitBranch className="h-5 w-5" />
-          {updates?.title || 'Update Management'}
+          {no ? "Oppdateringar" : "Updates"}
         </CardTitle>
         <CardDescription>
-          {updates?.description || 'Check and install automatic updates from GitHub'}
+          {no ? "Sjekk og installer oppdateringar frå GitHub" : "Check and install updates from GitHub"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Network mode info - show current detection */}
-        {gitPullUrlIsLocal !== null && (
-          <div className="p-3 bg-secondary/30 border border-border rounded-lg">
-            <div className="flex items-center gap-2">
-              {isLocalNetwork() ? (
-                <Home className="h-4 w-4 text-green-400" />
-              ) : (
-                <Globe className="h-4 w-4 text-blue-400" />
-              )}
-              <div>
-                <p className="text-sm font-medium">
-                  {isLocalNetwork() 
-                    ? (language === 'no' ? 'Lokalt nettverk' : 'Local network')
-                    : (language === 'no' ? 'Eksternt nettverk' : 'External network')}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {isLocalNetwork() 
-                    ? (language === 'no' ? 'Du kan køyre oppdateringar direkte' : 'You can run updates directly')
-                    : (language === 'no' ? 'Oppdateringar krev lokal tilgang' : 'Updates require local access')}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Warning when git-pull URL is local but user is on external network */}
-        {gitPullUrlIsLocal && !isLocalNetwork() && (
-          <div className="p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-destructive mb-1">
-                  {language === 'no' ? 'Kan ikkje oppdatere eksternt' : 'Cannot update externally'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {language === 'no' 
-                    ? 'Git-pull serveren din brukar ein lokal IP-adresse (192.168.x.x). Oppdateringar kan berre køyrast frå same lokale nettverk. Opne appen på din self-hosted server (ikkje Lovable preview) for å installere oppdateringar.'
-                    : 'Your git-pull server uses a local IP address (192.168.x.x). Updates can only be run from the same local network. Open the app on your self-hosted server (not Lovable preview) to install updates.'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Info banner explaining this is for self-hosted only */}
-        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+        {/* Info banner */}
+        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <div className="flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 text-blue-400 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-blue-400 mb-1">
-                {updates?.selfHostedOnly || 'For self-hosted installations only'}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {updates?.selfHostedDescription || 'This feature is only for self-hosted installations...'}
-              </p>
-            </div>
+            <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-muted-foreground">
+              {no
+                ? "Denne funksjonen er berre for self-hosted installasjonar. Oppdateringar vert utført via git pull på serveren."
+                : "This feature is only for self-hosted installations. Updates are performed via git pull on the server."}
+            </p>
           </div>
         </div>
 
-        {/* Connection Test Section */}
-        <div className="p-4 bg-secondary/20 border border-border rounded-lg space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {connectionStatus.status === 'idle' && <Wifi className="h-4 w-4 text-muted-foreground" />}
-              {connectionStatus.status === 'ok' && <Wifi className="h-4 w-4 text-green-500" />}
-              {connectionStatus.status === 'error' && <WifiOff className="h-4 w-4 text-destructive" />}
-              <p className="text-sm font-medium">
-                {language === 'no' ? 'Git-pull server tilkobling' : 'Git-pull server connection'}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={testConnection}
-              disabled={testingConnection}
-            >
-              {testingConnection ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  {language === 'no' ? 'Testar...' : 'Testing...'}
-                </>
-              ) : (
-                <>
-                  <Wifi className="h-4 w-4 mr-2" />
-                  {language === 'no' ? 'Test tilkobling' : 'Test connection'}
-                </>
-              )}
-            </Button>
-          </div>
-
-          {/* Connection status result */}
-          {connectionStatus.status !== 'idle' && (
-            <div className={`p-3 rounded-lg ${
-              connectionStatus.status === 'ok' 
-                ? 'bg-green-500/10 border border-green-500/30' 
-                : 'bg-destructive/10 border border-destructive/30'
-            }`}>
-              <div className="flex items-start gap-2">
-                {connectionStatus.status === 'ok' ? (
-                  <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
-                )}
-                <div className="flex-1 space-y-1">
-                  <p className={`text-sm font-medium ${
-                    connectionStatus.status === 'ok' ? 'text-green-500' : 'text-destructive'
-                  }`}>
-                    {connectionStatus.message}
-                  </p>
-                  {connectionStatus.url && (
-                    <p className="text-xs text-muted-foreground font-mono break-all">
-                      {connectionStatus.url}
-                    </p>
-                  )}
-                  {connectionStatus.details && (
-                    <p className="text-xs text-muted-foreground">
-                      {connectionStatus.details}
-                    </p>
-                  )}
-                  {connectionStatus.suggestion && (
-                    <p className="text-xs text-muted-foreground whitespace-pre-line mt-2 p-2 bg-background/50 rounded">
-                      💡 {connectionStatus.suggestion}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Setup instructions - show by default until setup is verified */}
-        {isSetupComplete === false && (
-          <div className="p-4 bg-muted/50 border border-border rounded-lg">
+        {/* Error */}
+        {error && (
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
             <div className="flex items-start gap-2">
-              <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-medium mb-2">
-                  {updates?.setupRequired || 'Setup for self-hosted installation'}
-                </p>
-                <ol className="list-decimal list-inside space-y-1 text-xs text-muted-foreground ml-2">
-                  <li>{updates?.setupSteps?.step1 || 'Go to "Servers" tab'}</li>
-                  <li>{updates?.setupSteps?.step2 || 'Set GitHub Repository URL'}</li>
-                  <li>{updates?.setupSteps?.step3 || 'Set Update Webhook URL'}</li>
-                  <li>{updates?.setupSteps?.step4 || 'Run the update-server script'}</li>
-                </ol>
-                <p className="text-xs text-muted-foreground mt-2">
-                  <strong>{common?.note || 'Note'}:</strong> {updates?.note || 'This requires a self-hosted server...'}
-                </p>
-              </div>
+              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+              <p className="text-sm text-destructive">{error}</p>
             </div>
           </div>
         )}
 
+        {/* Version info */}
         {updateInfo && (
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
               <div>
-                <p className="text-sm font-medium">{updates?.installedVersion || 'Installed version'}</p>
+                <p className="text-sm font-medium">{no ? "Installert versjon" : "Installed version"}</p>
                 <p className="text-xs text-muted-foreground font-mono">
-                  {updateInfo.installedVersion.shortSha || (language === 'no' ? 'Ukjent' : 'Unknown')}
+                  {updateInfo.installedVersion.shortSha || (no ? "Ukjent" : "Unknown")}
                 </p>
               </div>
               {updateInfo.updateAvailable ? (
-                <Badge variant="secondary">{language === 'no' ? 'Utdatert' : 'Outdated'}</Badge>
+                <Badge variant="secondary">{no ? "Utdatert" : "Outdated"}</Badge>
               ) : (
                 <Badge variant="default" className="bg-green-500">
                   <CheckCircle className="h-3 w-3 mr-1" />
-                  {language === 'no' ? 'Oppdatert' : 'Up to date'}
+                  {no ? "Oppdatert" : "Up to date"}
                 </Badge>
               )}
             </div>
@@ -1141,18 +254,20 @@ export const UpdateManager = () => {
               <div className="p-4 border border-primary/20 rounded-lg bg-primary/5">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <p className="font-medium">{updates?.updateAvailable || 'New version available!'}</p>
+                    <p className="font-medium">{no ? "Ny versjon tilgjengeleg!" : "New version available!"}</p>
                     <p className="text-xs text-muted-foreground font-mono mt-1">
                       {updateInfo.latestVersion.shortSha}
                     </p>
                   </div>
-                  <Badge variant="outline">{language === 'no' ? 'Ny' : 'New'}</Badge>
+                  <Badge variant="outline">{no ? "Ny" : "New"}</Badge>
                 </div>
                 <div className="mt-3 space-y-1 text-sm">
                   <p className="font-medium">{updateInfo.latestVersion.message}</p>
                   <p className="text-xs text-muted-foreground">
-                    {language === 'no' ? 'av' : 'by'} {updateInfo.latestVersion.author} •{' '}
-                    {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", { locale: dateLocale })}
+                    {no ? "av" : "by"} {updateInfo.latestVersion.author} •{" "}
+                    {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", {
+                      locale: dateLocale,
+                    })}
                   </p>
                 </div>
               </div>
@@ -1160,178 +275,109 @@ export const UpdateManager = () => {
           </div>
         )}
 
-        {/* Update Progress */}
-        {updateStatus && (
+        {/* Update progress */}
+        {(updating || logs.length > 0) && (
           <div className="space-y-3 p-4 border border-primary/20 rounded-lg bg-primary/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Loader2 className={`h-4 w-4 ${updateStatus.status === 'completed' ? '' : 'animate-spin'}`} />
-                <span className="text-sm font-medium">{updateStatus.current_step}</span>
+                {updating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : progress === 100 ? (
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-destructive" />
+                )}
+                <span className="text-sm font-medium">{updateStep}</span>
               </div>
               <Dialog open={showLogs} onOpenChange={setShowLogs}>
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="sm">
                     <FileText className="h-4 w-4 mr-1" />
-                    {updates?.viewLogs || 'View logs'}
+                    {no ? "Sjå loggar" : "View logs"}
                   </Button>
                 </DialogTrigger>
-                 <DialogContent className="max-w-2xl">
+                <DialogContent className="max-w-2xl">
                   <DialogHeader>
-                    <DialogTitle>{updates?.logsTitle || 'Update logs'}</DialogTitle>
+                    <DialogTitle>{no ? "Oppdateringsloggar" : "Update logs"}</DialogTitle>
                     <DialogDescription>
-                      {updates?.logsDescription || 'Detailed log of the update process'}
+                      {no ? "Detaljert logg frå oppdateringsprosessen" : "Detailed log of the update process"}
                     </DialogDescription>
                   </DialogHeader>
-
-                  {/* Progress bar inside dialog */}
                   <div className="space-y-1 mb-4">
                     <p className="text-xs text-muted-foreground">
-                      {language === 'no'
-                        ? `Fremdrift: ${updateStatus.progress}%`
-                        : `Progress: ${updateStatus.progress}%`}
+                      {no ? `Framgang: ${progress}%` : `Progress: ${progress}%`}
                     </p>
-                    <Progress value={updateStatus.progress} className="h-1.5" />
+                    <Progress value={progress} className="h-1.5" />
                   </div>
-
                   <ScrollArea className="h-96 w-full rounded-md border p-4">
                     <div className="space-y-2">
-                      {updateStatus.logs.map((log, idx) => (
+                      {logs.map((log, idx) => (
                         <div key={idx} className="flex gap-2 text-sm">
-                          <span className="text-muted-foreground font-mono text-xs">
-                            {format(new Date(log.timestamp), 'HH:mm:ss')}
+                          <span className="text-muted-foreground font-mono text-xs shrink-0">
+                            {format(new Date(log.timestamp), "HH:mm:ss")}
                           </span>
-                          <span className={`
-                            ${log.level === 'error' ? 'text-red-400' : ''}
-                            ${log.level === 'success' ? 'text-green-400' : ''}
-                            ${log.level === 'warning' ? 'text-yellow-400' : ''}
-                            ${log.level === 'info' ? 'text-muted-foreground' : ''}
-                          `}>
+                          <span
+                            className={
+                              log.level === "error"
+                                ? "text-red-400"
+                                : log.level === "success"
+                                ? "text-green-400"
+                                : log.level === "warning"
+                                ? "text-yellow-400"
+                                : "text-muted-foreground"
+                            }
+                          >
                             {log.message}
                           </span>
                         </div>
                       ))}
                     </div>
                   </ScrollArea>
-
-                  {/* Hint for manuelt kjørt oppdatering */}
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {language === 'no'
-                      ? 'Hvis du har kjørt oppdateringen manuelt på serveren, klikk «Sjekk etter oppdatering» under for å oppdatere statusen.'
-                      : 'If you ran the update manually on the server, click "Check for updates" below to refresh the status.'}
-                  </p>
                 </DialogContent>
               </Dialog>
             </div>
-            <Progress value={updateStatus.progress} className="h-2" />
-            {updateStatus.error && (
-              <div className="space-y-2">
-                <p className="text-sm text-red-400">{updateStatus.error}</p>
-                
-                {/* Troubleshooting button when there's an error */}
-                {updateStatus.status === 'failed' && (
-                  <Button
-                    onClick={runTroubleshooting}
-                    disabled={troubleshooting}
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                  >
-                    <Wrench className={`h-4 w-4 mr-2 ${troubleshooting ? 'animate-spin' : ''}`} />
-                    {troubleshooting
-                      ? (language === 'no' ? 'Analyserer...' : 'Analyzing...')
-                      : (language === 'no' ? 'Køyr feilsøking' : 'Run troubleshooting')}
-                  </Button>
-                )}
-
-                {/* Troubleshooting results */}
-                {troubleshootResult && (
-                  <div className="mt-3 p-4 bg-secondary/30 border border-border rounded-lg space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-destructive mb-1">
-                        {language === 'no' ? 'Problem identifisert:' : 'Issue identified:'}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{troubleshootResult.issue}</p>
-                    </div>
-                    
-                    <div>
-                      <p className="text-sm font-medium text-primary mb-1">
-                        {language === 'no' ? 'Løysing:' : 'Solution:'}
-                      </p>
-                      <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                        {troubleshootResult.solution}
-                      </div>
-                    </div>
-
-                    {/* Quick link to local app if available */}
-                    {troubleshootResult.localAppUrl && (
-                      <div className="pt-2 border-t border-border">
-                        <p className="text-xs text-muted-foreground mb-2">
-                          {language === 'no'
-                            ? 'Rask løysing: Opne appen lokalt og køyr oppdateringa derifrå:'
-                            : 'Quick fix: Open the app locally and run the update from there:'}
-                        </p>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => window.open(troubleshootResult.localAppUrl, '_blank')}
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          {language === 'no' ? 'Opne lokal instans' : 'Open local instance'}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            <Progress value={progress} className="h-2" />
           </div>
         )}
 
+        {/* Actions */}
         <div className="flex gap-2">
-          <Button
-            onClick={checkForUpdates}
-            disabled={checking || updating}
-            variant="outline"
-            className="flex-1"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${checking ? 'animate-spin' : ''}`} />
-            {checking ? (updates?.checking || 'Checking...') : (updates?.checkForUpdates || 'Check for updates')}
+          <Button onClick={checkForUpdates} disabled={checking || updating} variant="outline" className="flex-1">
+            <RefreshCw className={`h-4 w-4 mr-2 ${checking ? "animate-spin" : ""}`} />
+            {checking
+              ? (no ? "Sjekkar..." : "Checking...")
+              : (no ? "Sjekk etter oppdatering" : "Check for updates")}
           </Button>
 
-          {updateInfo?.updateAvailable && !updateStatus && (
+          {updateInfo?.updateAvailable && !updating && (
             <>
-              <Button
-                onClick={syncInstalledVersion}
-                variant="secondary"
-                size="sm"
-                className="flex-shrink-0"
-              >
+              <Button onClick={syncInstalledVersion} variant="secondary" size="sm" className="shrink-0">
                 <CheckCircle className="h-4 w-4 mr-2" />
-                {language === 'no' ? 'Synk versjon' : 'Sync version'}
+                {no ? "Synk versjon" : "Sync version"}
               </Button>
-              
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button disabled={updating || !canRunUpdate()} className="flex-1">
+                  <Button className="flex-1">
                     <Download className="h-4 w-4 mr-2" />
-                    {!canRunUpdate() 
-                      ? (language === 'no' ? 'Køyr lokalt' : 'Run locally')
-                      : (updates?.installUpdate || 'Install update')}
+                    {no ? "Installer oppdatering" : "Install update"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>{updates?.installUpdate || 'Install update'}?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      {no ? "Installer oppdatering?" : "Install update?"}
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      {language === 'no' 
-                        ? 'Dette vil laste ned den nyeste versjonen fra GitHub og restarte serveren. Operasjonen tar vanligvis 30-60 sekunder. Siden vil automatisk laste på nytt når oppdateringen er ferdig.'
-                        : 'This will download the latest version from GitHub and restart the server. The operation usually takes 30-60 seconds. The page will automatically reload when the update is complete.'}
+                      {no
+                        ? "Dette vil laste ned nyaste versjon frå GitHub og bygge på nytt. Det tek vanlegvis 30-60 sekund."
+                        : "This will download the latest version from GitHub and rebuild. Usually takes 30-60 seconds."}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>{common?.cancel || 'Cancel'}</AlertDialogCancel>
+                    <AlertDialogCancel>{no ? "Avbryt" : "Cancel"}</AlertDialogCancel>
                     <AlertDialogAction onClick={installUpdate}>
-                      {language === 'no' ? 'Installer nå' : 'Install now'}
+                      {no ? "Installer no" : "Install now"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
