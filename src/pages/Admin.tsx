@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio } from "lucide-react";
+import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio, FolderOpen } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -36,6 +36,7 @@ import { SiteSettingsSection } from "@/components/admin/SiteSettingsSection";
 import { AppServicesHealth } from "@/components/admin/AppServicesHealth";
 import { SystemStatusDashboard } from "@/components/admin/SystemStatusDashboard";
 import { ActiveStreamsDashboard } from "@/components/admin/ActiveStreamsDashboard";
+import { FileManager } from "@/components/admin/FileManager";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -130,7 +131,7 @@ const Admin = () => {
     { value: "sync", label: language === 'no' ? 'Synkronisering' : 'Sync', icon: RefreshCw },
     { value: "users", label: admin.users || "Users", icon: Settings },
     { value: "news", label: language === 'no' ? 'Nyheter' : 'News', icon: Newspaper },
-    
+    { value: "files", label: language === 'no' ? 'Filer' : 'Files', icon: FolderOpen },
     { value: "logs", label: admin.logs || "Logs", icon: FileText },
     { value: "updates", label: language === 'no' ? "Oppdateringer" : "Updates", icon: Download },
     { value: "db-setup", label: language === 'no' ? "DB Oppsett" : "DB Setup", icon: BookOpen },
@@ -407,6 +408,10 @@ const Admin = () => {
 
               <TabsContent value="news" className="space-y-6 mt-0">
                 <NewsManagementSection userRole={userRole} />
+              </TabsContent>
+
+              <TabsContent value="files" className="space-y-6 mt-0">
+                <FileManager />
               </TabsContent>
 
               <TabsContent value="users" className="space-y-6 mt-0">

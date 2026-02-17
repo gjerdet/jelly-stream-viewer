@@ -789,6 +789,190 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ===== FILE MANAGER ENDPOINTS =====
+  
+  // List files in a directory
+  if (req.url?.startsWith('/files/list') && req.method === 'GET') {
+    const urlParts = new URL(req.url, `http://${req.headers.host}`);
+    const dirPath = urlParts.searchParams.get('path') || '.';
+    const fullPath = path.resolve(APP_DIR, dirPath);
+    
+    // Security: ensure path is within APP_DIR
+    if (!fullPath.startsWith(path.resolve(APP_DIR))) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied: path outside project directory' }));
+      return;
+    }
+    
+    try {
+      const entries = fs.readdirSync(fullPath, { withFileTypes: true });
+      const files = entries.map(entry => {
+        const entryPath = path.join(fullPath, entry.name);
+        let size = 0;
+        let modified = null;
+        try {
+          const stat = fs.statSync(entryPath);
+          size = stat.size;
+          modified = stat.mtime.toISOString();
+        } catch (e) {}
+        return {
+          name: entry.name,
+          isDirectory: entry.isDirectory(),
+          isFile: entry.isFile(),
+          size,
+          modified,
+        };
+      }).sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, path: dirPath, files }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Read a file
+  if (req.url?.startsWith('/files/read') && req.method === 'GET') {
+    const urlParts = new URL(req.url, `http://${req.headers.host}`);
+    const filePath = urlParts.searchParams.get('path');
+    if (!filePath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Path is required' }));
+      return;
+    }
+    const fullPath = path.resolve(APP_DIR, filePath);
+    
+    if (!fullPath.startsWith(path.resolve(APP_DIR))) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Access denied' }));
+      return;
+    }
+    
+    try {
+      const stat = fs.statSync(fullPath);
+      // Limit to 2MB files
+      if (stat.size > 2 * 1024 * 1024) {
+        res.writeHead(413, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'File too large (max 2MB)' }));
+        return;
+      }
+      const content = fs.readFileSync(fullPath, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, path: filePath, content, size: stat.size }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Write/save a file
+  if (req.url === '/files/write' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', () => {
+      try {
+        const { path: filePath, content } = JSON.parse(body);
+        if (!filePath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Path is required' }));
+          return;
+        }
+        const fullPath = path.resolve(APP_DIR, filePath);
+        if (!fullPath.startsWith(path.resolve(APP_DIR))) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Access denied' }));
+          return;
+        }
+        fs.writeFileSync(fullPath, content, 'utf-8');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'File saved' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Rename a file or directory
+  if (req.url === '/files/rename' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', () => {
+      try {
+        const { oldPath, newPath } = JSON.parse(body);
+        if (!oldPath || !newPath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'oldPath and newPath are required' }));
+          return;
+        }
+        const fullOld = path.resolve(APP_DIR, oldPath);
+        const fullNew = path.resolve(APP_DIR, newPath);
+        if (!fullOld.startsWith(path.resolve(APP_DIR)) || !fullNew.startsWith(path.resolve(APP_DIR))) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Access denied' }));
+          return;
+        }
+        fs.renameSync(fullOld, fullNew);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Renamed successfully' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Delete a file or directory
+  if (req.url === '/files/delete' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk.toString());
+    req.on('end', () => {
+      try {
+        const { path: filePath } = JSON.parse(body);
+        if (!filePath) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Path is required' }));
+          return;
+        }
+        const fullPath = path.resolve(APP_DIR, filePath);
+        if (!fullPath.startsWith(path.resolve(APP_DIR))) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Access denied' }));
+          return;
+        }
+        // Prevent deleting critical files
+        const basename = path.basename(fullPath);
+        const criticalFiles = ['.env', 'package.json', 'git-pull-server.cjs'];
+        if (criticalFiles.includes(basename)) {
+          res.writeHead(403, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: `Cannot delete critical file: ${basename}` }));
+          return;
+        }
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(fullPath);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Deleted successfully' }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
   // 404 for other routes
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
