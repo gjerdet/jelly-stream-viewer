@@ -78,7 +78,7 @@ serve(async (req) => {
           details: `Konfigurert URL "${gitPullUrl}" er ei lokal/privat adresse. Edge functions køyrer i skyen og kan ikkje nå lokale IP-ar. Konfigurer ein offentleg URL (t.d. via Cloudflare Tunnel eller reverse proxy) under Servere → Git Pull Server URL.`,
           needsPublicUrl: true,
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -120,7 +120,7 @@ serve(async (req) => {
             : `Feil: ${errorMessage}. Sjekk at git-pull-server.js køyrer og at URL-en (${gitPullUrl}) er tilgjengeleg.`,
           connectionFailed: true,
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -133,7 +133,7 @@ serve(async (req) => {
           error: `Git pull feilet med status ${gitPullResponse.status}`,
           details: errorText || 'Ingen detaljar frå serveren',
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

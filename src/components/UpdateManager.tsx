@@ -125,26 +125,31 @@ export const UpdateManager = () => {
       setProgress(10);
 
       let data: any = null;
-      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("trigger-update", {
-        body: {},
-      });
-
-      if (invokeError) {
-        // Try to parse structured error from edge function response
-        try {
-          const errContext = (invokeError as any)?.context;
-          if (errContext) {
-            const parsed = typeof errContext === "string" ? JSON.parse(errContext) : errContext;
-            data = parsed;
+      try {
+        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("trigger-update", {
+          body: {},
+        });
+        if (invokeError) {
+          // FunctionsHttpError has a .context which is the Response object
+          try {
+            const context = (invokeError as any)?.context;
+            if (context && typeof context.json === "function") {
+              data = await context.json();
+            } else if (context && typeof context === "object") {
+              data = context;
+            }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore parse error
+          if (!data) {
+            throw new Error(invokeError.message || (no ? "Backend-funksjon feilet" : "Backend function failed"));
+          }
+        } else {
+          data = invokeData;
         }
-        if (!data) {
-          throw new Error(invokeError.message || (no ? "Backend-funksjon feilet" : "Backend function failed"));
-        }
-      } else {
-        data = invokeData;
+      } catch (fetchErr: any) {
+        // Re-throw unless we already have structured data
+        if (!data) throw fetchErr;
       }
 
       // Check for structured errors from the improved edge function
