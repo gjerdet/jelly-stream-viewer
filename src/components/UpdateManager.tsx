@@ -124,33 +124,8 @@ export const UpdateManager = () => {
       setLogs((l) => addLog(l, no ? "Kontaktar oppdateringsserver..." : "Contacting update server..."));
       setProgress(10);
 
-      let data: any = null;
-      try {
-        const { data: invokeData, error: invokeError } = await supabase.functions.invoke("trigger-update", {
-          body: {},
-        });
-        if (invokeError) {
-          // FunctionsHttpError has a .context which is the Response object
-          try {
-            const context = (invokeError as any)?.context;
-            if (context && typeof context.json === "function") {
-              data = await context.json();
-            } else if (context && typeof context === "object") {
-              data = context;
-            }
-          } catch {
-            // ignore
-          }
-          if (!data) {
-            throw new Error(invokeError.message || (no ? "Backend-funksjon feilet" : "Backend function failed"));
-          }
-        } else {
-          data = invokeData;
-        }
-      } catch (fetchErr: any) {
-        // Re-throw unless we already have structured data
-        if (!data) throw fetchErr;
-      }
+      const { data, error: invokeError } = await supabase.functions.invoke("trigger-update", { body: {} });
+      if (invokeError) throw new Error(invokeError.message);
 
       // Check for structured errors from the improved edge function
       if (data?.error) {
