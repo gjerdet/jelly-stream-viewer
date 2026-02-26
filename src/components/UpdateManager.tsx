@@ -124,12 +124,27 @@ export const UpdateManager = () => {
       setLogs((l) => addLog(l, no ? "Kontaktar oppdateringsserver..." : "Contacting update server..."));
       setProgress(10);
 
-      const { data, error: invokeError } = await supabase.functions.invoke("trigger-update", {
+      let data: any = null;
+      const { data: invokeData, error: invokeError } = await supabase.functions.invoke("trigger-update", {
         body: {},
       });
 
       if (invokeError) {
-        throw new Error(invokeError.message || (no ? "Backend-funksjon feilet" : "Backend function failed"));
+        // Try to parse structured error from edge function response
+        try {
+          const errContext = (invokeError as any)?.context;
+          if (errContext) {
+            const parsed = typeof errContext === "string" ? JSON.parse(errContext) : errContext;
+            data = parsed;
+          }
+        } catch {
+          // ignore parse error
+        }
+        if (!data) {
+          throw new Error(invokeError.message || (no ? "Backend-funksjon feilet" : "Backend function failed"));
+        }
+      } else {
+        data = invokeData;
       }
 
       // Check for structured errors from the improved edge function
