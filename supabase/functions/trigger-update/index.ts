@@ -1,162 +1,161 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.74.0";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-async function generateSignature(payload: string, secret: string): Promise<string> {
-  try {
-    if (typeof crypto === 'undefined' || !crypto.subtle) {
-      console.log('crypto.subtle not available, skipping signature');
-      return '';
-    }
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw', encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-    );
-    const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
-    return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (err) {
-    console.error('Failed to generate signature:', err);
-    return '';
-  }
+function ok(data: unknown) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-// Fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+function fail(message: string, details?: string, extra?: Record<string, unknown>) {
+  return new Response(
+    JSON.stringify({ success: false, error: message, details: details ?? null, ...extra }),
+    {
+      status: 200, // Always 200 so the client can read the JSON body
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    },
+  );
+}
+
+async function hmac(payload: string, secret: string): Promise<string> {
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
-  } finally {
-    clearTimeout(timer);
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw", enc.encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false, ["sign"],
+    );
+    const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+    return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  } catch {
+    return "";
   }
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Triggering git pull update');
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Get git pull server settings from database
-    const { data: gitPullSettings } = await supabase
-      .from('server_settings')
-      .select('setting_key, setting_value')
-      .in('setting_key', [
-        'update_webhook_url', 'update_webhook_secret',
-        'git_pull_server_url', 'git_pull_secret',
+    // Load webhook URL + secret from DB
+    const { data: rows } = await supabase
+      .from("server_settings")
+      .select("setting_key, setting_value")
+      .in("setting_key", [
+        "update_webhook_url",
+        "update_webhook_secret",
+        "git_pull_server_url",
+        "git_pull_secret",
       ]);
 
-    const settingsMap = new Map<string, string>(
-      (gitPullSettings || []).map((row: any) => [row.setting_key, row.setting_value]),
+    const cfg = new Map<string, string>(
+      (rows ?? []).map((r: { setting_key: string; setting_value: string }) => [r.setting_key, r.setting_value]),
     );
 
-    const primaryUrl = settingsMap.get('update_webhook_url') || settingsMap.get('git_pull_server_url');
-    const primarySecret = settingsMap.get('update_webhook_secret') || settingsMap.get('git_pull_secret');
+    const webhookUrl =
+      cfg.get("update_webhook_url") ||
+      cfg.get("git_pull_server_url") ||
+      "";
 
-    const gitPullUrl = primaryUrl || 'http://localhost:3002/git-pull';
-    const envSecret = Deno.env.get('UPDATE_SECRET') || '';
-    const cleanSecret = (envSecret || primarySecret || '').trim();
+    const secret =
+      (Deno.env.get("UPDATE_SECRET") || "").trim() ||
+      cfg.get("update_webhook_secret") ||
+      cfg.get("git_pull_secret") ||
+      "";
 
-    // Validate URL before attempting connection
-    if (!primaryUrl || primaryUrl.includes('192.168.') || primaryUrl.includes('10.0.') || primaryUrl.includes('172.16.') || primaryUrl.startsWith('http://localhost')) {
-      console.error(`Invalid webhook URL: ${gitPullUrl} — private/local addresses cannot be reached from cloud`);
-      return new Response(
-        JSON.stringify({
-          error: 'Git pull server URL er ikkje tilgjengeleg frå skyen',
-          details: `Konfigurert URL "${gitPullUrl}" er ei lokal/privat adresse. Edge functions køyrer i skyen og kan ikkje nå lokale IP-ar. Konfigurer ein offentleg URL (t.d. via Cloudflare Tunnel eller reverse proxy) under Servere → Git Pull Server URL.`,
-          needsPublicUrl: true,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    // Validate URL
+    if (!webhookUrl) {
+      return fail(
+        "Git pull server URL er ikkje konfigurert",
+        "Gå til Admin → Servere og legg inn ein offentleg URL (t.d. via Cloudflare Tunnel) under «Git Pull Server URL».",
+        { needsPublicUrl: true },
       );
     }
 
-    console.log(`Git pull URL: ${gitPullUrl}`);
+    const isPrivate =
+      webhookUrl.includes("192.168.") ||
+      webhookUrl.includes("10.0.") ||
+      webhookUrl.includes("172.16.") ||
+      webhookUrl.startsWith("http://localhost") ||
+      webhookUrl.startsWith("http://127.");
 
-    // Get updateId from request body if provided
-    const { updateId: providedUpdateId } = await req.json().catch(() => ({}));
+    if (isPrivate) {
+      return fail(
+        "Lokal IP-adresse kan ikkje nåast frå skyen",
+        `URL "${webhookUrl}" er ei privat/lokal adresse. Edge-funksjonar køyrer i skyen og kan ikkje nå lokale nettverk. Bruk ein offentleg URL (t.d. Cloudflare Tunnel).`,
+        { needsPublicUrl: true },
+      );
+    }
 
-    // Create HMAC signature if secret is provided
-    const requestBody = JSON.stringify({ updateId: providedUpdateId || null });
-    const signature = cleanSecret ? await generateSignature(requestBody, cleanSecret) : '';
-
-    // Attempt connection with timeout
-    let gitPullResponse: Response;
+    // Parse optional updateId from body
+    let updateId: string | null = null;
     try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (cleanSecret && signature) {
-        headers['X-Update-Signature'] = signature;
-      }
+      const body = await req.json();
+      updateId = body?.updateId ?? null;
+    } catch { /* no body */ }
 
-      gitPullResponse = await fetchWithTimeout(gitPullUrl, {
-        method: 'POST',
+    const payload = JSON.stringify({ updateId });
+    const sig = secret ? await hmac(payload, secret) : "";
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (sig) headers["X-Update-Signature"] = sig;
+
+    // Call the git-pull server with a 20s timeout
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20_000);
+
+    let res: Response;
+    try {
+      res = await fetch(webhookUrl, {
+        method: "POST",
         headers,
-        body: requestBody,
-      }, 15000);
-    } catch (fetchError) {
-      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
-      const isTimeout = errorMessage.includes('abort') || errorMessage.includes('timeout');
-      
-      console.error('Failed to reach git pull server:', errorMessage);
+        body: payload,
+        signal: controller.signal,
+      });
+    } catch (e: unknown) {
+      clearTimeout(timer);
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = msg.includes("abort") || msg.includes("timeout");
+      return fail(
+        isTimeout
+          ? "Git pull server svarte ikkje innan 20 sekund (tidsavbrot)"
+          : "Kunne ikkje nå git pull serveren",
+        isTimeout
+          ? `Tidsavbrot mot ${webhookUrl}. Sjekk at git-pull-server.js køyrer.`
+          : `Feilmelding: ${msg}`,
+        { connectionFailed: true },
+      );
+    }
+    clearTimeout(timer);
 
-      return new Response(
-        JSON.stringify({
-          error: isTimeout
-            ? 'Git pull server svara ikkje innan 15 sekund'
-            : 'Kunne ikkje nå git pull server',
-          details: isTimeout
-            ? `Tidsavbrot ved tilkobling til ${gitPullUrl}. Sjekk at serveren køyrer og at URL-en er riktig.`
-            : `Feil: ${errorMessage}. Sjekk at git-pull-server.js køyrer og at URL-en (${gitPullUrl}) er tilgjengeleg.`,
-          connectionFailed: true,
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    const responseText = await res.text().catch(() => "");
+
+    if (!res.ok) {
+      return fail(
+        `Git pull server svarte med HTTP ${res.status}`,
+        responseText || "Ingen detaljar",
+        { connectionFailed: true },
       );
     }
 
-    if (!gitPullResponse.ok) {
-      const errorText = await gitPullResponse.text();
-      console.error('Git pull failed:', gitPullResponse.status, errorText);
-
-      return new Response(
-        JSON.stringify({
-          error: `Git pull feilet med status ${gitPullResponse.status}`,
-          details: errorText || 'Ingen detaljar frå serveren',
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Success
-    console.log('Git pull triggered successfully');
-    const responseData = await gitPullResponse.text().catch(() => '');
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Git pull starta på serveren',
-        serverResponse: responseData,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Error in trigger-update function:', error);
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Ukjend feil oppstod',
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log("trigger-update: success", webhookUrl);
+    return ok({ success: true, message: "Git pull starta på serveren", serverResponse: responseText });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("trigger-update unhandled:", msg);
+    return fail("Uventa feil i edge-funksjonen", msg);
   }
 });
