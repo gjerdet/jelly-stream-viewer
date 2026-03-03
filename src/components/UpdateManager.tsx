@@ -1,244 +1,271 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card, CardContent, CardDescription, CardHeader, CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { RefreshCw, Download, AlertCircle, CheckCircle, GitBranch, FileText, Loader2, Settings, ExternalLink } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  RefreshCw, Download, AlertCircle, CheckCircle, GitBranch,
+  FileText, Loader2, Settings, XCircle,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { nb, enUS } from "date-fns/locale";
 import { useLanguage } from "@/contexts/LanguageContext";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface UpdateInfo {
   updateAvailable: boolean;
   installedVersion: { sha: string; shortSha: string };
-  latestVersion: {
-    sha: string;
-    shortSha: string;
-    message: string;
-    author: string;
-    date: string;
-  };
+  latestVersion: { sha: string; shortSha: string; message: string; author: string; date: string };
 }
 
 interface LogEntry {
-  timestamp: string;
-  message: string;
+  ts: string;
+  msg: string;
   level: "info" | "success" | "error" | "warning";
 }
 
-const addLog = (logs: LogEntry[], message: string, level: LogEntry["level"] = "info"): LogEntry[] => [
-  ...logs,
-  { timestamp: new Date().toISOString(), message, level },
-];
+type UpdateState = "idle" | "checking" | "updating" | "done" | "error";
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const mkLog = (msg: string, level: LogEntry["level"] = "info"): LogEntry => ({
+  ts: new Date().toISOString(),
+  msg,
+  level,
+});
+
+const levelColor: Record<LogEntry["level"], string> = {
+  info: "text-muted-foreground",
+  success: "text-green-400",
+  error: "text-red-400",
+  warning: "text-yellow-400",
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 export const UpdateManager = () => {
   const { language } = useLanguage();
   const no = language === "no";
   const dateLocale = no ? nb : enUS;
 
-  const [checking, setChecking] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [uiState, setUiState] = useState<UpdateState>("idle");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [error, setError] = useState<{ msg: string; details?: string } | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [progress, setProgress] = useState(0);
-  const [showLogs, setShowLogs] = useState(false);
-  const [updateStep, setUpdateStep] = useState("");
-  const [webhookConfigured, setWebhookConfigured] = useState<boolean | null>(null);
+  const [step, setStep] = useState("");
+  const [logsOpen, setLogsOpen] = useState(false);
+  const [webhookOk, setWebhookOk] = useState<boolean | null>(null);
+
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Cleanup polling on unmount
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
-
-  // Check if webhook URL is configured
-  useEffect(() => {
-    const checkWebhook = async () => {
-      const { data } = await supabase
-        .from("server_settings")
-        .select("setting_value")
-        .eq("setting_key", "update_webhook_url")
-        .maybeSingle();
-      
-      const url = data?.setting_value || "";
-      const isPrivate = !url || url.includes("192.168.") || url.includes("10.0.") || url.includes("172.16.") || url.startsWith("http://localhost");
-      setWebhookConfigured(!isPrivate);
-    };
-    checkWebhook();
+  const appendLog = useCallback((msg: string, level: LogEntry["level"] = "info") => {
+    setLogs((prev) => [...prev, mkLog(msg, level)]);
   }, []);
 
-  const checkForUpdates = useCallback(async () => {
-    setChecking(true);
-    setError(null);
-    setErrorDetails(null);
-    try {
-      const { data, error: invokeError } = await supabase.functions.invoke("check-updates");
-      if (invokeError) throw new Error(invokeError.message);
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+  }, []);
 
-      if (data?.needsSetup) {
-        setError(no ? "GitHub repository er ikkje konfigurert. Gå til Servere-fanen." : "GitHub repository not configured. Go to Servers tab.");
-        return;
+  // Cleanup on unmount
+  useEffect(() => () => stopPoll(), [stopPoll]);
+
+  // Check if webhook URL looks usable (public URL)
+  useEffect(() => {
+    supabase
+      .from("server_settings")
+      .select("setting_value")
+      .eq("setting_key", "update_webhook_url")
+      .maybeSingle()
+      .then(({ data }) => {
+        const url = data?.setting_value ?? "";
+        const bad =
+          !url ||
+          url.includes("192.168.") ||
+          url.includes("10.0.") ||
+          url.includes("172.16.") ||
+          url.startsWith("http://localhost") ||
+          url.startsWith("http://127.");
+        setWebhookOk(!bad);
+      });
+  }, []);
+
+  // ── Check for updates ────────────────────────────────────────────────────
+  const checkForUpdates = useCallback(async () => {
+    setUiState("checking");
+    setError(null);
+    try {
+      const { data, error: err } = await supabase.functions.invoke("check-updates");
+
+      if (err) throw new Error(err.message);
+
+      if (data?.error || data?.needsSetup) {
+        throw new Error(
+          data?.error ??
+          (no ? "GitHub repository er ikkje konfigurert" : "GitHub repository not configured"),
+        );
       }
-      setUpdateInfo(data);
+
+      setUpdateInfo(data as UpdateInfo);
       toast[data.updateAvailable ? "success" : "info"](
         data.updateAvailable
           ? (no ? "Ny oppdatering tilgjengeleg!" : "New update available!")
-          : (no ? "Du har nyaste versjonen" : "You have the latest version")
+          : (no ? "Du har nyaste versjonen" : "You have the latest version"),
       );
-    } catch (err: any) {
-      console.error("Check updates error:", err);
-      setError(no ? "Kunne ikkje sjekke for oppdateringar" : "Could not check for updates");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError({ msg: no ? "Kunne ikkje sjekke for oppdateringar" : "Could not check for updates", details: msg });
+      toast.error(no ? "Sjekk feilet" : "Check failed");
     } finally {
-      setChecking(false);
+      setUiState("idle");
     }
   }, [no]);
 
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
+  // ── Install update ───────────────────────────────────────────────────────
   const installUpdate = useCallback(async () => {
     if (!updateInfo?.updateAvailable) return;
 
-    setUpdating(true);
-    setShowLogs(true);
+    stopPoll();
+    setUiState("updating");
+    setLogsOpen(true);
     setProgress(5);
-    setLogs([]);
+    setLogs([mkLog(no ? "Startar oppdatering..." : "Starting update...")]);
+    setStep(no ? "Startar..." : "Starting...");
     setError(null);
-    setErrorDetails(null);
-    setUpdateStep(no ? "Startar oppdatering..." : "Starting update...");
-    setLogs((l) => addLog(l, no ? "Startar oppdatering..." : "Starting update..."));
 
     const initialSha = updateInfo.installedVersion.sha;
 
     try {
-      // Step 1: Trigger update
-      setLogs((l) => addLog(l, no ? "Kontaktar oppdateringsserver..." : "Contacting update server..."));
+      appendLog(no ? "📡 Kontaktar oppdateringsserver..." : "📡 Contacting update server...");
       setProgress(10);
 
-      const { data, error: invokeError } = await supabase.functions.invoke("trigger-update", { body: {} });
-      if (invokeError) throw new Error(invokeError.message);
+      const { data, error: invokeErr } = await supabase.functions.invoke("trigger-update", {
+        body: {},
+      });
 
-      // Check for structured errors from the improved edge function
-      if (data?.error) {
-        const errMsg = data.error;
-        const details = data.details || "";
-        
-        setUpdateStep(no ? "Feil" : "Error");
-        setLogs((l) => addLog(l, `❌ ${errMsg}`, "error"));
-        if (details) {
-          setLogs((l) => addLog(l, `📋 ${details}`, "warning"));
-        }
-        
-        setError(errMsg);
-        setErrorDetails(details);
+      // Edge function always returns 200; if supabase still throws, handle it
+      if (invokeErr) {
+        throw new Error(invokeErr.message ?? "invoke failed");
+      }
+
+      // The edge function itself returns {success:false, error:...} for known failures
+      if (!data?.success) {
+        const errMsg: string = data?.error ?? (no ? "Ukjend feil frå serveren" : "Unknown error from server");
+        const details: string = data?.details ?? "";
+        const needsUrl: boolean = data?.needsPublicUrl ?? false;
+        const connFail: boolean = data?.connectionFailed ?? false;
+
+        appendLog(`❌ ${errMsg}`, "error");
+        if (details) appendLog(`📋 ${details}`, "warning");
+
+        setError({ msg: errMsg, details });
+        setStep(no ? "Feil" : "Error");
         setProgress(0);
-        setUpdating(false);
-        
-        if (data.needsPublicUrl) {
-          toast.error(no ? "Git pull server URL må konfigurerast" : "Git pull server URL needs configuration");
-        } else if (data.connectionFailed) {
-          toast.error(no ? "Kunne ikkje nå oppdateringsserveren" : "Could not reach update server");
+        setUiState("error");
+
+        if (needsUrl) {
+          toast.error(no ? "Offentleg URL for git-pull server manglar" : "Public git-pull server URL required");
+        } else if (connFail) {
+          toast.error(no ? "Kunne ikkje nå git pull serveren" : "Could not reach git pull server");
         } else {
           toast.error(no ? "Oppdatering feilet" : "Update failed");
         }
         return;
       }
 
-      setLogs((l) => addLog(l, no ? "✅ Git pull starta på serveren" : "✅ Git pull started on server", "success"));
+      appendLog(no ? "✅ Kommando sendt til serveren — ventar på fullføring..." : "✅ Command sent — waiting for completion...", "success");
       setProgress(20);
-      setUpdateStep(no ? "Ventar på at serveren fullfører..." : "Waiting for server to finish...");
+      setStep(no ? "Ventar på serveren..." : "Waiting for server...");
 
-      // Step 2: Poll check-updates every 5s to detect version change
-      let pollCount = 0;
-      const maxPolls = 60; // 5 minutes max
+      // Poll check-updates every 5 s (max 5 min) until SHA changes
+      let polls = 0;
+      const maxPolls = 60;
 
       pollRef.current = setInterval(async () => {
-        pollCount++;
-        const estimatedProgress = Math.min(90, 20 + Math.round((pollCount / maxPolls) * 70));
-        setProgress(estimatedProgress);
-        
-        if (pollCount % 6 === 0) {
-          setLogs((l) =>
-            addLog(l, `🔄 ${no ? "Sjekkar status" : "Checking status"} (${Math.round(pollCount * 5 / 60)}min)...`)
-          );
+        polls++;
+        setProgress(Math.min(90, 20 + Math.round((polls / maxPolls) * 70)));
+
+        if (polls % 6 === 0) {
+          appendLog(`🔄 ${no ? "Sjekkar status" : "Checking status"} (${Math.round(polls * 5 / 60)} min)...`);
         }
 
         try {
-          const { data: checkData } = await supabase.functions.invoke("check-updates");
+          const { data: cd } = await supabase.functions.invoke("check-updates");
 
-          if (checkData?.installedVersion?.sha && checkData.installedVersion.sha !== initialSha) {
-            stopPolling();
+          if (cd?.installedVersion?.sha && cd.installedVersion.sha !== initialSha) {
+            stopPoll();
             setProgress(100);
-            setUpdateStep(no ? "Oppdatering fullført!" : "Update complete!");
-            setLogs((l) => addLog(l, no ? "✅ Oppdatering fullført!" : "✅ Update complete!", "success"));
-            setUpdateInfo(checkData);
-            setUpdating(false);
+            setStep(no ? "Oppdatering fullført!" : "Update complete!");
+            appendLog(no ? "✅ Oppdatering fullført!" : "✅ Update complete!", "success");
+            setUpdateInfo(cd as UpdateInfo);
+            setUiState("done");
             toast.success(no ? "Oppdatering fullført!" : "Update complete!");
             return;
           }
 
-          if (!checkData?.updateAvailable && pollCount > 6) {
-            stopPolling();
+          // If check-updates says not updateAvailable after a while, we're done
+          if (!cd?.updateAvailable && polls > 6) {
+            stopPoll();
             setProgress(100);
-            setUpdateStep(no ? "Du har nyaste versjonen" : "You have the latest version");
-            setLogs((l) => addLog(l, no ? "✅ Allereie oppdatert" : "✅ Already up to date", "success"));
-            setUpdateInfo(checkData);
-            setUpdating(false);
-            toast.success(no ? "Du har nyaste versjonen!" : "You have the latest version!");
+            setStep(no ? "Du har nyaste versjonen" : "You have the latest version");
+            appendLog(no ? "✅ Allereie oppdatert" : "✅ Already up to date", "success");
+            setUpdateInfo(cd as UpdateInfo);
+            setUiState("done");
+            toast.success(no ? "Oppdatert!" : "Updated!");
             return;
           }
-        } catch (e) {
-          console.error("Poll error:", e);
-        }
+        } catch { /* ignore poll errors, keep polling */ }
 
-        if (pollCount >= maxPolls) {
-          stopPolling();
-          setUpdateStep(no ? "Tidsavbrot — sjekk manuelt" : "Timeout — check manually");
-          setLogs((l) =>
-            addLog(l, no ? "⚠️ Tidsavbrot — klikk 'Sjekk etter oppdatering'" : "⚠️ Timeout — click 'Check for updates'", "warning")
-          );
-          setUpdating(false);
+        if (polls >= maxPolls) {
+          stopPoll();
+          setStep(no ? "Tidsavbrot — sjekk manuelt" : "Timeout — check manually");
+          appendLog(no ? "⚠️ Tidsavbrot. Klikk «Sjekk etter oppdatering» for å sjå status." : "⚠️ Timeout. Click 'Check for updates' to see status.", "warning");
+          setUiState("idle");
           toast.warning(no ? "Tidsavbrot" : "Timeout");
         }
       }, 5000);
-    } catch (err: any) {
-      console.error("Install update error:", err);
-      const msg = err?.message || (no ? "Ukjend feil" : "Unknown error");
-      setUpdateStep(no ? "Feil" : "Error");
-      setLogs((l) => addLog(l, `❌ ${msg}`, "error"));
-      setError(msg);
+    } catch (e: unknown) {
+      stopPoll();
+      const msg = e instanceof Error ? e.message : String(e);
+      appendLog(`❌ ${msg}`, "error");
+      setError({ msg });
+      setStep(no ? "Feil" : "Error");
       setProgress(0);
-      setUpdating(false);
+      setUiState("error");
       toast.error(no ? "Oppdatering feilet" : "Update failed");
     }
-  }, [updateInfo, no, stopPolling]);
+  }, [updateInfo, no, appendLog, stopPoll]);
 
+  // ── Cancel ────────────────────────────────────────────────────────────────
   const cancelUpdate = useCallback(() => {
-    stopPolling();
-    setUpdating(false);
-    setUpdateStep(no ? "Avbrote" : "Cancelled");
-    setLogs((l) => addLog(l, no ? "🛑 Oppdatering avbrote av brukar" : "🛑 Update cancelled by user", "warning"));
-    toast.info(no ? "Oppdatering avbrote" : "Update cancelled");
-  }, [no, stopPolling]);
+    stopPoll();
+    setUiState("idle");
+    setStep(no ? "Avbrote" : "Cancelled");
+    appendLog(no ? "🛑 Avbrote av brukar" : "🛑 Cancelled by user", "warning");
+    toast.info(no ? "Avbrote" : "Cancelled");
+  }, [no, appendLog, stopPoll]);
 
-  const syncInstalledVersion = async () => {
-    const commitSha = prompt(no ? "Lim inn commit SHA (køyr: git rev-parse HEAD)" : "Paste commit SHA (run: git rev-parse HEAD)");
-    if (!commitSha) return;
-
+  // ── Sync installed version manually ──────────────────────────────────────
+  const syncVersion = async () => {
+    const sha = prompt(
+      no ? "Lim inn commit SHA (køyr: git rev-parse HEAD)" : "Paste commit SHA (run: git rev-parse HEAD)",
+    );
+    if (!sha) return;
     try {
-      const { error: syncError } = await supabase.functions.invoke("sync-installed-version", {
-        body: { commitSha: commitSha.trim() },
+      const { error: e } = await supabase.functions.invoke("sync-installed-version", {
+        body: { commitSha: sha.trim() },
       });
-      if (syncError) throw syncError;
+      if (e) throw e;
       toast.success(no ? "Versjon synkronisert!" : "Version synced!");
       await checkForUpdates();
     } catch {
@@ -246,6 +273,10 @@ export const UpdateManager = () => {
     }
   };
 
+  const isUpdating = uiState === "updating";
+  const isChecking = uiState === "checking";
+
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <Card>
       <CardHeader>
@@ -257,54 +288,50 @@ export const UpdateManager = () => {
           {no ? "Sjekk og installer oppdateringar frå GitHub" : "Check and install updates from GitHub"}
         </CardDescription>
       </CardHeader>
+
       <CardContent className="space-y-4">
-        {/* Webhook URL warning */}
-        {webhookConfigured === false && (
-          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <Settings className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-yellow-400">
-                  {no ? "Git Pull Server URL manglar" : "Git Pull Server URL missing"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {no
-                    ? "For å installere oppdateringar må du konfigurere ein offentleg URL for git-pull serveren din under Servere-fanen → Git Pull Server URL. Lokale IP-adresser (192.168.x.x) fungerer ikkje frå skyen."
-                    : "To install updates, configure a public URL for your git-pull server under the Servers tab → Git Pull Server URL. Local IP addresses (192.168.x.x) won't work from the cloud."}
-                </p>
-              </div>
+
+        {/* ── Webhook warning ── */}
+        {webhookOk === false && (
+          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
+            <Settings className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-yellow-400">
+                {no ? "Git Pull Server URL manglar" : "Git Pull Server URL missing"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {no
+                  ? "Konfigurer ein offentleg URL under Servere → Git Pull Server URL. Lokale IP-ar (192.168.x.x) fungerer ikkje frå skyen."
+                  : "Configure a public URL under Servers → Git Pull Server URL. Local IPs (192.168.x.x) won't work from the cloud."}
+              </p>
             </div>
           </div>
         )}
 
-        {/* Info banner */}
-        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-muted-foreground">
-              {no
-                ? "Denne funksjonen er berre for self-hosted installasjonar. Oppdateringar vert utført via git pull på serveren."
-                : "This feature is only for self-hosted installations. Updates are performed via git pull on the server."}
-            </p>
-          </div>
+        {/* ── Self-hosted notice ── */}
+        <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+          <p className="text-xs text-muted-foreground">
+            {no
+              ? "Berre for self-hosted installasjonar. Oppdateringar skjer via git pull på serveren."
+              : "For self-hosted installations only. Updates are performed via git pull on the server."}
+          </p>
         </div>
 
-        {/* Error */}
+        {/* ── Error banner ── */}
         {error && (
-          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <p className="text-sm text-destructive font-medium">{error}</p>
-                {errorDetails && (
-                  <p className="text-xs text-muted-foreground">{errorDetails}</p>
-                )}
-              </div>
+          <div className="p-3 bg-destructive/10 border border-destructive/30 rounded-lg flex items-start gap-2">
+            <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-destructive">{error.msg}</p>
+              {error.details && (
+                <p className="text-xs text-muted-foreground mt-0.5">{error.details}</p>
+              )}
             </div>
           </div>
         )}
 
-        {/* Version info */}
+        {/* ── Version info ── */}
         {updateInfo && (
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-secondary/20 rounded-lg">
@@ -317,7 +344,7 @@ export const UpdateManager = () => {
               {updateInfo.updateAvailable ? (
                 <Badge variant="secondary">{no ? "Utdatert" : "Outdated"}</Badge>
               ) : (
-                <Badge variant="default" className="bg-green-500">
+                <Badge className="bg-green-500">
                   <CheckCircle className="h-3 w-3 mr-1" />
                   {no ? "Oppdatert" : "Up to date"}
                 </Badge>
@@ -329,86 +356,66 @@ export const UpdateManager = () => {
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <p className="font-medium">{no ? "Ny versjon tilgjengeleg!" : "New version available!"}</p>
-                    <p className="text-xs text-muted-foreground font-mono mt-1">
-                      {updateInfo.latestVersion.shortSha}
-                    </p>
+                    <p className="text-xs text-muted-foreground font-mono mt-1">{updateInfo.latestVersion.shortSha}</p>
                   </div>
                   <Badge variant="outline">{no ? "Ny" : "New"}</Badge>
                 </div>
-                <div className="mt-3 space-y-1 text-sm">
-                  <p className="font-medium">{updateInfo.latestVersion.message}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {no ? "av" : "by"} {updateInfo.latestVersion.author} •{" "}
-                    {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", {
-                      locale: dateLocale,
-                    })}
-                  </p>
-                </div>
+                <p className="text-sm font-medium mt-2">{updateInfo.latestVersion.message}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {no ? "av" : "by"} {updateInfo.latestVersion.author} •{" "}
+                  {format(new Date(updateInfo.latestVersion.date), "d. MMM yyyy 'kl.' HH:mm", { locale: dateLocale })}
+                </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Update progress */}
-        {(updating || logs.length > 0) && (
-          <div className="space-y-3 p-4 border border-primary/20 rounded-lg bg-primary/5">
+        {/* ── Progress / status ── */}
+        {(isUpdating || uiState === "done" || uiState === "error") && logs.length > 0 && (
+          <div className="space-y-2 p-4 border border-primary/20 rounded-lg bg-primary/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {updating ? (
+                {isUpdating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
-                ) : progress === 100 ? (
+                ) : uiState === "done" ? (
                   <CheckCircle className="h-4 w-4 text-green-500" />
                 ) : (
-                  <AlertCircle className="h-4 w-4 text-destructive" />
+                  <XCircle className="h-4 w-4 text-destructive" />
                 )}
-                <span className="text-sm font-medium">{updateStep}</span>
+                <span className="text-sm font-medium">{step}</span>
               </div>
               <div className="flex items-center gap-1">
-                {updating && (
-                  <Button variant="ghost" size="sm" onClick={cancelUpdate} className="text-destructive">
+                {isUpdating && (
+                  <Button variant="ghost" size="sm" onClick={cancelUpdate} className="text-destructive h-7 px-2">
                     {no ? "Avbryt" : "Cancel"}
                   </Button>
                 )}
-                <Dialog open={showLogs} onOpenChange={setShowLogs}>
+                <Dialog open={logsOpen} onOpenChange={setLogsOpen}>
                   <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      <FileText className="h-4 w-4 mr-1" />
-                      {no ? "Sjå loggar" : "View logs"}
+                    <Button variant="ghost" size="sm" className="h-7 px-2">
+                      <FileText className="h-3 w-3 mr-1" />
+                      {no ? "Loggar" : "Logs"}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>{no ? "Oppdateringsloggar" : "Update logs"}</DialogTitle>
                       <DialogDescription>
-                        {no ? "Detaljert logg frå oppdateringsprosessen" : "Detailed log of the update process"}
+                        {no ? "Detaljert logg frå oppdateringsprosessen" : "Detailed update log"}
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-1 mb-4">
-                      <p className="text-xs text-muted-foreground">
-                        {no ? `Framgang: ${progress}%` : `Progress: ${progress}%`}
-                      </p>
+                    <div className="mb-3">
+                      <p className="text-xs text-muted-foreground mb-1">{progress}%</p>
                       <Progress value={progress} className="h-1.5" />
                     </div>
-                    <ScrollArea className="h-96 w-full rounded-md border p-4">
-                      <div className="space-y-2">
-                        {logs.map((log, idx) => (
-                          <div key={idx} className="flex gap-2 text-sm">
+                    <ScrollArea className="h-80 rounded-md border p-3">
+                      <div className="space-y-1">
+                        {logs.map((l, i) => (
+                          <div key={i} className="flex gap-2 text-sm">
                             <span className="text-muted-foreground font-mono text-xs shrink-0">
-                              {format(new Date(log.timestamp), "HH:mm:ss")}
+                              {format(new Date(l.ts), "HH:mm:ss")}
                             </span>
-                            <span
-                              className={
-                                log.level === "error"
-                                  ? "text-red-400"
-                                  : log.level === "success"
-                                  ? "text-green-400"
-                                  : log.level === "warning"
-                                  ? "text-yellow-400"
-                                  : "text-muted-foreground"
-                              }
-                            >
-                              {log.message}
-                            </span>
+                            <span className={levelColor[l.level]}>{l.msg}</span>
                           </div>
                         ))}
                       </div>
@@ -421,38 +428,41 @@ export const UpdateManager = () => {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <Button onClick={checkForUpdates} disabled={checking || updating} variant="outline" className="flex-1">
-            <RefreshCw className={`h-4 w-4 mr-2 ${checking ? "animate-spin" : ""}`} />
-            {checking
+        {/* ── Actions ── */}
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            onClick={checkForUpdates}
+            disabled={isChecking || isUpdating}
+            variant="outline"
+            className="flex-1 min-w-[140px]"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isChecking ? "animate-spin" : ""}`} />
+            {isChecking
               ? (no ? "Sjekkar..." : "Checking...")
               : (no ? "Sjekk etter oppdatering" : "Check for updates")}
           </Button>
 
-          {updateInfo?.updateAvailable && !updating && (
+          {updateInfo?.updateAvailable && !isUpdating && (
             <>
-              <Button onClick={syncInstalledVersion} variant="secondary" size="sm" className="shrink-0">
-                <CheckCircle className="h-4 w-4 mr-2" />
+              <Button onClick={syncVersion} variant="secondary" size="sm" className="shrink-0">
+                <CheckCircle className="h-4 w-4 mr-1" />
                 {no ? "Synk versjon" : "Sync version"}
               </Button>
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button className="flex-1" disabled={webhookConfigured === false}>
+                  <Button className="flex-1 min-w-[140px]" disabled={webhookOk === false}>
                     <Download className="h-4 w-4 mr-2" />
                     {no ? "Installer oppdatering" : "Install update"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      {no ? "Installer oppdatering?" : "Install update?"}
-                    </AlertDialogTitle>
+                    <AlertDialogTitle>{no ? "Installer oppdatering?" : "Install update?"}</AlertDialogTitle>
                     <AlertDialogDescription>
                       {no
-                        ? "Dette vil laste ned nyaste versjon frå GitHub og bygge på nytt. Det tek vanlegvis 30-60 sekund."
-                        : "This will download the latest version from GitHub and rebuild. Usually takes 30-60 seconds."}
+                        ? "Dette lastar ned nyaste versjon frå GitHub og bygger på nytt. Tek vanlegvis 30–60 sekund."
+                        : "This downloads the latest version from GitHub and rebuilds. Usually 30–60 seconds."}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
