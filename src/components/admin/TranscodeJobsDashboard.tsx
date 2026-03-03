@@ -20,7 +20,8 @@ import {
   FileVideo,
   HardDrive,
   Trash2,
-  StopCircle
+  StopCircle,
+  AlertCircle
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { nb } from "date-fns/locale";
@@ -241,6 +242,21 @@ export const TranscodeJobsDashboard = () => {
     return `${seconds}s`;
   };
 
+  // Check transcode server config
+  const { data: transcodeSettings } = useQuery({
+    queryKey: ["transcode-server-settings"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("server_settings")
+        .select("setting_key, setting_value")
+        .in("setting_key", ["transcode_server_url", "transcode_secret"]);
+      return Object.fromEntries((data || []).map(s => [s.setting_key, s.setting_value]));
+    },
+  });
+
+  const transcodeUrl = transcodeSettings?.transcode_server_url ?? "";
+  const isLocalIp = /^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(transcodeUrl);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -263,6 +279,26 @@ export const TranscodeJobsDashboard = () => {
           Oppdater
         </Button>
       </div>
+
+      {/* Transcode server config warnings */}
+      {isLocalIp && (
+        <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
+          <XCircle className="h-4 w-4 text-yellow-500 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-yellow-500">Transcode-server bruker lokal IP-adresse</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              <code className="font-mono">{transcodeUrl}</code> er ikkje tilgjengeleg frå sky-funksjonane.
+              Bruk ein offentleg URL (f.eks. Cloudflare Tunnel) i serverinnstillingane.
+            </p>
+          </div>
+        </div>
+      )}
+      {!isLocalIp && transcodeUrl === "" && (
+        <div className="p-3 bg-muted/50 border border-border rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <p className="text-sm text-muted-foreground">Transcode-server URL er ikkje konfigurert i serverinnstillingane.</p>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
