@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Server, Loader2, Film, Tv } from "lucide-react";
+import { Server, Loader2, Film, Tv, Clapperboard } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,6 +33,12 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
   const [testingJellyseerr, setTestingJellyseerr] = useState(false);
   const [jellyseerrStatus, setJellyseerrStatus] = useState<string | null>(null);
   
+  // Transcode
+  const [transcodeUrl, setTranscodeUrl] = useState("");
+  const [transcodeSecret, setTranscodeSecret] = useState("");
+  const [testingTranscode, setTestingTranscode] = useState(false);
+  const [transcodeStatus, setTranscodeStatus] = useState<string | null>(null);
+
   // Bazarr
   const [bazarrUrl, setBazarrUrl] = useState("");
   const [bazarrApiKey, setBazarrApiKey] = useState("");
@@ -293,6 +299,30 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     },
   });
 
+  // Transcode mutations
+  const updateTranscodeSettings = useMutation({
+    mutationFn: async ({ url, secret }: { url: string; secret: string }) => {
+      const updates = [
+        { setting_key: "transcode_server_url", setting_value: url, updated_at: new Date().toISOString() },
+        { setting_key: "transcode_secret", setting_value: secret, updated_at: new Date().toISOString() },
+      ];
+      for (const update of updates) {
+        const { error } = await supabase
+          .from("server_settings")
+          .upsert(update, { onConflict: "setting_key" });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["server-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["transcode-server-settings"] });
+      toast.success("Transcode-innstillinger lagret!");
+    },
+    onError: () => {
+      toast.error("Kunne ikke lagre transcode-innstillinger");
+    },
+  });
+
   // Bazarr mutations
   const updateBazarrUrl = useMutation({
     mutationFn: async (newUrl: string) => {
@@ -380,7 +410,9 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
           "radarr_url",
           "radarr_api_key",
           "sonarr_url",
-          "sonarr_api_key"
+          "sonarr_api_key",
+          "transcode_server_url",
+          "transcode_secret"
         ]);
       
       data?.forEach(setting => {
@@ -393,6 +425,8 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         if (setting.setting_key === "radarr_api_key") setRadarrApiKey(setting.setting_value || "");
         if (setting.setting_key === "sonarr_url") setSonarrUrl(setting.setting_value || "");
         if (setting.setting_key === "sonarr_api_key") setSonarrApiKey(setting.setting_value || "");
+        if (setting.setting_key === "transcode_server_url") setTranscodeUrl(setting.setting_value || "");
+        if (setting.setting_key === "transcode_secret") setTranscodeSecret(setting.setting_value || "");
       });
     };
     
@@ -659,6 +693,33 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
       }
     } finally {
       setTestingBazarr(false);
+    }
+  };
+
+  const handleTestTranscode = async () => {
+    if (!transcodeUrl.trim()) {
+      setTranscodeStatus("❌ Transcode server URL må vere satt");
+      return;
+    }
+    setTestingTranscode(true);
+    setTranscodeStatus(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("transcode-proxy", {
+        body: { action: "health" },
+      });
+      if (error) throw new Error(error.message);
+      if (data?.status === "ok") {
+        setTranscodeStatus(`✅ Tilkoblet! Transcode-server køyrer.`);
+        toast.success("Transcode-server tilkobla!");
+      } else if (data?.status === "not_configured") {
+        setTranscodeStatus("⚠️ Transcode-server URL er ikkje konfigurert i databasen");
+      } else {
+        setTranscodeStatus(`❌ ${data?.message || "Kunne ikkje nå transcode-server"}`);
+      }
+    } catch (err) {
+      setTranscodeStatus(`❌ Feil: ${err instanceof Error ? err.message : "Ukjent feil"}`);
+    } finally {
+      setTestingTranscode(false);
     }
   };
 
@@ -1040,6 +1101,80 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
                 : 'bg-red-500/10 text-red-400 border border-red-500/20'
             }`}>
               {sonarrStatus}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Transcode Server */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clapperboard className="h-5 w-5" />
+            Transcode Server (HandBrake)
+          </CardTitle>
+          <CardDescription>
+            Konfigurer transcode-serveren for å konvertere mediafiler via HandBrakeCLI.
+            Serveren må vere tilgjengeleg via ein offentleg URL (f.eks. Cloudflare Tunnel).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="transcode-url">Transcode Server URL</Label>
+            <Input
+              id="transcode-url"
+              type="url"
+              placeholder="https://transcode.yourdomain.com"
+              value={transcodeUrl}
+              onChange={(e) => setTranscodeUrl(e.target.value)}
+              className="bg-secondary/50 border-border/50"
+            />
+            {transcodeUrl && /^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(transcodeUrl) && (
+              <p className="text-xs text-yellow-500">
+                ⚠️ Lokal IP-adresse er ikkje tilgjengeleg frå sky-funksjonane. Bruk ein offentleg URL.
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="transcode-secret">Transcode Secret</Label>
+            <Input
+              id="transcode-secret"
+              type="password"
+              placeholder="Generer med: openssl rand -hex 32"
+              value={transcodeSecret}
+              onChange={(e) => setTranscodeSecret(e.target.value)}
+              className="bg-secondary/50 border-border/50"
+            />
+            <p className="text-xs text-muted-foreground">
+              Må matche <code className="font-mono">TRANSCODE_SECRET</code> i <code className="font-mono">.env</code> på serveren.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => updateTranscodeSettings.mutate({ url: transcodeUrl.trim(), secret: transcodeSecret.trim() })}
+              disabled={updateTranscodeSettings.isPending || !transcodeUrl}
+              className="cinema-glow flex-1"
+            >
+              {updateTranscodeSettings.isPending ? "Lagrar..." : "Lagre innstillingar"}
+            </Button>
+            <Button
+              onClick={handleTestTranscode}
+              disabled={testingTranscode}
+              variant="outline"
+              className="flex-1"
+            >
+              {testingTranscode ? <><Loader2 className="h-4 w-4 animate-spin mr-1" />Testar...</> : "Test tilkobling"}
+            </Button>
+          </div>
+          {transcodeStatus && (
+            <div className={`p-3 rounded-lg text-sm ${
+              transcodeStatus.startsWith('✅')
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                : transcodeStatus.startsWith('⚠')
+                ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              {transcodeStatus}
             </div>
           )}
         </CardContent>
