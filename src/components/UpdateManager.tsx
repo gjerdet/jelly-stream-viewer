@@ -82,24 +82,18 @@ export const UpdateManager = () => {
   // Cleanup on unmount
   useEffect(() => () => stopPoll(), [stopPoll]);
 
-  // Check if webhook URL looks usable (public URL)
+  // Auto-sjekk tilkobling ved montering
   useEffect(() => {
-    supabase
-      .from("server_settings")
-      .select("setting_value")
-      .eq("setting_key", "update_webhook_url")
-      .maybeSingle()
-      .then(({ data }) => {
-        const url = data?.setting_value ?? "";
-        const bad =
-          !url ||
-          url.includes("192.168.") ||
-          url.includes("10.0.") ||
-          url.includes("172.16.") ||
-          url.startsWith("http://localhost") ||
-          url.startsWith("http://127.");
-        setWebhookOk(!bad);
-      });
+    (async () => {
+      try {
+        const { data } = await supabase.functions.invoke("test-git-pull-connection");
+        if (data) {
+          setConnTest({ ok: data.ok, message: data.message, details: data.details });
+          setWebhookOk(data.ok);
+        }
+      } catch { /* still show manual test button */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Check for updates ────────────────────────────────────────────────────
