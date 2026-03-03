@@ -452,21 +452,19 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     setConnectionStatus(null);
 
     try {
-      const response = await fetch(`${newServerUrl.trim().replace(/\/$/, '')}/System/Info`, {
-        method: "GET",
+      // Route via edge-function proxy to avoid CORS/Mixed Content blocks
+      const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
+        body: null,
         headers: {
-          "X-Emby-Token": apiKey.trim(),
-          "Content-Type": "application/json",
+          "x-jellyfin-url": newServerUrl.trim().replace(/\/$/, ""),
+          "x-jellyfin-path": "/System/Info",
+          "x-jellyfin-token": apiKey.trim(),
         },
       });
 
-      if (!response.ok) {
-        setConnectionStatus(`❌ Feil: HTTP ${response.status}`);
-        return;
-      }
+      if (error) throw new Error(error.message);
 
-      const data = await response.json();
-      setConnectionStatus(`✅ Tilkoblet! Server: ${data.ServerName || 'Jellyfin'}`);
+      setConnectionStatus(`✅ Tilkoblet! Server: ${data?.ServerName || 'Jellyfin'}`);
       toast.success("Jellyfin-tilkobling OK!");
     } catch (error) {
       setConnectionStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
