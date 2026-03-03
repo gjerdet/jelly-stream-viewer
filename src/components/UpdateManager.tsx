@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   RefreshCw, Download, AlertCircle, CheckCircle, GitBranch,
-  FileText, Loader2, Settings, XCircle,
+  FileText, Loader2, Settings, XCircle, Wifi, WifiOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -67,6 +67,8 @@ export const UpdateManager = () => {
   const [step, setStep] = useState("");
   const [logsOpen, setLogsOpen] = useState(false);
   const [webhookOk, setWebhookOk] = useState<boolean | null>(null);
+  const [connTest, setConnTest] = useState<{ ok: boolean; message: string; details?: string } | null>(null);
+  const [testingConn, setTestingConn] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const appendLog = useCallback((msg: string, level: LogEntry["level"] = "info") => {
@@ -256,6 +258,25 @@ export const UpdateManager = () => {
   }, [no, appendLog, stopPoll]);
 
   // ── Sync installed version manually ──────────────────────────────────────
+  // ── Test connection ──────────────────────────────────────────────────────
+  const testConnection = useCallback(async () => {
+    setTestingConn(true);
+    setConnTest(null);
+    try {
+      const { data, error: err } = await supabase.functions.invoke("test-git-pull-connection");
+      if (err) throw new Error(err.message);
+      setConnTest({ ok: data?.ok, message: data?.message, details: data?.details });
+      if (data?.ok) toast.success(data.message);
+      else toast.error(data?.message ?? (no ? "Tilkobling feila" : "Connection failed"));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setConnTest({ ok: false, message: no ? "Feil ved tilkoblingstest" : "Connection test error", details: msg });
+      toast.error(no ? "Tilkoblingstest feila" : "Connection test failed");
+    } finally {
+      setTestingConn(false);
+    }
+  }, [no]);
+
   const syncVersion = async () => {
     const sha = prompt(
       no ? "Lim inn commit SHA (køyr: git rev-parse HEAD)" : "Paste commit SHA (run: git rev-parse HEAD)",
@@ -428,6 +449,23 @@ export const UpdateManager = () => {
           </div>
         )}
 
+        {/* ── Connection test result ── */}
+        {connTest && (
+          <div className={`p-3 rounded-lg border flex items-start gap-2 ${connTest.ok ? "bg-green-500/10 border-green-500/30" : "bg-destructive/10 border-destructive/30"}`}>
+            {connTest.ok
+              ? <Wifi className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+              : <WifiOff className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
+            <div>
+              <p className={`text-sm font-medium ${connTest.ok ? "text-green-500" : "text-destructive"}`}>
+                {connTest.message}
+              </p>
+              {connTest.details && (
+                <p className="text-xs text-muted-foreground mt-0.5">{connTest.details}</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── Actions ── */}
         <div className="flex gap-2 flex-wrap">
           <Button
@@ -440,6 +478,21 @@ export const UpdateManager = () => {
             {isChecking
               ? (no ? "Sjekkar..." : "Checking...")
               : (no ? "Sjekk etter oppdatering" : "Check for updates")}
+          </Button>
+
+          <Button
+            onClick={testConnection}
+            disabled={testingConn || isUpdating}
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+          >
+            {testingConn
+              ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              : <Wifi className="h-4 w-4 mr-1" />}
+            {testingConn
+              ? (no ? "Testar..." : "Testing...")
+              : (no ? "Test tilkobling" : "Test connection")}
           </Button>
 
           {updateInfo?.updateAvailable && !isUpdating && (
