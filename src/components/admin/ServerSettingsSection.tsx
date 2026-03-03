@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Server, Loader2, Film, Tv, Clapperboard } from "lucide-react";
+import { Server, Loader2, Film, Tv, Clapperboard, CheckCircle2, XCircle, HelpCircle, RefreshCw } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -723,10 +723,63 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     }
   };
 
+  // Derive simple status for overview badges
+  const getStatus = (statusStr: string | null, testing: boolean) => {
+    if (testing) return 'loading';
+    if (!statusStr) return 'unknown';
+    if (statusStr.startsWith('✅')) return 'ok';
+    return 'error';
+  };
+
+  const services = [
+    { label: 'Jellyfin', status: getStatus(connectionStatus, testingConnection) },
+    { label: 'Jellyseerr', status: getStatus(jellyseerrStatus, testingJellyseerr) },
+    { label: 'Radarr', status: getStatus(radarrStatus, testingRadarr) },
+    { label: 'Sonarr', status: getStatus(sonarrStatus, testingSonarr) },
+    { label: 'Bazarr', status: getStatus(bazarrStatus, testingBazarr) },
+    { label: 'Transcode', status: getStatus(transcodeStatus, testingTranscode) },
+  ];
+
   return (
     <div className="space-y-6">
       <SystemDiagnosticsPanel />
       <ProxyHealthCheck />
+
+      {/* Service Status Overview */}
+      <Card className="border-border/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Server className="h-4 w-4" />
+            Tenesteoversikt
+          </CardTitle>
+          <CardDescription>Rask statusoversikt for alle konfigurerte tenester</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {services.map(({ label, status }) => (
+              <div
+                key={label}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                  status === 'ok'
+                    ? 'bg-green-500/10 border-green-500/20 text-green-400'
+                    : status === 'error'
+                    ? 'bg-destructive/10 border-destructive/20 text-destructive'
+                    : status === 'loading'
+                    ? 'bg-muted/50 border-border/50 text-muted-foreground'
+                    : 'bg-muted/30 border-border/30 text-muted-foreground'
+                }`}
+              >
+                {status === 'ok' && <CheckCircle2 className="h-4 w-4 shrink-0" />}
+                {status === 'error' && <XCircle className="h-4 w-4 shrink-0" />}
+                {status === 'loading' && <Loader2 className="h-4 w-4 shrink-0 animate-spin" />}
+                {status === 'unknown' && <HelpCircle className="h-4 w-4 shrink-0" />}
+                {label}
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-3">Test tilkoblingane under for å oppdatere statusane.</p>
+        </CardContent>
+      </Card>
 
       <Card className="border-border/50">
         <CardHeader>
