@@ -5,6 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -37,6 +38,13 @@ interface LogEntry {
   level: "info" | "success" | "error" | "warning";
 }
 
+interface ConnStatus {
+  ok: boolean;
+  message: string;
+  details?: string;
+  checkedAt: string; // ISO timestamp
+}
+
 type UpdateState = "idle" | "checking" | "updating" | "done" | "error";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,11 +74,18 @@ export const UpdateManager = () => {
   const [progress, setProgress] = useState(0);
   const [step, setStep] = useState("");
   const [logsOpen, setLogsOpen] = useState(false);
-  const [webhookOk, setWebhookOk] = useState<boolean | null>(null);
-  const [connTest, setConnTest] = useState<{ ok: boolean; message: string; details?: string } | null>(null);
-  const [testingConn, setTestingConn] = useState(false);
+
+  // Single source of truth for connection status
+  const [connStatus, setConnStatus] = useState<ConnStatus | null>(null);
+  const [testingConn, setTestingConn] = useState(true); // true on mount = auto-check
+
+  // Inline SHA sync
+  const [syncSha, setSyncSha] = useState("");
+  const [syncOpen, setSyncOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const appendLog = useCallback((msg: string, level: LogEntry["level"] = "info") => {
     setLogs((prev) => [...prev, mkLog(msg, level)]);
   }, []);
@@ -82,17 +97,41 @@ export const UpdateManager = () => {
   // Cleanup on unmount
   useEffect(() => () => stopPoll(), [stopPoll]);
 
-  // Auto-sjekk tilkobling ved montering
+  // ── Shared connection check ──────────────────────────────────────────────
+  const runConnCheck = useCallback(async (silent = false) => {
+    setTestingConn(true);
+    if (!silent) setConnStatus(null);
+    try {
+      const { data, error: err } = await supabase.functions.invoke("test-git-pull-connection");
+      if (err) throw new Error(err.message);
+      const next: ConnStatus = {
+        ok: data?.ok ?? false,
+        message: data?.message ?? (no ? "Ukjent status" : "Unknown status"),
+        details: data?.details,
+        checkedAt: new Date().toISOString(),
+      };
+      setConnStatus(next);
+      if (!silent) {
+        if (next.ok) toast.success(next.message);
+        else toast.error(next.message);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setConnStatus({
+        ok: false,
+        message: no ? "Feil ved tilkoblingstest" : "Connection test error",
+        details: msg,
+        checkedAt: new Date().toISOString(),
+      });
+      if (!silent) toast.error(no ? "Tilkoblingstest feila" : "Connection test failed");
+    } finally {
+      setTestingConn(false);
+    }
+  }, [no]);
+
+  // Auto-check on mount (silent)
   useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.functions.invoke("test-git-pull-connection");
-        if (data) {
-          setConnTest({ ok: data.ok, message: data.message, details: data.details });
-          setWebhookOk(data.ok);
-        }
-      } catch { /* still show manual test button */ }
-    })();
+    runConnCheck(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -102,16 +141,10 @@ export const UpdateManager = () => {
     setError(null);
     try {
       const { data, error: err } = await supabase.functions.invoke("check-updates");
-
       if (err) throw new Error(err.message);
-
       if (data?.error || data?.needsSetup) {
-        throw new Error(
-          data?.error ??
-          (no ? "GitHub repository er ikkje konfigurert" : "GitHub repository not configured"),
-        );
+        throw new Error(data?.error ?? (no ? "GitHub repository er ikkje konfigurert" : "GitHub repository not configured"));
       }
-
       setUpdateInfo(data as UpdateInfo);
       toast[data.updateAvailable ? "success" : "info"](
         data.updateAvailable
@@ -145,16 +178,10 @@ export const UpdateManager = () => {
       appendLog(no ? "📡 Kontaktar oppdateringsserver..." : "📡 Contacting update server...");
       setProgress(10);
 
-      const { data, error: invokeErr } = await supabase.functions.invoke("trigger-update", {
-        body: {},
-      });
+      const { data, error: invokeErr } = await supabase.functions.invoke("trigger-update", { body: {} });
 
-      // Edge function always returns 200; if supabase still throws, handle it
-      if (invokeErr) {
-        throw new Error(invokeErr.message ?? "invoke failed");
-      }
+      if (invokeErr) throw new Error(invokeErr.message ?? "invoke failed");
 
-      // The edge function itself returns {success:false, error:...} for known failures
       if (!data?.success) {
         const errMsg: string = data?.error ?? (no ? "Ukjend feil frå serveren" : "Unknown error from server");
         const details: string = data?.details ?? "";
@@ -169,13 +196,9 @@ export const UpdateManager = () => {
         setProgress(0);
         setUiState("error");
 
-        if (needsUrl) {
-          toast.error(no ? "Offentleg URL for git-pull server manglar" : "Public git-pull server URL required");
-        } else if (connFail) {
-          toast.error(no ? "Kunne ikkje nå git pull serveren" : "Could not reach git pull server");
-        } else {
-          toast.error(no ? "Oppdatering feilet" : "Update failed");
-        }
+        if (needsUrl) toast.error(no ? "Offentleg URL for git-pull server manglar" : "Public git-pull server URL required");
+        else if (connFail) toast.error(no ? "Kunne ikkje nå git pull serveren" : "Could not reach git pull server");
+        else toast.error(no ? "Oppdatering feilet" : "Update failed");
         return;
       }
 
@@ -183,7 +206,6 @@ export const UpdateManager = () => {
       setProgress(20);
       setStep(no ? "Ventar på serveren..." : "Waiting for server...");
 
-      // Poll check-updates every 5 s (max 5 min) until SHA changes
       let polls = 0;
       const maxPolls = 60;
 
@@ -209,7 +231,6 @@ export const UpdateManager = () => {
             return;
           }
 
-          // If check-updates says not updateAvailable after a while, we're done
           if (!cd?.updateAvailable && polls > 6) {
             stopPoll();
             setProgress(100);
@@ -220,7 +241,7 @@ export const UpdateManager = () => {
             toast.success(no ? "Oppdatert!" : "Updated!");
             return;
           }
-        } catch { /* ignore poll errors, keep polling */ }
+        } catch { /* ignore poll errors */ }
 
         if (polls >= maxPolls) {
           stopPoll();
@@ -251,45 +272,29 @@ export const UpdateManager = () => {
     toast.info(no ? "Avbrote" : "Cancelled");
   }, [no, appendLog, stopPoll]);
 
-  // ── Sync installed version manually ──────────────────────────────────────
-  // ── Test connection ──────────────────────────────────────────────────────
-  const testConnection = useCallback(async () => {
-    setTestingConn(true);
-    setConnTest(null);
-    try {
-      const { data, error: err } = await supabase.functions.invoke("test-git-pull-connection");
-      if (err) throw new Error(err.message);
-      setConnTest({ ok: data?.ok, message: data?.message, details: data?.details });
-      if (data?.ok) toast.success(data.message);
-      else toast.error(data?.message ?? (no ? "Tilkobling feila" : "Connection failed"));
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setConnTest({ ok: false, message: no ? "Feil ved tilkoblingstest" : "Connection test error", details: msg });
-      toast.error(no ? "Tilkoblingstest feila" : "Connection test failed");
-    } finally {
-      setTestingConn(false);
-    }
-  }, [no]);
-
+  // ── Sync installed version ────────────────────────────────────────────────
   const syncVersion = async () => {
-    const sha = prompt(
-      no ? "Lim inn commit SHA (køyr: git rev-parse HEAD)" : "Paste commit SHA (run: git rev-parse HEAD)",
-    );
-    if (!sha) return;
+    if (!syncSha.trim()) return;
+    setSyncing(true);
     try {
       const { error: e } = await supabase.functions.invoke("sync-installed-version", {
-        body: { commitSha: sha.trim() },
+        body: { commitSha: syncSha.trim() },
       });
       if (e) throw e;
       toast.success(no ? "Versjon synkronisert!" : "Version synced!");
+      setSyncOpen(false);
+      setSyncSha("");
       await checkForUpdates();
     } catch {
       toast.error(no ? "Kunne ikkje synkronisere versjon" : "Could not sync version");
+    } finally {
+      setSyncing(false);
     }
   };
 
   const isUpdating = uiState === "updating";
   const isChecking = uiState === "checking";
+  const connOk = connStatus?.ok ?? null;
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -306,22 +311,45 @@ export const UpdateManager = () => {
 
       <CardContent className="space-y-4">
 
-        {/* ── Webhook warning ── */}
-        {webhookOk === false && (
-          <div className="p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg flex items-start gap-2">
-            <Settings className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-yellow-400">
-                {no ? "Git Pull Server URL manglar" : "Git Pull Server URL missing"}
+        {/* ── Connection status banner (single merged banner) ── */}
+        {testingConn && connStatus === null ? (
+          <div className="p-3 bg-secondary/20 border border-border rounded-lg flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+            <p className="text-sm text-muted-foreground">
+              {no ? "Sjekkar tilkobling til git-pull server..." : "Checking connection to git-pull server..."}
+            </p>
+          </div>
+        ) : connStatus ? (
+          <div className={`p-3 rounded-lg border flex items-start gap-2 ${connOk ? "bg-green-500/10 border-green-500/30" : "bg-yellow-500/10 border-yellow-500/30"}`}>
+            {connOk
+              ? <Wifi className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+              : connStatus.details?.includes("ikkje konfigurert") || connStatus.details?.includes("not configured")
+                ? <Settings className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
+                : <WifiOff className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />}
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${connOk ? "text-green-500" : "text-yellow-400"}`}>
+                {connStatus.message}
               </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {no
-                  ? "Konfigurer ein offentleg URL under Servere → Git Pull Server URL. Lokale IP-ar (192.168.x.x) fungerer ikkje frå skyen."
-                  : "Configure a public URL under Servers → Git Pull Server URL. Local IPs (192.168.x.x) won't work from the cloud."}
+              {connStatus.details && (
+                <p className="text-xs text-muted-foreground mt-0.5">{connStatus.details}</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {no ? "Sist sjekka" : "Last checked"}: {format(new Date(connStatus.checkedAt), "HH:mm:ss")}
               </p>
             </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => runConnCheck(false)}
+              disabled={testingConn}
+              className="shrink-0 h-7 px-2"
+            >
+              {testingConn
+                ? <Loader2 className="h-3 w-3 animate-spin" />
+                : <RefreshCw className="h-3 w-3" />}
+            </Button>
           </div>
-        )}
+        ) : null}
 
         {/* ── Self-hosted notice ── */}
         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg flex items-start gap-2">
@@ -443,23 +471,6 @@ export const UpdateManager = () => {
           </div>
         )}
 
-        {/* ── Connection test result ── */}
-        {connTest && (
-          <div className={`p-3 rounded-lg border flex items-start gap-2 ${connTest.ok ? "bg-green-500/10 border-green-500/30" : "bg-destructive/10 border-destructive/30"}`}>
-            {connTest.ok
-              ? <Wifi className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
-              : <WifiOff className="h-4 w-4 text-destructive mt-0.5 shrink-0" />}
-            <div>
-              <p className={`text-sm font-medium ${connTest.ok ? "text-green-500" : "text-destructive"}`}>
-                {connTest.message}
-              </p>
-              {connTest.details && (
-                <p className="text-xs text-muted-foreground mt-0.5">{connTest.details}</p>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* ── Actions ── */}
         <div className="flex gap-2 flex-wrap">
           <Button
@@ -475,7 +486,7 @@ export const UpdateManager = () => {
           </Button>
 
           <Button
-            onClick={testConnection}
+            onClick={() => runConnCheck(false)}
             disabled={testingConn || isUpdating}
             variant="outline"
             size="sm"
@@ -491,14 +502,53 @@ export const UpdateManager = () => {
 
           {updateInfo?.updateAvailable && !isUpdating && (
             <>
-              <Button onClick={syncVersion} variant="secondary" size="sm" className="shrink-0">
-                <CheckCircle className="h-4 w-4 mr-1" />
-                {no ? "Synk versjon" : "Sync version"}
-              </Button>
+              {/* Inline sync version dialog */}
+              <Dialog open={syncOpen} onOpenChange={(o) => { setSyncOpen(o); if (!o) setSyncSha(""); }}>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="sm" className="shrink-0">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    {no ? "Synk versjon" : "Sync version"}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>{no ? "Synkroniser installert versjon" : "Sync installed version"}</DialogTitle>
+                    <DialogDescription>
+                      {no
+                        ? "Lim inn commit SHA frå serveren (køyr: git rev-parse HEAD)"
+                        : "Paste the commit SHA from your server (run: git rev-parse HEAD)"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-3 pt-2">
+                    <Input
+                      placeholder="e.g. a1b2c3d4e5f6..."
+                      value={syncSha}
+                      onChange={(e) => setSyncSha(e.target.value)}
+                      className="font-mono text-sm"
+                      onKeyDown={(e) => e.key === "Enter" && syncVersion()}
+                    />
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={() => setSyncOpen(false)}>
+                        {no ? "Avbryt" : "Cancel"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={syncVersion}
+                        disabled={!syncSha.trim() || syncing}
+                      >
+                        {syncing
+                          ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          : <CheckCircle className="h-4 w-4 mr-1" />}
+                        {no ? "Synkroniser" : "Sync"}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button className="flex-1 min-w-[140px]" disabled={webhookOk === false}>
+                  <Button className="flex-1 min-w-[140px]" disabled={connOk === false}>
                     <Download className="h-4 w-4 mr-2" />
                     {no ? "Installer oppdatering" : "Install update"}
                   </Button>
