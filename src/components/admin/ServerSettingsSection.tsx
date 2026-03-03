@@ -1106,6 +1106,72 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         </CardContent>
       </Card>
 
+      {/* Bazarr */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Server className="h-5 w-5" />
+            Bazarr
+          </CardTitle>
+          <CardDescription>
+            {language === 'no' ? 'Konfigurer Bazarr for undertekstadministrasjon' : 'Configure Bazarr for subtitle management'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="bazarr-url">Bazarr Server URL</Label>
+            <Input
+              id="bazarr-url"
+              type="url"
+              placeholder="http://bazarr.yourdomain.com"
+              value={bazarrUrl}
+              onChange={(e) => setBazarrUrl(e.target.value)}
+              className="bg-secondary/50 border-border/50"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="bazarr-api-key">Bazarr API Key</Label>
+            <Input
+              id="bazarr-api-key"
+              type="password"
+              placeholder={language === 'no' ? 'Finn i Bazarr → Settings → General' : 'Find in Bazarr → Settings → General'}
+              value={bazarrApiKey}
+              onChange={(e) => setBazarrApiKey(e.target.value)}
+              className="bg-secondary/50 border-border/50"
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={() => {
+                if (bazarrUrl.trim()) updateBazarrUrl.mutate(bazarrUrl.trim());
+                if (bazarrApiKey.trim()) updateBazarrApiKey.mutate(bazarrApiKey.trim());
+              }}
+              disabled={updateBazarrUrl.isPending || updateBazarrApiKey.isPending}
+              className="cinema-glow flex-1"
+            >
+              {(updateBazarrUrl.isPending || updateBazarrApiKey.isPending) ? "Lagrar..." : "Lagre innstillingar"}
+            </Button>
+            <Button
+              onClick={handleTestBazarr}
+              disabled={testingBazarr}
+              variant="outline"
+              className="flex-1"
+            >
+              {testingBazarr ? "Testar..." : "Test tilkobling"}
+            </Button>
+          </div>
+          {bazarrStatus && (
+            <div className={`p-3 rounded-lg text-sm ${
+              bazarrStatus.startsWith('✅')
+                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                : 'bg-red-500/10 text-red-400 border border-red-500/20'
+            }`}>
+              {bazarrStatus}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Transcode Server */}
       <Card className="border-border/50">
         <CardHeader>
@@ -1114,8 +1180,8 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
             Transcode Server (HandBrake)
           </CardTitle>
           <CardDescription>
-            Konfigurer transcode-serveren for å konvertere mediafiler via HandBrakeCLI.
-            Serveren må vere tilgjengeleg via ein offentleg URL (f.eks. Cloudflare Tunnel).
+          Konfigurer transcode-serveren for å konvertere mediafiler via HandBrakeCLI.
+            Serveren må vere tilgjengeleg via ein offentleg URL (t.d. via din eksisterande reverse proxy).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
