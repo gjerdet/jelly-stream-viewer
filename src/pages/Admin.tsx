@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio, FolderOpen } from "lucide-react";
+import { Settings, Newspaper, Server, Download, Database, HardDrive, Activity, FileText, Library, Subtitles, AlertTriangle, MessageSquare, BookOpen, Film, Tv, Copy, RefreshCw, Radio, FolderOpen, Rocket } from "lucide-react";
 
 import { UpdateManager } from "@/components/UpdateManager";
 import { UserManagement } from "@/components/UserManagement";
@@ -37,6 +37,7 @@ import { AppServicesHealth } from "@/components/admin/AppServicesHealth";
 import { SystemStatusDashboard } from "@/components/admin/SystemStatusDashboard";
 import { ActiveStreamsDashboard } from "@/components/admin/ActiveStreamsDashboard";
 import { FileManager } from "@/components/admin/FileManager";
+import { QuickSetupOverview } from "@/components/admin/QuickSetupOverview";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -47,7 +48,7 @@ const Admin = () => {
   const { data: userRole, isLoading: roleLoading } = useUserRole(user?.id);
   const { t, language } = useLanguage();
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = useState("health");
+  const [activeTab, setActiveTab] = useState("quickstart");
   const admin = t.admin as any;
   const common = t.common as any;
   
@@ -115,6 +116,7 @@ const Admin = () => {
 
 
   const adminTabs = [
+    { value: "quickstart", label: language === 'no' ? "Kom i gang" : "Get Started", icon: Rocket },
     { value: "health", label: "Health", icon: Activity },
     { value: "streams", label: language === 'no' ? "Strømmer" : "Streams", icon: Radio },
     { value: "system-status", label: language === 'no' ? "System Status" : "System Status", icon: Server },
@@ -221,6 +223,10 @@ const Admin = () => {
 
             {/* Content Area */}
             <div className="flex-1 min-w-0">
+              <TabsContent value="quickstart" className="space-y-6 mt-0">
+                <QuickSetupOverview onNavigateToTab={setActiveTab} />
+              </TabsContent>
+
               <TabsContent value="health" className="space-y-6 mt-0">
                 <AppServicesHealth />
                 <HealthCheckDashboard />
