@@ -723,6 +723,92 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     }
   };
 
+  const [testingAll, setTestingAll] = useState(false);
+
+  const handleTestAllServices = async () => {
+    setTestingAll(true);
+    toast.info("Testar alle tenester...");
+    try {
+      // Test Jellyfin
+      if (newServerUrl.trim() && apiKey.trim()) {
+        setTestingConnection(true);
+        setConnectionStatus(null);
+        try {
+          const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
+            body: { action: "test-connection", serverUrl: newServerUrl.trim(), apiKey: apiKey.trim() },
+          });
+          if (!error && data?.success) setConnectionStatus(`✅ Tilkoblet!`);
+          else setConnectionStatus(`❌ Feil`);
+        } catch { setConnectionStatus(`❌ Feil`); } finally { setTestingConnection(false); }
+      }
+      // Test Jellyseerr
+      if (jellyseerrUrl.trim() && jellyseerrApiKey.trim()) {
+        setTestingJellyseerr(true);
+        setJellyseerrStatus(null);
+        try {
+          const r = await fetch(`${jellyseerrUrl.trim().replace(/\/$/, '')}/api/v1/auth/me`, {
+            headers: { 'X-Api-Key': jellyseerrApiKey.trim() },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (r.ok) setJellyseerrStatus(`✅ Tilkoblet!`);
+          else setJellyseerrStatus(`❌ HTTP ${r.status}`);
+        } catch { setJellyseerrStatus(`❌ Feil`); } finally { setTestingJellyseerr(false); }
+      }
+      // Test Radarr
+      if (radarrUrl.trim() && radarrApiKey.trim()) {
+        setTestingRadarr(true);
+        setRadarrStatus(null);
+        try {
+          const r = await fetch(`${radarrUrl.trim().replace(/\/$/, '')}/api/v3/system/status`, {
+            headers: { 'X-Api-Key': radarrApiKey.trim() },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (r.ok) { const d = await r.json(); setRadarrStatus(`✅ Radarr v${d.version || 'ukjent'}`); }
+          else setRadarrStatus(`❌ HTTP ${r.status}`);
+        } catch { setRadarrStatus(`❌ Feil`); } finally { setTestingRadarr(false); }
+      }
+      // Test Sonarr
+      if (sonarrUrl.trim() && sonarrApiKey.trim()) {
+        setTestingSonarr(true);
+        setSonarrStatus(null);
+        try {
+          const r = await fetch(`${sonarrUrl.trim().replace(/\/$/, '')}/api/v3/system/status`, {
+            headers: { 'X-Api-Key': sonarrApiKey.trim() },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (r.ok) { const d = await r.json(); setSonarrStatus(`✅ Sonarr v${d.version || 'ukjent'}`); }
+          else setSonarrStatus(`❌ HTTP ${r.status}`);
+        } catch { setSonarrStatus(`❌ Feil`); } finally { setTestingSonarr(false); }
+      }
+      // Test Bazarr
+      if (bazarrUrl.trim() && bazarrApiKey.trim()) {
+        setTestingBazarr(true);
+        setBazarrStatus(null);
+        try {
+          const r = await fetch(`${bazarrUrl.trim().replace(/\/$/, '')}/api/system/status`, {
+            headers: { 'X-API-KEY': bazarrApiKey.trim() },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (r.ok) setBazarrStatus(`✅ Tilkoblet!`);
+          else setBazarrStatus(`❌ HTTP ${r.status}`);
+        } catch { setBazarrStatus(`❌ Feil`); } finally { setTestingBazarr(false); }
+      }
+      // Test Transcode
+      if (transcodeUrl.trim()) {
+        setTestingTranscode(true);
+        setTranscodeStatus(null);
+        try {
+          const { data, error } = await supabase.functions.invoke("transcode-proxy", { body: { action: "health" } });
+          if (!error && data?.status === 'ok') setTranscodeStatus(`✅ Tilkoblet!`);
+          else setTranscodeStatus(`❌ Feil`);
+        } catch { setTranscodeStatus(`❌ Feil`); } finally { setTestingTranscode(false); }
+      }
+      toast.success("Test fullført!");
+    } finally {
+      setTestingAll(false);
+    }
+  };
+
   // Derive simple status for overview badges
   const getStatus = (statusStr: string | null, testing: boolean) => {
     if (testing) return 'loading';
@@ -748,11 +834,28 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
       {/* Service Status Overview */}
       <Card className="border-border/50">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Server className="h-4 w-4" />
-            Tenesteoversikt
-          </CardTitle>
-          <CardDescription>Rask statusoversikt for alle konfigurerte tenester</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Server className="h-4 w-4" />
+                Tenesteoversikt
+              </CardTitle>
+              <CardDescription className="mt-1">Rask statusoversikt for alle konfigurerte tenester</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestAllServices}
+              disabled={testingAll}
+              className="shrink-0"
+            >
+              {testingAll ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" />Testar...</>
+              ) : (
+                <><RefreshCw className="h-4 w-4 mr-2" />Test alle</>
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -777,7 +880,7 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">Test tilkoblingane under for å oppdatere statusane.</p>
+          <p className="text-xs text-muted-foreground mt-3">Klikk «Test alle» for å sjekke alle tenester på ein gong, eller test kvar teneste individuelt under.</p>
         </CardContent>
       </Card>
 
