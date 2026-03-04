@@ -39,6 +39,10 @@ const SetupWizard = () => {
 
   // Check if setup is already completed
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const forceShow = searchParams.get("force") === "true";
+    if (forceShow) { setCheckingSetup(false); return; }
+
     const checkExistingSetup = async () => {
       try {
         const { data } = await supabase
