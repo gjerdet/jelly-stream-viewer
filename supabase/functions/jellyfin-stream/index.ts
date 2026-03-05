@@ -283,8 +283,14 @@ serve(async (req) => {
     const targetBitrate = requestedBitrate ? parseInt(requestedBitrate, 10) : 8000000;
     const needsVideoTranscode = !!(videoCodec && !['h264', 'vp8', 'vp9', 'av1'].includes(videoCodec));
     const needsAudioTranscode = !!(selectedAudioCodec && !['aac', 'mp3', 'opus'].includes(selectedAudioCodec));
-    const needsTranscode = needsVideoTranscode || needsAudioTranscode;
+    // MKV containers don't support static/direct streaming reliably – force transcode
+    const containerNeedsTranscode = !!(container && ['mkv', 'matroska', 'ts', 'avi', 'wmv', 'flv'].includes(container));
+    const needsTranscode = needsVideoTranscode || needsAudioTranscode || containerNeedsTranscode;
     const forceTranscode = requestedBitrate !== null || hasManualAudioSelection; // Manual quality/audio selection always transcodes
+
+    if (containerNeedsTranscode) {
+      console.log(`Container '${container}' requires transcode even for compatible codecs`);
+    }
 
     // Transcode if codec is NOT browser-compatible OR if user requested specific quality/audio
     if (needsTranscode || forceTranscode) {
