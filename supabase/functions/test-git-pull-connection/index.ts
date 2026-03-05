@@ -44,26 +44,7 @@ serve(async (req) => {
         ok: false,
         reason: "no_url",
         message: "Git Pull Server URL er ikkje konfigurert",
-        details: "Gå til Admin → Servere og legg inn ein offentleg URL under «Git Pull Server URL».",
-      });
-    }
-
-    // Private IP check
-    const isPrivate =
-      baseUrl.includes("192.168.") ||
-      baseUrl.includes("10.0.") ||
-      baseUrl.includes("10.") ||
-      baseUrl.includes("172.16.") ||
-      baseUrl.startsWith("http://localhost") ||
-      baseUrl.startsWith("http://127.");
-
-    if (isPrivate) {
-      return resp({
-        ok: false,
-        reason: "private_ip",
-        message: "Lokal/privat IP kan ikkje nåast frå skyen",
-        details: `URL "${baseUrl}" er ei privat adresse. Edge-funksjonar køyrer i skyen. Bruk ein offentleg URL via t.d. Cloudflare Tunnel.`,
-        url: baseUrl,
+        details: "Gå til Admin → Servere og legg inn URL under «Git Pull Server URL».",
       });
     }
 
