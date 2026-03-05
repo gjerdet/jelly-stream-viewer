@@ -103,7 +103,10 @@ serve(async (req) => {
 
     const installedSha = versionData?.setting_value || '';
     const latestSha = latestCommit.sha;
-    const updateAvailable = installedSha !== latestSha;
+    // Compare using short SHA (7 chars) to handle both full and short stored SHAs
+    const installedShort = installedSha.slice(0, 7);
+    const latestShort = latestSha.slice(0, 7);
+    const updateAvailable = installedShort !== latestShort;
 
     console.log(`Installed: ${installedSha.slice(0, 7)}, Latest: ${latestSha.slice(0, 7)}, Update available: ${updateAvailable}`);
 
