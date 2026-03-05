@@ -1,32 +1,29 @@
 #!/usr/bin/env node
 
 /**
- * Simple Git Pull Server
+ * Git Pull Server
  *
- * This server listens on a configurable host/port and executes git pull when triggered.
- * It also (optionally) reports progress back to the backend (update_status + installed_commit_sha)
- * so the web UI can stop “hanging” on status polling.
+ * Polls the database every 30 seconds for pending update requests.
+ * When a "requested" status is found, executes git pull and reports back.
+ * No public URL needed — the server pulls from the cloud, not vice versa.
  */
 
 import http from 'http';
 import { exec } from 'child_process';
-import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const PORT = process.env.GIT_PULL_PORT || 3002;
 const HOST = process.env.GIT_PULL_HOST || '0.0.0.0';
-const UPDATE_SECRET = process.env.UPDATE_SECRET || '';
 const APP_DIR = process.env.APP_DIR || process.cwd();
+const POLL_INTERVAL_MS = 30_000;
 
-// Optional: used to report update completion back to the backend
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 console.log('🚀 Git Pull Server starting...');
 console.log(`📁 Working directory: ${APP_DIR}`);
 console.log(`🌐 Listening on: ${HOST}:${PORT}`);
-console.log(`🔐 Secret configured: ${UPDATE_SECRET ? 'Yes' : 'No'}`);
-console.log(`🗄️  Backend reporting: ${SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? 'Yes' : 'No'}`);
+console.log(`🗄️  Backend polling: ${SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? 'Yes (every 30s)' : 'No — SUPABASE_URL/KEY missing!'}`);
 
 function getSupabaseClient() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
@@ -39,39 +36,19 @@ function getSupabaseClient() {
 }
 
 function safeParseJson(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(str); } catch { return null; }
 }
 
-function normalizeSignature(signature) {
-  if (!signature) return '';
-  const s = Array.isArray(signature) ? signature[0] : String(signature);
-  return s.replace(/^sha256=/i, '');
+function getGitHeadSha() {
+  return new Promise((resolve) => {
+    exec('git rev-parse HEAD', { cwd: APP_DIR }, (err, stdout) => {
+      resolve(err ? '' : String(stdout || '').trim());
+    });
+  });
 }
 
-/**
- * Verify HMAC signature
- */
-function verifySignature(payload, signature, secret) {
-  if (!secret) return true; // Skip verification if no secret set
-
-  const provided = normalizeSignature(signature);
-  if (!provided) return false;
-
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(payload);
-  const expectedSignature = hmac.digest('hex');
-
-  return provided === expectedSignature;
-}
-
-async function appendUpdateLogs(updateId, entries, patch = {}) {
-  const supabase = getSupabaseClient();
+async function appendUpdateLogs(supabase, updateId, entries, patch = {}) {
   if (!supabase || !updateId) return;
-
   try {
     const { data } = await supabase
       .from('update_status')
@@ -87,13 +64,11 @@ async function appendUpdateLogs(updateId, entries, patch = {}) {
       existing = currentLogs;
     }
 
-    const nextLogs = [...existing, ...entries];
-
     await supabase
       .from('update_status')
       .update({
         ...patch,
-        logs: JSON.stringify(nextLogs),
+        logs: JSON.stringify([...existing, ...entries]),
         updated_at: new Date().toISOString(),
       })
       .eq('id', updateId);
@@ -102,20 +77,13 @@ async function appendUpdateLogs(updateId, entries, patch = {}) {
   }
 }
 
-async function setInstalledCommitSha(commitSha) {
-  const supabase = getSupabaseClient();
+async function setInstalledCommitSha(supabase, commitSha) {
   if (!supabase || !commitSha) return;
-
   try {
     await supabase
       .from('server_settings')
       .upsert(
-        {
-          setting_key: 'installed_commit_sha',
-          setting_value: commitSha,
-          updated_at: new Date().toISOString(),
-          updated_by: null,
-        },
+        { setting_key: 'installed_commit_sha', setting_value: commitSha, updated_at: new Date().toISOString(), updated_by: null },
         { onConflict: 'setting_key' },
       );
   } catch (e) {
@@ -123,223 +91,157 @@ async function setInstalledCommitSha(commitSha) {
   }
 }
 
-function getGitHeadSha() {
+function executeGitPull(supabase, updateId) {
   return new Promise((resolve) => {
-    exec('git rev-parse HEAD', { cwd: APP_DIR }, (err, stdout) => {
-      if (err) return resolve('');
-      resolve(String(stdout || '').trim());
+    const commands = [
+      'if [ -f .env ]; then cp .env .env.backup; fi',
+      'git stash',
+      'git pull origin main',
+      'if [ -f .env.backup ]; then cp .env.backup .env; fi',
+      'npm install --production',
+      'npm run build',
+      'rm -f .env.backup',
+    ].join(' && ');
+
+    console.log(`⚙️  Executing git pull for updateId=${updateId}...`);
+
+    appendUpdateLogs(supabase, updateId, [{
+      timestamp: new Date().toISOString(),
+      message: '🔄 Lokal server køyrer git pull...',
+      level: 'info',
+    }], { status: 'in_progress', progress: 20, current_step: 'Køyrer git pull...', started_at: new Date().toISOString() });
+
+    exec(commands, { cwd: APP_DIR }, async (error, stdout, stderr) => {
+      if (error) {
+        console.error('❌ Update failed:', error.message);
+        exec('if [ -f .env.backup ]; then cp .env.backup .env; fi', { cwd: APP_DIR });
+
+        await appendUpdateLogs(supabase, updateId, [
+          { timestamp: new Date().toISOString(), message: `❌ Oppdatering feila: ${error.message}`, level: 'error' },
+          ...(stderr ? [{ timestamp: new Date().toISOString(), message: String(stderr).slice(-2000), level: 'error' }] : []),
+        ], { status: 'failed', progress: 0, current_step: 'Feil under oppdatering', error: error.message, completed_at: new Date().toISOString() });
+
+        return resolve({ success: false, error: error.message });
+      }
+
+      const newSha = await getGitHeadSha();
+      if (newSha) await setInstalledCommitSha(supabase, newSha);
+
+      await appendUpdateLogs(supabase, updateId, [
+        { timestamp: new Date().toISOString(), message: '✅ Oppdatering fullført!', level: 'success' },
+        ...(newSha ? [{ timestamp: new Date().toISOString(), message: `🔖 Installert commit: ${newSha.slice(0, 7)}`, level: 'info' }] : []),
+      ], { status: 'completed', progress: 100, current_step: 'Oppdatering fullført!', completed_at: new Date().toISOString() });
+
+      console.log('✅ Update completed!');
+      resolve({ success: true });
     });
   });
 }
 
-/**
- * Execute git pull and related commands
- * Preserves .env file across updates
- */
-function executeGitPull({ updateId } = {}, callback) {
-  // Backup .env, do git pull, restore .env, then build
-  const commands = [
-    // Backup .env if it exists
-    'if [ -f .env ]; then cp .env .env.backup; fi',
-    'git stash',
-    'git pull origin main',
-    // Restore .env from backup
-    'if [ -f .env.backup ]; then cp .env.backup .env; fi',
-    'npm install --production',
-    'npm run build',
-    // Clean up backup
-    'rm -f .env.backup',
-  ].join(' && ');
+// ── Database poller ────────────────────────────────────────────────────────────
+let polling = false;
 
-  console.log('⚙️  Executing update commands (preserving .env)...');
+async function pollForUpdates() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
 
-  // Best effort: mark as in-progress
-  appendUpdateLogs(updateId, [
-    {
-      timestamp: new Date().toISOString(),
-      message: '🔄 Oppdatering køyrer på serveren...',
-      level: 'info',
-    },
-  ], {
-    status: 'in_progress',
-    progress: 20,
-    current_step: 'Oppdatering køyrer på serveren...',
-    started_at: new Date().toISOString(),
-  });
+  try {
+    const { data: rows } = await supabase
+      .from('update_status')
+      .select('id, status')
+      .eq('status', 'requested')
+      .order('created_at', { ascending: true })
+      .limit(1);
 
-  exec(commands, { cwd: APP_DIR }, (error, stdout, stderr) => {
-    if (error) {
-      console.error('❌ Update failed:', error.message);
-      // Try to restore .env on failure
-      exec('if [ -f .env.backup ]; then cp .env.backup .env; fi', { cwd: APP_DIR });
+    if (!rows || rows.length === 0) return;
 
-      // Best effort: persist failure
-      appendUpdateLogs(updateId, [
-        {
-          timestamp: new Date().toISOString(),
-          message: `❌ Oppdatering feila: ${error.message}`,
-          level: 'error',
-        },
-        ...(stderr
-          ? [
-              {
-                timestamp: new Date().toISOString(),
-                message: String(stderr).slice(-2000),
-                level: 'error',
-              },
-            ]
-          : []),
-      ], {
-        status: 'failed',
-        progress: 0,
-        current_step: 'Feil under oppdatering',
-        error: error.message,
-        completed_at: new Date().toISOString(),
-      });
+    const row = rows[0];
+    console.log(`📥 Found pending update request: ${row.id}`);
 
-      callback({ success: false, error: error.message, stderr });
+    // Claim it immediately to prevent duplicate execution
+    const { error: claimErr } = await supabase
+      .from('update_status')
+      .update({ status: 'in_progress', progress: 5, current_step: 'Lokal server har henta forespørselen...', updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .eq('status', 'requested'); // Only claim if still "requested"
+
+    if (claimErr) {
+      console.warn('⚠️  Could not claim update row (maybe another process got it):', claimErr.message);
       return;
     }
 
-    (async () => {
-      const newSha = await getGitHeadSha();
-      if (newSha) {
-        await setInstalledCommitSha(newSha);
-      }
-
-      await appendUpdateLogs(updateId, [
-        {
-          timestamp: new Date().toISOString(),
-          message: '✅ Oppdatering fullført på serveren!',
-          level: 'success',
-        },
-        ...(newSha
-          ? [
-              {
-                timestamp: new Date().toISOString(),
-                message: `🔖 Installert commit: ${newSha.slice(0, 7)}`,
-                level: 'info',
-              },
-            ]
-          : []),
-      ], {
-        status: 'completed',
-        progress: 100,
-        current_step: 'Oppdatering fullført!',
-        completed_at: new Date().toISOString(),
-      });
-    })().catch((e) => console.warn('⚠️  Post-update reporting failed:', e?.message || e));
-
-    console.log('✅ Update completed successfully!');
-    console.log('📝 Output:', stdout);
-
-    callback({ success: true, output: stdout });
-  });
+    await executeGitPull(supabase, row.id);
+  } catch (e) {
+    console.warn('⚠️  Poll error:', e?.message || e);
+  }
 }
 
-/**
- * HTTP Server
- */
+// Start polling
+setInterval(pollForUpdates, POLL_INTERVAL_MS);
+// Also poll immediately on startup
+setTimeout(pollForUpdates, 5_000);
+
+// ── HTTP Server (health check + manual trigger) ────────────────────────────────
 const server = http.createServer((req, res) => {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Update-Signature');
 
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
-  // Health check
   if (req.url === '/health' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        status: 'ok',
-        service: 'git-pull-server',
-        directory: APP_DIR,
-        host: HOST,
-        port: PORT,
-        backendReporting: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
-      }),
-    );
+    res.end(JSON.stringify({
+      status: 'ok',
+      service: 'git-pull-server',
+      mode: 'polling',
+      directory: APP_DIR,
+      host: HOST,
+      port: PORT,
+      pollIntervalSeconds: POLL_INTERVAL_MS / 1000,
+      backendConnected: Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY),
+    }));
     return;
   }
 
-  // Git pull endpoint
+  // Keep /git-pull for backward compat (manual trigger via LAN)
   if (req.url === '/git-pull' && req.method === 'POST') {
     let body = '';
-
-    req.on('data', (chunk) => {
-      body += chunk.toString();
-    });
-
-    req.on('end', () => {
-      const parsedBody = safeParseJson(body) || {};
-      const updateId = parsedBody?.updateId;
-
-      // Verify signature if secret is set
-      const signature = req.headers['x-update-signature'];
-
-      if (UPDATE_SECRET && !verifySignature(body, signature, UPDATE_SECRET)) {
-        console.error('❌ Invalid signature');
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid signature' }));
+    req.on('data', (chunk) => { body += chunk.toString(); });
+    req.on('end', async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        res.writeHead(503, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No database connection configured' }));
         return;
       }
 
-      console.log('🔄 Git pull triggered', updateId ? `(updateId: ${updateId})` : '');
+      // Create a new update_status row and execute
+      const { data: row } = await supabase
+        .from('update_status')
+        .insert({ status: 'in_progress', progress: 5, current_step: 'Manuell trigger via LAN...' })
+        .select('id')
+        .single();
 
-      // Send immediate response
       res.writeHead(202, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          status: 'accepted',
-          message: 'Update started',
-        }),
-      );
+      res.end(JSON.stringify({ status: 'accepted', updateId: row?.id }));
 
-      // Execute git pull in background
-      executeGitPull({ updateId }, (result) => {
-        if (result.success) {
-          console.log('✅ Update completed successfully');
-        } else {
-          console.error('❌ Update failed:', result.error);
-        }
-      });
+      executeGitPull(supabase, row?.id);
     });
-
     return;
   }
 
-  // 404 for other routes
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
-// Start server
 server.listen(PORT, HOST, () => {
   console.log(`✅ Git Pull Server listening on http://${HOST}:${PORT}`);
-  console.log(`📍 Endpoint: http://${HOST}:${PORT}/git-pull`);
+  console.log(`🔄 Polling database every ${POLL_INTERVAL_MS / 1000}s for update requests`);
   console.log(`🏥 Health check: http://${HOST}:${PORT}/health`);
+  const ip = Object.values(require('os').networkInterfaces()).flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
+  if (ip) console.log(`🌐 Accessible from LAN: http://${ip}:${PORT}`);
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('⚠️  SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('👋 Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  console.log('\n⚠️  SIGINT received, shutting down gracefully...');
-  server.close(() => {
-    console.log('👋 Server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => { server.close(() => process.exit(0)); });
+process.on('SIGINT', () => { server.close(() => process.exit(0)); });

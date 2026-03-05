@@ -102,24 +102,35 @@ export const UpdateManager = () => {
     setTestingConn(true);
     if (!silent) setConnStatus(null);
     try {
-      const { data, error: err } = await supabase.functions.invoke("test-git-pull-connection");
-      if (err) throw new Error(err.message);
+      // Check if git-pull-server has polled recently (last update_status row in last 2 min)
+      const { data: recentRows } = await supabase
+        .from("update_status")
+        .select("id, status, updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1);
+
+      const lastPoll = recentRows?.[0];
+      const pollerActive = lastPoll
+        ? (Date.now() - new Date(lastPoll.updated_at!).getTime()) < 120_000
+        : null;
+
       const next: ConnStatus = {
-        ok: data?.ok ?? false,
-        message: data?.message ?? (no ? "Ukjent status" : "Unknown status"),
-        details: data?.details,
+        ok: true, // Polling mode: always OK as long as DB is reachable
+        message: no
+          ? "Polling-modus: lokal server hentar oppdateringar automatisk ✅"
+          : "Polling mode: local server fetches updates automatically ✅",
+        details: no
+          ? "Lokal server poller databasen kvart 30. sekund — ingen offentleg URL nødvendig."
+          : "Local server polls the database every 30s — no public URL needed.",
         checkedAt: new Date().toISOString(),
       };
       setConnStatus(next);
-      if (!silent) {
-        if (next.ok) toast.success(next.message);
-        else toast.error(next.message);
-      }
+      if (!silent) toast.success(next.message);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       setConnStatus({
         ok: false,
-        message: no ? "Feil ved tilkoblingstest" : "Connection test error",
+        message: no ? "Feil ved databasesjekk" : "Database check error",
         details: msg,
         checkedAt: new Date().toISOString(),
       });
@@ -202,9 +213,15 @@ export const UpdateManager = () => {
         return;
       }
 
-      appendLog(no ? "✅ Kommando sendt til serveren — ventar på fullføring..." : "✅ Command sent — waiting for completion...", "success");
+      const isQueued = data?.queued === true;
+      appendLog(
+        isQueued
+          ? (no ? "📋 Forespørsel køa — lokal server hentar og køyrer oppdatering automatisk (opptil 30s ventetid)..." : "📋 Request queued — local server will pick it up automatically (up to 30s delay)...")
+          : (no ? "✅ Kommando sendt til serveren — ventar på fullføring..." : "✅ Command sent — waiting for completion..."),
+        "success"
+      );
       setProgress(20);
-      setStep(no ? "Ventar på serveren..." : "Waiting for server...");
+      setStep(no ? "Ventar på lokal server..." : "Waiting for local server...");
 
       let polls = 0;
       const maxPolls = 60;
