@@ -85,21 +85,6 @@ serve(async (req) => {
       );
     }
 
-    const isPrivate =
-      webhookUrl.includes("192.168.") ||
-      webhookUrl.includes("10.0.") ||
-      webhookUrl.includes("172.16.") ||
-      webhookUrl.startsWith("http://localhost") ||
-      webhookUrl.startsWith("http://127.");
-
-    if (isPrivate) {
-      return fail(
-        "Lokal IP-adresse kan ikkje nåast frå skyen",
-        `URL "${webhookUrl}" er ei privat/lokal adresse. Edge-funksjonar køyrer i skyen og kan ikkje nå lokale nettverk. Bruk ein offentleg URL (t.d. Cloudflare Tunnel).`,
-        { needsPublicUrl: true },
-      );
-    }
-
     // Parse optional updateId from body
     let updateId: string | null = null;
     try {
