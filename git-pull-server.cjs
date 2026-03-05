@@ -978,13 +978,130 @@ const server = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
+// ── Database polling for update requests ────────────────────────────────────
+const POLL_INTERVAL_MS = 30_000;
+
+function getSupabaseClient() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return null;
+  try {
+    return createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  } catch (e) {
+    console.warn('⚠️  Could not initialize Supabase client:', e?.message || e);
+    return null;
+  }
+}
+
+function safeParseJson(str) {
+  try { return JSON.parse(str); } catch { return null; }
+}
+
+async function appendUpdateLogs(supabase, updateId, entries, patch = {}) {
+  if (!supabase || !updateId) return;
+  try {
+    const { data } = await supabase
+      .from('update_status')
+      .select('logs')
+      .eq('id', updateId)
+      .maybeSingle();
+
+    let existing = [];
+    const currentLogs = data?.logs;
+    if (typeof currentLogs === 'string') {
+      existing = safeParseJson(currentLogs) || [];
+    } else if (Array.isArray(currentLogs)) {
+      existing = currentLogs;
+    }
+
+    await supabase
+      .from('update_status')
+      .update({
+        ...patch,
+        logs: JSON.stringify([...existing, ...entries]),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', updateId);
+  } catch (e) {
+    console.warn('⚠️  Failed to write update logs:', e?.message || e);
+  }
+}
+
+async function pollForUpdates() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    const { data: rows } = await supabase
+      .from('update_status')
+      .select('id, status')
+      .eq('status', 'requested')
+      .order('created_at', { ascending: true })
+      .limit(1);
+
+    if (!rows || rows.length === 0) return;
+
+    const row = rows[0];
+    console.log(`📥 Found pending update request: ${row.id}`);
+
+    // Claim it to prevent duplicate execution
+    const { error: claimErr } = await supabase
+      .from('update_status')
+      .update({
+        status: 'in_progress',
+        progress: 5,
+        current_step: 'Lokal server har henta forespørselen...',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id)
+      .eq('status', 'requested');
+
+    if (claimErr) {
+      console.warn('⚠️  Could not claim update row:', claimErr.message);
+      return;
+    }
+
+    await appendUpdateLogs(supabase, row.id, [{
+      timestamp: new Date().toISOString(),
+      message: '🔄 Lokal server køyrer git pull...',
+      level: 'info',
+    }], { status: 'in_progress', progress: 20, current_step: 'Køyrer git pull...', started_at: new Date().toISOString() });
+
+    // Execute the update
+    executeGitPull(row.id).then((result) => {
+      if (result.success) {
+        console.log('✅ Polling-triggered update completed!');
+      } else {
+        console.error('❌ Polling-triggered update failed:', result.error);
+      }
+    }).catch((err) => {
+      console.error('❌ Unexpected error during polling update:', err);
+    });
+
+  } catch (e) {
+    console.warn('⚠️  Poll error:', e?.message || e);
+  }
+}
+
+// Start polling every 30s
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  setInterval(pollForUpdates, POLL_INTERVAL_MS);
+  setTimeout(pollForUpdates, 5_000); // initial check after 5s
+  console.log(`🔄 Database polling enabled (every ${POLL_INTERVAL_MS / 1000}s)`);
+} else {
+  console.warn('⚠️  Database polling disabled — SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+}
+
 // Start server
 server.listen(PORT, HOST, () => {
   console.log(`✅ Git Pull Server listening on http://${HOST}:${PORT}`);
   console.log(`📍 Endpoint: http://${HOST}:${PORT}/git-pull`);
   console.log(`🏥 Health check: http://${HOST}:${PORT}/health`);
+  console.log(`🔄 Polling mode: ${SUPABASE_URL && SUPABASE_SERVICE_KEY ? 'ACTIVE' : 'DISABLED'}`);
   if (HOST === '0.0.0.0') {
-    console.log(`🌐 Accessible from LAN: http://192.168.9.24:${PORT}/git-pull`);
+    try {
+      const ifaces = require('os').networkInterfaces();
+      const ip = Object.values(ifaces).flat().find(i => i.family === 'IPv4' && !i.internal)?.address;
+      if (ip) console.log(`🌐 Accessible from LAN: http://${ip}:${PORT}`);
+    } catch (e) {}
   }
 });
 
