@@ -224,7 +224,7 @@ export const UpdateManager = () => {
       setStep(no ? "Ventar på lokal server..." : "Waiting for local server...");
 
       let polls = 0;
-      const maxPolls = 60;
+      const maxPolls = 24; // 2 minutes (24 × 5s)
 
       pollRef.current = setInterval(async () => {
         polls++;
@@ -480,6 +480,13 @@ export const UpdateManager = () => {
                         ))}
                       </div>
                     </ScrollArea>
+                    {isUpdating && (
+                      <div className="flex justify-end pt-2">
+                        <Button variant="destructive" size="sm" onClick={() => { cancelUpdate(); setLogsOpen(false); }}>
+                          {no ? "Avbryt oppdatering" : "Cancel update"}
+                        </Button>
+                      </div>
+                    )}
                   </DialogContent>
                 </Dialog>
               </div>
