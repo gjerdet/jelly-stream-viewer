@@ -172,14 +172,14 @@ export const AppServicesHealth = () => {
     updateService("Git Pull Server", { status: "checking" });
     const start = performance.now();
     try {
+      // Check via database: the git-pull server polls the DB every 30s.
+      // We look at the most recent update_status row to see if the server is active.
       const { data: settings } = await supabase
         .from("server_settings")
         .select("setting_key, setting_value")
-        .in("setting_key", ["git_pull_server_url", "update_webhook_url"]);
+        .eq("setting_key", "git_pull_server_url");
 
-      const gitPullUrl =
-        settings?.find((s) => s.setting_key === "git_pull_server_url")?.setting_value ||
-        settings?.find((s) => s.setting_key === "update_webhook_url")?.setting_value;
+      const gitPullUrl = settings?.[0]?.setting_value;
 
       if (!gitPullUrl) {
         updateService("Git Pull Server", {
@@ -190,48 +190,49 @@ export const AppServicesHealth = () => {
         return;
       }
 
-      let baseUrl = gitPullUrl.replace(/\/$/, "");
-      if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-        baseUrl = `http://${baseUrl}`;
-      }
-
-      const response = await fetch(`${baseUrl}/health`, {
-        signal: AbortSignal.timeout(10000),
-      });
-
+      // Check the edge function to test git pull connection (goes through proxy)
+      const { data, error } = await supabase.functions.invoke("test-git-pull-connection");
       const responseTime = Math.round(performance.now() - start);
 
-      if (response.ok) {
+      if (error) throw error;
+
+      if (data?.ok) {
         updateService("Git Pull Server", {
           status: "ok",
-          message: "Kjører",
+          message: "Kjører (polling aktiv)",
           responseTime,
         });
       } else {
-        updateService("Git Pull Server", {
-          status: "error",
-          message: `HTTP ${response.status}`,
-          responseTime,
-        });
+        // If it's a timeout/connection issue from edge function trying to reach local server,
+        // fall back to checking if DB polling is working by looking at update_status
+        const { data: statusRows } = await supabase
+          .from("update_status")
+          .select("updated_at, status")
+          .order("updated_at", { ascending: false })
+          .limit(1);
+
+        const lastActivity = statusRows?.[0]?.updated_at;
+        if (lastActivity) {
+          const minutesAgo = Math.round((Date.now() - new Date(lastActivity).getTime()) / 60000);
+          updateService("Git Pull Server", {
+            status: minutesAgo < 5 ? "ok" : "warning",
+            message: minutesAgo < 5 ? `Aktiv (${minutesAgo}m siden)` : `Sist aktiv ${minutesAgo}m siden`,
+            responseTime,
+          });
+        } else {
+          updateService("Git Pull Server", {
+            status: "warning",
+            message: data?.message || "Lokal server ikke nåbar fra sky",
+            responseTime,
+          });
+        }
       }
     } catch (err) {
-      const responseTime = Math.round(performance.now() - start);
-      const message = err instanceof Error ? err.message : "Feil";
-      
-      // Check for mixed content or network errors
-      if (message.includes("Failed to fetch") || message.includes("NetworkError")) {
-        updateService("Git Pull Server", {
-          status: "warning",
-          message: "Ikke tilgjengelig (Mixed Content/Nettverk)",
-          responseTime,
-        });
-      } else {
-        updateService("Git Pull Server", {
-          status: "error",
-          message,
-          responseTime,
-        });
-      }
+      updateService("Git Pull Server", {
+        status: "warning",
+        message: "Lokal server – kan ikke sjekkes fra sky",
+        responseTime: Math.round(performance.now() - start),
+      });
     }
   };
 
