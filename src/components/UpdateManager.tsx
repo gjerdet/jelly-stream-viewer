@@ -213,30 +213,94 @@ export const UpdateManager = () => {
         return;
       }
 
-      const isQueued = data?.queued === true;
+      const updateRowId: string | null = data?.updateId ?? null;
+
       appendLog(
-        isQueued
-          ? (no ? "📋 Forespørsel køa — lokal server hentar og køyrer oppdatering automatisk (opptil 30s ventetid)..." : "📋 Request queued — local server will pick it up automatically (up to 30s delay)...")
-          : (no ? "✅ Kommando sendt til serveren — ventar på fullføring..." : "✅ Command sent — waiting for completion..."),
+        no
+          ? "📋 Forespørsel køa — lokal server hentar og køyrer oppdatering automatisk (opptil 30s ventetid)..."
+          : "📋 Request queued — local server will pick it up automatically (up to 30s delay)...",
         "success"
       );
       setProgress(20);
       setStep(no ? "Ventar på lokal server..." : "Waiting for local server...");
 
       let polls = 0;
-      const maxPolls = 24; // 2 minutes (24 × 5s)
+      const maxPolls = 36; // 3 minutes (36 × 5s)
 
       pollRef.current = setInterval(async () => {
         polls++;
-        setProgress(Math.min(90, 20 + Math.round((polls / maxPolls) * 70)));
-
-        if (polls % 6 === 0) {
-          appendLog(`🔄 ${no ? "Sjekkar status" : "Checking status"} (${Math.round(polls * 5 / 60)} min)...`);
-        }
 
         try {
-          const { data: cd } = await supabase.functions.invoke("check-updates");
+          // PRIMARY: Check update_status table directly for server-side progress
+          if (updateRowId) {
+            const { data: statusRow } = await supabase
+              .from("update_status")
+              .select("status, progress, current_step, logs, error")
+              .eq("id", updateRowId)
+              .maybeSingle();
 
+            if (statusRow) {
+              // Mirror server progress in UI
+              const serverProgress = statusRow.progress ?? 0;
+              if (serverProgress > 20) setProgress(Math.min(95, serverProgress));
+              if (statusRow.current_step) setStep(statusRow.current_step);
+
+              // Append new server log entries
+              const serverLogs = Array.isArray(statusRow.logs) ? statusRow.logs : [];
+              if (serverLogs.length > 0) {
+                const lastEntry = serverLogs[serverLogs.length - 1] as { message?: string; level?: string };
+                if (lastEntry?.message) {
+                  setLogs((prev) => {
+                    const alreadyLogged = prev.some((l) => l.msg === lastEntry.message);
+                    if (!alreadyLogged) {
+                      return [...prev, mkLog(lastEntry.message!, (lastEntry.level as LogEntry["level"]) ?? "info")];
+                    }
+                    return prev;
+                  });
+                }
+              }
+
+              if (statusRow.status === "completed") {
+                stopPoll();
+                setProgress(100);
+                setStep(no ? "Oppdatering fullført!" : "Update complete!");
+                appendLog(no ? "✅ Oppdatering fullført av lokal server!" : "✅ Update completed by local server!", "success");
+                setUiState("done");
+                toast.success(no ? "Oppdatering fullført!" : "Update complete!");
+                // Refresh version info
+                supabase.functions.invoke("check-updates").then(({ data: cd }) => {
+                  if (cd) setUpdateInfo(cd as UpdateInfo);
+                });
+                return;
+              }
+
+              if (statusRow.status === "failed") {
+                stopPoll();
+                const errMsg = statusRow.error ?? (no ? "Oppdatering feila på serveren" : "Update failed on server");
+                appendLog(`❌ ${errMsg}`, "error");
+                setError({ msg: errMsg });
+                setStep(no ? "Feil" : "Error");
+                setProgress(0);
+                setUiState("error");
+                toast.error(no ? "Oppdatering feila" : "Update failed");
+                return;
+              }
+
+              // Still in_progress or requested — show heartbeat log periodically
+              if (polls % 6 === 0) {
+                const elapsed = Math.round(polls * 5 / 60);
+                const label = statusRow.status === "requested"
+                  ? (no ? `⏳ Ventar på at lokal server plukkar opp (${elapsed} min)...` : `⏳ Waiting for local server to pick up (${elapsed} min)...`)
+                  : (no ? `🔄 Oppdatering pågår (${elapsed} min)...` : `🔄 Update in progress (${elapsed} min)...`);
+                appendLog(label);
+              }
+              setProgress(Math.min(90, 20 + Math.round((polls / maxPolls) * 70)));
+              return;
+            }
+          }
+
+          // FALLBACK: Compare SHA if no updateRowId
+          const { data: cd } = await supabase.functions.invoke("check-updates");
           if (cd?.installedVersion?.sha && cd.installedVersion.sha !== initialSha) {
             stopPoll();
             setProgress(100);
@@ -247,23 +311,17 @@ export const UpdateManager = () => {
             toast.success(no ? "Oppdatering fullført!" : "Update complete!");
             return;
           }
-
-          if (!cd?.updateAvailable && polls > 6) {
-            stopPoll();
-            setProgress(100);
-            setStep(no ? "Du har nyaste versjonen" : "You have the latest version");
-            appendLog(no ? "✅ Allereie oppdatert" : "✅ Already up to date", "success");
-            setUpdateInfo(cd as UpdateInfo);
-            setUiState("done");
-            toast.success(no ? "Oppdatert!" : "Updated!");
-            return;
-          }
         } catch { /* ignore poll errors */ }
 
         if (polls >= maxPolls) {
           stopPoll();
           setStep(no ? "Tidsavbrot — sjekk manuelt" : "Timeout — check manually");
-          appendLog(no ? "⚠️ Tidsavbrot. Klikk «Sjekk etter oppdatering» for å sjå status." : "⚠️ Timeout. Click 'Check for updates' to see status.", "warning");
+          appendLog(
+            no
+              ? "⚠️ Tidsavbrot (3 min). Er jelly-git-pull-tenesta køyrande? Prøv: sudo systemctl status jelly-git-pull"
+              : "⚠️ Timeout (3 min). Is jelly-git-pull service running? Try: sudo systemctl status jelly-git-pull",
+            "warning"
+          );
           setUiState("idle");
           toast.warning(no ? "Tidsavbrot" : "Timeout");
         }
