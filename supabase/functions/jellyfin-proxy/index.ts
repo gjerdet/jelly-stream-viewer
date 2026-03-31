@@ -35,6 +35,7 @@ const ALLOWED_ENDPOINT_PATTERNS = [
   /^\/Sessions\/Playing/i,
   /^\/Library\/VirtualFolders$/i,
   /^\/Library\/Refresh$/i,
+  /^\/System\/Info$/i,
 ];
 
 function validateEndpoint(endpoint: string): boolean {

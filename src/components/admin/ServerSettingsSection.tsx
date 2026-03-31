@@ -488,11 +488,9 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     try {
       // Route via edge-function proxy to avoid CORS/Mixed Content blocks
       const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
-        body: null,
-        headers: {
-          "x-jellyfin-url": newServerUrl.trim().replace(/\/$/, ""),
-          "x-jellyfin-path": "/System/Info",
-          "x-jellyfin-token": apiKey.trim(),
+        body: {
+          endpoint: "/System/Info",
+          method: "GET",
         },
       });
 
@@ -688,9 +686,9 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         setConnectionStatus(null);
         try {
           const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
-            body: { action: "test-connection", serverUrl: newServerUrl.trim(), apiKey: apiKey.trim() },
+            body: { endpoint: "/System/Info", method: "GET" },
           });
-          if (!error && data?.success) setConnectionStatus(`✅ Tilkoblet!`);
+          if (!error && data) setConnectionStatus(`✅ Tilkoblet! ${data?.ServerName || ''}`);
           else setConnectionStatus(`❌ Feil`);
         } catch { setConnectionStatus(`❌ Feil`); } finally { setTestingConnection(false); }
       }
