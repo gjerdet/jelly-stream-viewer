@@ -568,35 +568,20 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
       await updateRadarrUrl.mutateAsync(radarrUrl.trim());
       await updateRadarrApiKey.mutateAsync(radarrApiKey.trim());
       
-      const baseUrl = radarrUrl.trim().replace(/\/$/, '');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch(`${baseUrl}/api/v3/system/status`, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': radarrApiKey.trim(),
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal
+      const { data, error } = await supabase.functions.invoke('radarr-proxy', {
+        body: { action: 'health' },
       });
-      
-      clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        setRadarrStatus(`❌ Feil: HTTP ${response.status}`);
+      if (error || !data) {
+        setRadarrStatus(`❌ Feil: ${error?.message || 'Ingen data'}`);
         return;
       }
 
-      const data = await response.json();
-      setRadarrStatus(`✅ Tilkoblet! Radarr v${data.version || 'ukjent'}`);
+      // health endpoint returns an array
+      setRadarrStatus(`✅ Tilkoblet! Radarr`);
       toast.success("Radarr-tilkobling OK!");
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setRadarrStatus("❌ Timeout: Radarr svarer ikke");
-      } else {
-        setRadarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
-      }
+      setRadarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
     } finally {
       setTestingRadarr(false);
     }
