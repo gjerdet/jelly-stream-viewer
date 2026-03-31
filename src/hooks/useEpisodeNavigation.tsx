@@ -35,7 +35,7 @@ export const useEpisodeNavigation = (
   const [countdown, setCountdown] = useState<number | null>(null);
   const [nextEpisodeDismissed, setNextEpisodeDismissed] = useState(false);
   
-  const countdownInterval = useRef<NodeJS.Timeout>();
+  const countdownInterval = useRef<ReturnType<typeof setInterval>>();
 
   const getNextEpisode = useCallback(() => {
     if (episodes.length === 0 || !currentEpisodeId) return null;

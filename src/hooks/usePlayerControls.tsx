@@ -30,9 +30,9 @@ export const usePlayerControls = (
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [doubleTapSide, setDoubleTapSide] = useState<'left' | 'right' | null>(null);
   
-  const hideControlsTimer = useRef<NodeJS.Timeout>();
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout>>();
   const lastTapRef = useRef<{ time: number; x: number } | null>(null);
-  const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMouseMove = useCallback(() => {
     setShowControls(true);

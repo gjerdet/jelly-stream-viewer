@@ -185,8 +185,8 @@ const Player = () => {
     { value: '360p', label: '360p (1 Mbps)', bitrate: 1000000 },
   ];
   
-  const hideControlsTimer = useRef<NodeJS.Timeout>();
-  const countdownInterval = useRef<NodeJS.Timeout>();
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout>>();
+  const countdownInterval = useRef<ReturnType<typeof setInterval>>();
 
   // Keep a stable reference to the fullscreen container and also expose it for Sheet portals.
   // (Important: the player initially renders a loading view, so we can't rely on a mount-only effect.)

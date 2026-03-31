@@ -62,7 +62,7 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
   const [updateWebhookUrl, setUpdateWebhookUrl] = useState("");
   const [updateWebhookSecret, setUpdateWebhookSecret] = useState("");
 
-  const jellyseerrDebounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const jellyseerrDebounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch API key
   const { data: currentApiKey } = useQuery({
