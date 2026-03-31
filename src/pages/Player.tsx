@@ -70,7 +70,7 @@ const Player = () => {
   const resumeAfterStreamSwapRef = useRef<boolean>(true);
   // Track if we've reported playback to Jellyfin (for active sessions)
   const playbackReportedRef = useRef<boolean>(false);
-  const playbackReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playbackReportIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
