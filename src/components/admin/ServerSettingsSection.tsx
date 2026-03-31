@@ -600,35 +600,19 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
       await updateSonarrUrl.mutateAsync(sonarrUrl.trim());
       await updateSonarrApiKey.mutateAsync(sonarrApiKey.trim());
       
-      const baseUrl = sonarrUrl.trim().replace(/\/$/, '');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch(`${baseUrl}/api/v3/system/status`, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': sonarrApiKey.trim(),
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal
+      const { data, error } = await supabase.functions.invoke('sonarr-proxy', {
+        body: { action: 'health' },
       });
-      
-      clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        setSonarrStatus(`❌ Feil: HTTP ${response.status}`);
+      if (error || !data) {
+        setSonarrStatus(`❌ Feil: ${error?.message || 'Ingen data'}`);
         return;
       }
 
-      const data = await response.json();
-      setSonarrStatus(`✅ Tilkoblet! Sonarr v${data.version || 'ukjent'}`);
+      setSonarrStatus(`✅ Tilkoblet! Sonarr`);
       toast.success("Sonarr-tilkobling OK!");
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setSonarrStatus("❌ Timeout: Sonarr svarer ikke");
-      } else {
-        setSonarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
-      }
+      setSonarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
     } finally {
       setTestingSonarr(false);
     }
