@@ -147,7 +147,7 @@ const Player = () => {
   // We refresh at ~120s to ensure seamless playback (only for proxy streaming)
   const STREAM_REFRESH_INTERVAL = 120; // seconds before proactive refresh
   const streamStartTimeRef = useRef<number>(Date.now());
-  const proactiveRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const proactiveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSeekingViaReloadRef = useRef(false);
   const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
