@@ -54,29 +54,24 @@ export const useHealthCheck = (autoCheck: boolean = true, interval: number = 600
         };
       }
 
-      let normalizedUrl = serverUrl;
-      if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
-        normalizedUrl = `http://${normalizedUrl}`;
-      }
-
-      const response = await fetch(`${normalizedUrl.replace(/\/$/, '')}/System/Info`, {
-        headers: { "X-Emby-Token": apiKey },
-        signal: AbortSignal.timeout(5000),
+      // Route through edge function proxy to avoid Mixed Content / PNA blocks
+      const { data: proxyData, error: proxyError } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: { endpoint: '/System/Info', method: 'GET' },
       });
 
       const responseTime = Date.now() - startTime;
 
-      if (!response.ok) {
+      if (proxyError || !proxyData?.ServerName) {
         return { 
           name: "Jellyfin", 
           status: "down", 
-          message: `HTTP ${response.status}`, 
+          message: proxyError?.message || 'Kunne ikke koble til', 
           lastChecked: new Date(),
           responseTime 
         };
       }
 
-      const systemInfo = await response.json();
+      const systemInfo = proxyData;
       return { 
         name: "Jellyfin", 
         status: "healthy", 

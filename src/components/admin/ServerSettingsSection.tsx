@@ -540,10 +540,10 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
   const handleRefreshConfig = async () => {
     toast.info("Henter konfigurasjon...");
     try {
-      const response = await fetch(`${newServerUrl.trim().replace(/\/$/, '')}/System/Info`, {
-        headers: { "X-Emby-Token": apiKey.trim() },
+      const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
+        body: { endpoint: "/System/Info", method: "GET" },
       });
-      if (response.ok) {
+      if (!error && data?.ServerName) {
         toast.success("Konfigurasjon hentet!");
       } else {
         toast.error("Kunne ikke hente konfigurasjon");
