@@ -688,7 +688,7 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
           const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
             body: { endpoint: "/System/Info", method: "GET" },
           });
-          if (!error && data?.success) setConnectionStatus(`✅ Tilkoblet!`);
+          if (!error && data) setConnectionStatus(`✅ Tilkoblet! ${data?.ServerName || ''}`);
           else setConnectionStatus(`❌ Feil`);
         } catch { setConnectionStatus(`❌ Feil`); } finally { setTestingConnection(false); }
       }
