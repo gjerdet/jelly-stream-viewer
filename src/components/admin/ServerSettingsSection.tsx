@@ -631,35 +631,19 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
       await updateBazarrUrl.mutateAsync(bazarrUrl.trim());
       await updateBazarrApiKey.mutateAsync(bazarrApiKey.trim());
       
-      const baseUrl = bazarrUrl.trim().replace(/\/$/, '');
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const response = await fetch(`${baseUrl}/api/system/status`, {
-        method: 'GET',
-        headers: {
-          'X-API-KEY': bazarrApiKey.trim(),
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal
+      const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+        body: { action: 'status' },
       });
-      
-      clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        setBazarrStatus(`❌ Feil: HTTP ${response.status}`);
+      if (error || !data) {
+        setBazarrStatus(`❌ Feil: ${error?.message || 'Ingen data'}`);
         return;
       }
 
-      const data = await response.json();
-      setBazarrStatus(`✅ Tilkoblet! Bazarr v${data.data?.bazarr_version || 'ukjent'}`);
+      setBazarrStatus(`✅ Tilkoblet! Bazarr`);
       toast.success("Bazarr-tilkobling OK!");
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        setBazarrStatus("❌ Timeout: Bazarr svarer ikke");
-      } else {
-        setBazarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
-      }
+      setBazarrStatus(`❌ Feil: ${error instanceof Error ? error.message : 'Ukjent feil'}`);
     } finally {
       setTestingBazarr(false);
     }
