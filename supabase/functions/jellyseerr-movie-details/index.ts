@@ -12,108 +12,57 @@ serve(async (req) => {
   }
 
   try {
-    const { movieId } = await req.json();
-    
-    if (!movieId) {
-      return new Response(
-        JSON.stringify({ error: 'Movie ID er påkrevd' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const authClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(authHeader.replace('Bearer ', ''));
+    if (claimsError || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log('Fetching movie details for:', movieId);
+    const { movieId } = await req.json();
+    if (!movieId) {
+      return new Response(JSON.stringify({ error: 'Movie ID er påkrevd' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Fetch Jellyseerr settings
-    const { data: urlData } = await supabase
-      .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'jellyseerr_url')
-      .maybeSingle();
-
-    const { data: apiKeyData } = await supabase
-      .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'jellyseerr_api_key')
-      .maybeSingle();
+    const { data: urlData } = await supabase.from('server_settings').select('setting_value').eq('setting_key', 'jellyseerr_url').maybeSingle();
+    const { data: apiKeyData } = await supabase.from('server_settings').select('setting_value').eq('setting_key', 'jellyseerr_api_key').maybeSingle();
 
     const rawUrl = urlData?.setting_value;
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
     if (!rawUrl || !jellyseerrApiKey) {
-      console.error('Missing Jellyseerr configuration');
-      return new Response(
-        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
-        { 
-          status: 503, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const jellyseerrUrl = rawUrl.replace(/\/$/, '');
     const movieDetailsUrl = `${jellyseerrUrl}/api/v1/movie/${movieId}?language=no`;
-    
-    console.log('Fetching from Jellyseerr:', movieDetailsUrl);
 
     let response;
     try {
-      response = await fetch(movieDetailsUrl, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': jellyseerrApiKey,
-          'Content-Type': 'application/json',
-        },
-      });
+      response = await fetch(movieDetailsUrl, { method: 'GET', headers: { 'X-Api-Key': jellyseerrApiKey, 'Content-Type': 'application/json' } });
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
-      return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Jellyseerr error:', response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
-        { 
-          status: response.status, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }), { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const data = await response.json();
-    console.log('Movie details fetched:', data.title);
-
-    return new Response(
-      JSON.stringify(data),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
+    return new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('Error in jellyseerr-movie-details:', error);
-    return new Response(
-      JSON.stringify({ error: 'Det oppsto en feil' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return new Response(JSON.stringify({ error: 'Det oppsto en feil' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

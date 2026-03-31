@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -283,13 +284,17 @@ const News = () => {
                           <p 
                             className="whitespace-pre-wrap"
                             dangerouslySetInnerHTML={{
-                              __html: post.content
-                                // Convert **text** to bold
-                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                                // Convert *text* to italic
-                                .replace(/\*(.+?)\*/g, '<em>$1</em>')
-                                // Convert [text](url) to links
-                                .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">$1</a>')
+                              __html: DOMPurify.sanitize(
+                                post.content
+                                  .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                  .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                                  .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">$1</a>'),
+                                {
+                                  ALLOWED_TAGS: ['strong', 'em', 'a', 'br', 'p', 'span'],
+                                  ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+                                  ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):)/i,
+                                }
+                              )
                             }}
                           />
                         </div>
