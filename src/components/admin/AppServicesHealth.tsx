@@ -76,7 +76,6 @@ export const AppServicesHealth = () => {
         .in("setting_key", ["jellyfin_server_url", "jellyfin_api_key"]);
 
       const serverUrl = settings?.find((s) => s.setting_key === "jellyfin_server_url")?.setting_value;
-      const apiKey = settings?.find((s) => s.setting_key === "jellyfin_api_key")?.setting_value;
 
       if (!serverUrl) {
         updateService("Jellyfin", {
@@ -87,24 +86,23 @@ export const AppServicesHealth = () => {
         return;
       }
 
-      const response = await fetch(`${serverUrl}/System/Info`, {
-        headers: { "X-Emby-Token": apiKey || "" },
-        signal: AbortSignal.timeout(10000),
+      // Route through edge function proxy to avoid Mixed Content / PNA blocks
+      const { data: proxyData, error: proxyError } = await supabase.functions.invoke('jellyfin-proxy', {
+        body: { endpoint: '/System/Info', method: 'GET' },
       });
 
       const responseTime = Math.round(performance.now() - start);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (proxyError || !proxyData?.ServerName) {
         updateService("Jellyfin", {
-          status: "ok",
-          message: `v${data.Version}`,
+          status: "error",
+          message: proxyError?.message || "Kunne ikke koble til",
           responseTime,
         });
       } else {
         updateService("Jellyfin", {
-          status: "error",
-          message: `HTTP ${response.status}`,
+          status: "ok",
+          message: `v${proxyData.Version}`,
           responseTime,
         });
       }
