@@ -223,7 +223,7 @@ export const ActiveStreamsDashboard = () => {
   useEffect(() => {
     fetchSessions();
 
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     if (autoRefresh) {
       interval = setInterval(fetchSessions, 10000); // Refresh every 10 seconds
     }

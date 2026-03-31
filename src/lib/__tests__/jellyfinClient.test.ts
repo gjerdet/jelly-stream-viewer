@@ -15,7 +15,7 @@ describe('jellyfinClient', () => {
         User: { Id: 'user-1', Name: 'Test User' },
       };
 
-      global.fetch = vi.fn().mockResolvedValue({
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => mockResponse,
       });
@@ -27,7 +27,7 @@ describe('jellyfinClient', () => {
       );
 
       expect(result).toEqual(mockResponse);
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(globalThis.fetch).toHaveBeenCalledWith(
         'http://localhost:8096/Users/AuthenticateByName',
         expect.objectContaining({
           method: 'POST',
@@ -39,7 +39,7 @@ describe('jellyfinClient', () => {
     });
 
     it('should throw error with invalid credentials', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
       });
@@ -61,7 +61,7 @@ describe('jellyfinClient', () => {
         JSON.stringify({ AccessToken: 'test-token' })
       );
 
-      global.fetch = vi.fn().mockResolvedValue({
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => mockSubtitles,
       });
@@ -85,7 +85,7 @@ describe('jellyfinClient', () => {
         JSON.stringify({ AccessToken: 'test-token' })
       );
 
-      global.fetch = vi.fn().mockResolvedValue({
+      (globalThis as any).fetch = vi.fn().mockResolvedValue({
         ok: true,
         json: async () => ({}),
       });

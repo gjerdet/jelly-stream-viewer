@@ -70,7 +70,7 @@ const Player = () => {
   const resumeAfterStreamSwapRef = useRef<boolean>(true);
   // Track if we've reported playback to Jellyfin (for active sessions)
   const playbackReportedRef = useRef<boolean>(false);
-  const playbackReportIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const playbackReportIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [watchHistoryId, setWatchHistoryId] = useState<string | null>(null);
   const [showNextEpisodePreview, setShowNextEpisodePreview] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -98,7 +98,7 @@ const Player = () => {
   // Double-tap to seek state
   const [doubleTapSide, setDoubleTapSide] = useState<'left' | 'right' | null>(null);
   const lastTapRef = useRef<{ time: number; x: number } | null>(null);
-  const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
@@ -147,7 +147,7 @@ const Player = () => {
   // We refresh at ~120s to ensure seamless playback (only for proxy streaming)
   const STREAM_REFRESH_INTERVAL = 120; // seconds before proactive refresh
   const streamStartTimeRef = useRef<number>(Date.now());
-  const proactiveRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const proactiveRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSeekingViaReloadRef = useRef(false);
   const [fallbackBitrate, setFallbackBitrate] = useState<number | null>(null);
   
@@ -185,8 +185,8 @@ const Player = () => {
     { value: '360p', label: '360p (1 Mbps)', bitrate: 1000000 },
   ];
   
-  const hideControlsTimer = useRef<NodeJS.Timeout>();
-  const countdownInterval = useRef<NodeJS.Timeout>();
+  const hideControlsTimer = useRef<ReturnType<typeof setTimeout>>();
+  const countdownInterval = useRef<ReturnType<typeof setInterval>>();
 
   // Keep a stable reference to the fullscreen container and also expose it for Sheet portals.
   // (Important: the player initially renders a loading view, so we can't rely on a mount-only effect.)
