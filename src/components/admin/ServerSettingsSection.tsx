@@ -699,12 +699,11 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         setTestingJellyseerr(true);
         setJellyseerrStatus(null);
         try {
-          const r = await fetch(`${jellyseerrUrl.trim().replace(/\/$/, '')}/api/v1/auth/me`, {
-            headers: { 'X-Api-Key': jellyseerrApiKey.trim() },
-            signal: AbortSignal.timeout(10000)
+          const { data, error } = await supabase.functions.invoke('jellyseerr-test', {
+            body: { url: jellyseerrUrl.trim(), apiKey: jellyseerrApiKey.trim() },
           });
-          if (r.ok) setJellyseerrStatus(`✅ Tilkoblet!`);
-          else setJellyseerrStatus(`❌ HTTP ${r.status}`);
+          if (!error && data?.success) setJellyseerrStatus(`✅ Tilkoblet! v${data.data?.version || 'ukjent'}`);
+          else setJellyseerrStatus(`❌ ${data?.message || error?.message || 'Feil'}`);
         } catch { setJellyseerrStatus(`❌ Feil`); } finally { setTestingJellyseerr(false); }
       }
       // Test Radarr
@@ -712,12 +711,11 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         setTestingRadarr(true);
         setRadarrStatus(null);
         try {
-          const r = await fetch(`${radarrUrl.trim().replace(/\/$/, '')}/api/v3/system/status`, {
-            headers: { 'X-Api-Key': radarrApiKey.trim() },
-            signal: AbortSignal.timeout(10000)
+          const { data, error } = await supabase.functions.invoke('radarr-proxy', {
+            body: { action: 'health' },
           });
-          if (r.ok) { const d = await r.json(); setRadarrStatus(`✅ Radarr v${d.version || 'ukjent'}`); }
-          else setRadarrStatus(`❌ HTTP ${r.status}`);
+          if (!error && data) setRadarrStatus(`✅ Tilkoblet!`);
+          else setRadarrStatus(`❌ ${error?.message || 'Feil'}`);
         } catch { setRadarrStatus(`❌ Feil`); } finally { setTestingRadarr(false); }
       }
       // Test Sonarr
@@ -725,12 +723,11 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         setTestingSonarr(true);
         setSonarrStatus(null);
         try {
-          const r = await fetch(`${sonarrUrl.trim().replace(/\/$/, '')}/api/v3/system/status`, {
-            headers: { 'X-Api-Key': sonarrApiKey.trim() },
-            signal: AbortSignal.timeout(10000)
+          const { data, error } = await supabase.functions.invoke('sonarr-proxy', {
+            body: { action: 'health' },
           });
-          if (r.ok) { const d = await r.json(); setSonarrStatus(`✅ Sonarr v${d.version || 'ukjent'}`); }
-          else setSonarrStatus(`❌ HTTP ${r.status}`);
+          if (!error && data) setSonarrStatus(`✅ Tilkoblet!`);
+          else setSonarrStatus(`❌ ${error?.message || 'Feil'}`);
         } catch { setSonarrStatus(`❌ Feil`); } finally { setTestingSonarr(false); }
       }
       // Test Bazarr
@@ -738,12 +735,11 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
         setTestingBazarr(true);
         setBazarrStatus(null);
         try {
-          const r = await fetch(`${bazarrUrl.trim().replace(/\/$/, '')}/api/system/status`, {
-            headers: { 'X-API-KEY': bazarrApiKey.trim() },
-            signal: AbortSignal.timeout(10000)
+          const { data, error } = await supabase.functions.invoke('bazarr-proxy', {
+            body: { action: 'status' },
           });
-          if (r.ok) setBazarrStatus(`✅ Tilkoblet!`);
-          else setBazarrStatus(`❌ HTTP ${r.status}`);
+          if (!error && data) setBazarrStatus(`✅ Tilkoblet!`);
+          else setBazarrStatus(`❌ ${error?.message || 'Feil'}`);
         } catch { setBazarrStatus(`❌ Feil`); } finally { setTestingBazarr(false); }
       }
       // Test Transcode
