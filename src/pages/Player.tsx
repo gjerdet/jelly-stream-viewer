@@ -98,7 +98,7 @@ const Player = () => {
   // Double-tap to seek state
   const [doubleTapSide, setDoubleTapSide] = useState<'left' | 'right' | null>(null);
   const lastTapRef = useRef<{ time: number; x: number } | null>(null);
-  const doubleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const doubleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Segment skip state (intro/credits)
   const [mediaSegments, setMediaSegments] = useState<MediaSegment[]>([]);
