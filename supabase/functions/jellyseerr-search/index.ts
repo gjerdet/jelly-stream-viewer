@@ -12,108 +12,57 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const authClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: claimsData, error: claimsError } = await authClient.auth.getClaims(authHeader.replace('Bearer ', ''));
+    if (claimsError || !claimsData?.claims) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     const { query, page = 1 } = await req.json();
     
     if (!query || query.trim().length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'Søkeord er påkrevd' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Søkeord er påkrevd' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    console.log('Search query:', query);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: urlData } = await supabase.from('server_settings').select('setting_value').eq('setting_key', 'jellyseerr_url').maybeSingle();
+    const { data: apiKeyData } = await supabase.from('server_settings').select('setting_value').eq('setting_key', 'jellyseerr_api_key').maybeSingle();
 
-    // Fetch Jellyseerr settings
-    const { data: urlData } = await supabase
-      .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'jellyseerr_url')
-      .maybeSingle();
-
-    const { data: apiKeyData } = await supabase
-      .from('server_settings')
-      .select('setting_value')
-      .eq('setting_key', 'jellyseerr_api_key')
-      .maybeSingle();
-
-    // Keep user's protocol choice (HTTP or HTTPS)
-    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, ''); // Remove trailing slash
+    const jellyseerrUrl = urlData?.setting_value?.replace(/\/$/, '');
     const jellyseerrApiKey = apiKeyData?.setting_value;
 
     if (!jellyseerrUrl || !jellyseerrApiKey) {
-      console.error('Missing Jellyseerr configuration');
-      return new Response(
-        JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }),
-        { 
-          status: 503, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Tjenesten er midlertidig utilgjengelig' }), { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Search via Jellyseerr API
     const searchUrl = `${jellyseerrUrl}/api/v1/search?query=${encodeURIComponent(query)}&page=${page}&language=no`;
-    console.log('Searching Jellyseerr:', searchUrl, 'page:', page);
 
     let response;
     try {
-      response = await fetch(searchUrl, {
-        method: 'GET',
-        headers: {
-          'X-Api-Key': jellyseerrApiKey,
-          'Content-Type': 'application/json',
-        },
-      });
+      response = await fetch(searchUrl, { method: 'GET', headers: { 'X-Api-Key': jellyseerrApiKey, 'Content-Type': 'application/json' } });
     } catch (fetchError) {
       console.error('Fetch error:', fetchError);
-      return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Jellyseerr search error:', response.status, errorText);
-      return new Response(
-        JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }),
-        { 
-          status: response.status, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      return new Response(JSON.stringify({ error: 'Kunne ikke fullføre forespørselen' }), { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     const data = await response.json();
-    console.log('Search results count:', data.results?.length || 0);
-
-    return new Response(
-      JSON.stringify(data),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
+    return new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('Error in jellyseerr-search:', error);
-    return new Response(
-      JSON.stringify({ error: 'Det oppsto en feil' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return new Response(JSON.stringify({ error: 'Det oppsto en feil' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
