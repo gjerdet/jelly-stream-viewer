@@ -104,7 +104,7 @@ export const UserPermissionsDialog = ({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 max-h-[60vh] pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <div className="space-y-2">
             {/* Show user roles */}
             <div className="flex items-center gap-2 mb-4 p-3 bg-secondary/30 rounded-lg">
