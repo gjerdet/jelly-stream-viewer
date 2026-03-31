@@ -488,11 +488,9 @@ export const ServerSettingsSection = ({ userRole }: ServerSettingsSectionProps) 
     try {
       // Route via edge-function proxy to avoid CORS/Mixed Content blocks
       const { data, error } = await supabase.functions.invoke("jellyfin-proxy", {
-        body: null,
-        headers: {
-          "x-jellyfin-url": newServerUrl.trim().replace(/\/$/, ""),
-          "x-jellyfin-path": "/System/Info",
-          "x-jellyfin-token": apiKey.trim(),
+        body: {
+          endpoint: "/System/Info",
+          method: "GET",
         },
       });
 
